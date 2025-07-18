@@ -7,8 +7,7 @@
 ```
 line-reservation/
 ├── backend/        # Laravel API 後端
-├── frontend/       # Vue.js 前端管理介面
-└── planning/       # 專案規劃文件
+└── frontend/       # Vue.js 前端管理介面
 ```
 
 ## 功能特色
