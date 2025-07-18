@@ -9,6 +9,14 @@ class Reservation extends Model
 {
     use HasFactory;
 
+    /**
+     * 可批量賦值的屬性
+     * 
+     * 注意：
+     * - reservation_date: 預約日期 (DATE 類型，格式: Y-m-d)
+     * - reservation_time: 預約時間 (TIME 類型，格式: H:i:s)
+     * - 請使用 getReservationDateTime() 方法獲取完整的預約日期時間
+     */
     protected $fillable = [
         'user_id',
         'customer_id', // 新增客戶關聯
@@ -27,6 +35,26 @@ class Reservation extends Model
         'confirmed_at' => 'datetime',
         'cancelled_at' => 'datetime'
     ];
+
+    /**
+     * 獲取完整的預約日期時間
+     * 
+     * @return \Carbon\Carbon
+     */
+    public function getReservationDateTime()
+    {
+        $reservationDate = $this->reservation_date;
+        $reservationTime = $this->reservation_time;
+        
+        // 確保正確處理日期格式
+        if ($reservationDate instanceof \Carbon\Carbon) {
+            $dateStr = $reservationDate->format('Y-m-d');
+        } else {
+            $dateStr = $reservationDate;
+        }
+        
+        return \Carbon\Carbon::parse($dateStr . ' ' . $reservationTime);
+    }
 
     public function user()
     {

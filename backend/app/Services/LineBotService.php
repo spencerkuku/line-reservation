@@ -490,13 +490,9 @@ class LineBotService
             $service = $reservation->service;
             $availableTime = $reservation->availableTime;
             
-            // 修復日期時間解析問題
-            if ($availableTime && $availableTime->start_time) {
-                $dateTime = Carbon::parse($availableTime->start_time);
-            } else {
-                // 使用原始資料庫值來避免 cast 問題
-                $dateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
-            }
+            // 總是使用實際的預約時間，而不是 available_time 的時間
+            // 使用模型的輔助方法獲取完整的預約日期時間
+            $dateTime = $reservation->getReservationDateTime();
             
             $statusText = $reservation->status === 'confirmed' ? '已確認' : '待確認';
             $statusColor = $reservation->status === 'confirmed' ? '#27AE60' : '#F39C12';
@@ -3778,8 +3774,8 @@ class LineBotService
             }
 
             // 檢查預約是否可以編輯（例如：預約時間至少在24小時後）
-            // 由於 reservation_time 實際存儲的是完整的 datetime，我們從原始屬性獲取
-            $reservationDateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
+            // 使用模型的輔助方法獲取完整的預約日期時間
+            $reservationDateTime = $reservation->getReservationDateTime();
             if ($reservationDateTime->isBefore(now()->addHours(24))) {
                 $this->replyMessage($replyToken, [
                     'type' => 'flex',
@@ -3992,7 +3988,8 @@ class LineBotService
                 return;
             }
 
-            $reservationDateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
+            // 使用模型的輔助方法獲取完整的預約日期時間
+            $reservationDateTime = $reservation->getReservationDateTime();
 
             // 顯示取消確認
             $message = [
@@ -4172,7 +4169,8 @@ class LineBotService
             // 更新預約狀態為已取消
             $reservation->update(['status' => 'cancelled']);
 
-            $reservationDateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
+            // 使用模型的輔助方法獲取完整的預約日期時間
+            $reservationDateTime = $reservation->getReservationDateTime();
 
             // 使用 Flex Message 顯示取消成功訊息
             $message = [
@@ -4544,15 +4542,9 @@ class LineBotService
         
         // 檢查是否有時間重疊
         foreach ($existingReservations as $reservation) {
-            // 正確處理日期和時間的組合，避免重複的日期時間格式
+            // 使用模型的輔助方法獲取完整的預約日期時間
             try {
-                // 使用 getRawOriginal 來獲取資料庫中的原始值，避免 Carbon cast 的問題
-                $reservationDateStr = $reservation->getRawOriginal('reservation_date') ?: $reservation->reservation_date;
-                if ($reservationDateStr instanceof \Carbon\Carbon) {
-                    $reservationDateStr = $reservationDateStr->format('Y-m-d');
-                }
-                
-                $reservationStart = Carbon::parse($reservationDateStr . ' ' . $reservation->reservation_time);
+                $reservationStart = $reservation->getReservationDateTime();
                 $reservationEnd = $reservationStart->copy()->addMinutes($reservation->service->duration);
                 
                 // 檢查時間重疊：新時段開始 < 現有結束 AND 新時段結束 > 現有開始
@@ -4715,13 +4707,8 @@ class LineBotService
             // 檢查是否與現有預約重疊
             foreach ($existingReservations as $reservation) {
                 try {
-                    // 正確處理日期和時間的組合
-                    $reservationDateStr = $reservation->getRawOriginal('reservation_date') ?: $reservation->reservation_date;
-                    if ($reservationDateStr instanceof \Carbon\Carbon) {
-                        $reservationDateStr = $reservationDateStr->format('Y-m-d');
-                    }
-                    
-                    $reservationStart = Carbon::parse($reservationDateStr . ' ' . $reservation->reservation_time);
+                    // 使用模型的輔助方法獲取完整的預約日期時間
+                    $reservationStart = $reservation->getReservationDateTime();
                     $reservationEnd = $reservationStart->copy()->addMinutes($reservation->service->duration);
                     
                     // 檢查時間重疊：新時段開始 < 現有結束 AND 新時段結束 > 現有開始
@@ -4783,13 +4770,8 @@ class LineBotService
         
         foreach ($existingReservations as $reservation) {
             try {
-                // 正確處理日期和時間的組合
-                $reservationDateStr = $reservation->getRawOriginal('reservation_date') ?: $reservation->reservation_date;
-                if ($reservationDateStr instanceof \Carbon\Carbon) {
-                    $reservationDateStr = $reservationDateStr->format('Y-m-d');
-                }
-                
-                $reservationStart = Carbon::parse($reservationDateStr . ' ' . $reservation->reservation_time);
+                // 使用模型的輔助方法獲取完整的預約日期時間
+                $reservationStart = $reservation->getReservationDateTime();
                 $reservationEnd = $reservationStart->copy()->addMinutes($reservation->service->duration);
                 
                 // 檢查時間重疊
@@ -5532,7 +5514,8 @@ class LineBotService
             }
 
             // 檢查新服務是否可以在當前時間段預約
-            $reservationDateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
+            // 使用模型的輔助方法獲取完整的預約日期時間
+            $reservationDateTime = $reservation->getReservationDateTime();
             $baseTimeSlot = $reservation->availableTime;
             
             // 檢查新服務時長是否適合當前時段
