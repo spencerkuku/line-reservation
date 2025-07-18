@@ -1042,7 +1042,7 @@ class LineBotService
             $timeButtons[] = [
                 'type' => 'button',
                 'height' => 'sm',
-                'color' => '#27AE60',
+                'color' => '#3498DB',
                 'action' => [
                     'type' => 'postback',
                     'label' => $time->display_time,
@@ -1099,7 +1099,7 @@ class LineBotService
                             'margin' => 'xs'
                         ]
                     ],
-                    'backgroundColor' => '#2ECC71',
+                    'backgroundColor' => '#3498DB',
                     'paddingAll' => 'lg'
                 ],
                 'body' => [
