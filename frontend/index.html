@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-TW" class="h-full bg-gray-200">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="LINE預約系統">
+    <meta name="keywords" content="預約系統,LINE,線上預約">
+    <meta name="author" content="Your Company">
+    
+    <!-- 安全標頭 -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
+    <!-- 防止點擊劫持 -->
+    <style>
+        html { display: none; }
+    </style>
+    <script>
+        if (self === top) {
+            document.documentElement.style.display = 'block';
+        } else {
+            top.location = self.location;
+        }
+    </script>
+    
+    <title>LINE 預約系統</title>
+  </head>
+  <body class="h-full">
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
