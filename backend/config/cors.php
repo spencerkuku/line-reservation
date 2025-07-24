@@ -53,6 +53,7 @@ return [
         'Content-Type',
         'X-Requested-With',
         'X-CSRF-TOKEN',
+        'X-XSRF-TOKEN',
         'X-Forwarded-For',
         'X-Forwarded-Proto',
         'X-Forwarded-Port',

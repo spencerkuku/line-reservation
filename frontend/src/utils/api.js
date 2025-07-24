@@ -34,6 +34,42 @@ function isValidToken(token) {
     return typeof token === 'string' && token.length >= 10 && token.length <= 100;
 }
 
+// 獲取 CSRF Cookie（用於 Sanctum SPA 認證）
+async function getCsrfCookie() {
+    try {
+        const baseUrl = API_BASE_URL.replace('/api', '');
+        const response = await fetch(`${baseUrl}/sanctum/csrf-cookie`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            console.warn(`CSRF cookie request failed: ${response.status} ${response.statusText}`);
+        }
+        
+        return response.ok;
+    } catch (error) {
+        console.warn('無法獲取 CSRF cookie:', error);
+        return false;
+    }
+}
+
+// 從 Cookie 中獲取 CSRF Token
+function getCsrfTokenFromCookie() {
+    const name = 'XSRF-TOKEN';
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        const token = parts.pop().split(';').shift();
+        return decodeURIComponent(token);
+    }
+    return null;
+}
+
 // 統一的 HTTP 請求函數
 async function apiRequest(url, options = {}) {
     const token = localStorage.getItem('token')
@@ -50,14 +86,26 @@ async function apiRequest(url, options = {}) {
         throw new Error('Invalid token format');
     }
     
+    // 對於認證相關的請求，先獲取 CSRF cookie
+    if (url.startsWith('/auth/') && (options.method === 'POST' || !options.method)) {
+        const csrfSuccess = await getCsrfCookie();
+        if (!csrfSuccess) {
+            console.warn('無法獲取 CSRF cookie，可能影響認證請求');
+        }
+    }
+    
+    // 獲取 CSRF token
+    const csrfToken = getCsrfTokenFromCookie();
+    
     // 預設設定
     const defaultOptions = {
-        credentials: 'include', // 支援cookies
+        credentials: 'include', // 支援cookies和CSRF
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest', // 防CSRF
-            ...(token && { 'Authorization': `Bearer ${token}` })
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken })
         }
     }
     
@@ -172,11 +220,20 @@ export async function apiDelete(url) {
 export async function apiUpload(url, formData, method = 'POST') {
     const token = localStorage.getItem('token')
     
+    // 先獲取 CSRF cookie
+    await getCsrfCookie();
+    
+    // 獲取 CSRF token
+    const csrfToken = getCsrfTokenFromCookie();
+    
     const response = await fetch(`${API_BASE_URL}${url}`, {
         method: method,
+        credentials: 'include', // 支援cookies和CSRF
         headers: {
             'Accept': 'application/json',
-            ...(token && { 'Authorization': `Bearer ${token}` })
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken })
             // 不設定 Content-Type，讓瀏覽器自動設定 multipart/form-data
         },
         body: formData
@@ -225,4 +282,4 @@ export async function validateToken() {
     }
 }
 
-export { API_BASE_URL }
+export { API_BASE_URL, getCsrfCookie, getCsrfTokenFromCookie }

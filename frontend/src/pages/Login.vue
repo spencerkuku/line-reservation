@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiPost } from '../utils/api.js'
+import { apiPost, getCsrfCookie } from '../utils/api.js'
 import GuestLayout from '../components/GuestLayout.vue'
 
 const router = useRouter()
@@ -20,6 +20,16 @@ async function handleLogin() {
   error.value = ''
 
   try {
+    // 先確保獲取 CSRF cookie
+    console.log('正在獲取 CSRF cookie...')
+    const csrfSuccess = await getCsrfCookie()
+    console.log('CSRF cookie 獲取結果:', csrfSuccess)
+    
+    // 檢查是否有 CSRF token
+    const csrfToken = document.cookie.includes('XSRF-TOKEN')
+    console.log('CSRF token 是否存在:', csrfToken)
+    
+    console.log('正在嘗試登入...')
     const data = await apiPost('/auth/login', {
       email: username.value.trim(),
       password: password.value.trim()
