@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
+        'avatar',
     ];
 
     /**
@@ -48,4 +49,22 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Get the user's avatar URL
+     */
+    public function getImageUrlAttribute()
+    {
+        if ($this->avatar) {
+            return asset('storage/' . $this->avatar);
+        }
+        
+        // 預設頭像
+        return 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
+    }
+
+    /**
+     * Append imageUrl to array
+     */
+    protected $appends = ['imageUrl'];
 }

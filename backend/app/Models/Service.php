@@ -41,7 +41,15 @@ class Service extends Model
                 $path = 'storage/' . $path;
             }
             
-            return url($path);
+            // 使用 asset() 而不是 url() 來確保產生正確的 URL
+            $baseUrl = config('app.url');
+            
+            // 如果是本地開發環境且使用 ngrok，確保 HTTPS
+            if (str_contains($baseUrl, 'ngrok')) {
+                $baseUrl = str_replace('http://', 'https://', $baseUrl);
+            }
+            
+            return rtrim($baseUrl, '/') . '/' . $path;
         }
         return null;
     }

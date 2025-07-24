@@ -278,13 +278,22 @@
                   <div class="flex-shrink-0 h-12 w-12">
                     <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                       <span class="text-sm font-semibold text-white">
-                        {{ customer.name.charAt(0).toUpperCase() }}
+                        {{ (customer.line_display_name || customer.name).charAt(0).toUpperCase() }}
                       </span>
                     </div>
                   </div>
                   <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">{{ customer.name }}</div>
-                    <div class="text-sm text-gray-500">ID: {{ customer.id }}</div>
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ customer.line_display_name || customer.name }}
+                      <span v-if="customer.line_display_name && customer.line_display_name !== customer.name" 
+                            class="ml-2 text-xs text-gray-500">({{ customer.name }})</span>
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      <span>ID: {{ customer.id }}</span>
+                      <span v-if="customer.line_user_id" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        LINE
+                      </span>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -733,7 +742,7 @@ async function updateCustomer() {
 
 // 刪除客戶
 async function deleteCustomer(customer) {
-  if (!confirm(`確定要刪除客戶「${customer.name}」嗎？`)) return
+  if (!confirm(`確定要刪除客戶「${customer.line_display_name || customer.name}」嗎？`)) return
   
   try {
     await apiDelete(`/customers/${customer.id}`)

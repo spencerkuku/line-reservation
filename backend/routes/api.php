@@ -40,6 +40,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // 認證相關
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/user', [AuthController::class, 'user']);
+    
+    // 個人資料管理
+    Route::post('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/auth/password', [AuthController::class, 'updatePassword']);
 });
 
 // 需要管理員權限的路由（所有管理功能都只允許管理員使用）

@@ -13,12 +13,15 @@ class Customer extends Model
     protected $fillable = [
         'line_user_id',
         'name',
-        'phone',
+        'line_display_name', // LINE SDK 顯示名稱
+        'line_picture_url', // LINE SDK 頭像 URL
+        'line_status_message', // LINE SDK 狀態訊息
+        'phone', // 參考電話，實際預約電話存在 reservations 表
         'email',
         'gender',
         'birthday',
         'address',
-        'notes',
+        'notes', // 客戶總體備註，預約特定備註存在 reservations 表
         'status',
         'preferences',
         'last_interaction_at',

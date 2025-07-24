@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -19,7 +22,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || !Hash::check($request->password, $user->getAuthPassword())) {
             throw ValidationException::withMessages([
                 'email' => ['帳號或密碼錯誤'],
             ]);
@@ -62,5 +65,100 @@ class AuthController extends Controller
             'success' => true,
             'user' => $request->user()
         ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => '資料驗證失敗',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $updateData = [
+                'name' => $request->name,
+                'email' => $request->email,
+            ];
+
+            // 處理頭像上傳
+            if ($request->hasFile('avatar')) {
+                // 刪除舊頭像
+                if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+                    Storage::disk('public')->delete($user->avatar);
+                }
+
+                // 上傳新頭像
+                $avatarPath = $request->file('avatar')->store('avatars', 'public');
+                $updateData['avatar'] = $avatarPath;
+            }
+
+            $user->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => '個人資料更新成功',
+                'user' => $user->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '更新個人資料時發生錯誤：' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $user = $request->user();
+        
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required',
+            'new_password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => '資料驗證失敗',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // 驗證目前密碼
+        if (!Hash::check($request->current_password, $user->getAttributes()['password'])) {
+            return response()->json([
+                'success' => false,
+                'message' => '目前密碼不正確'
+            ], 422);
+        }
+
+        try {
+            $user->update([
+                'password' => Hash::make($request->new_password)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => '密碼更新成功'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '更新密碼時發生錯誤：' . $e->getMessage()
+            ], 500);
+        }
     }
 }

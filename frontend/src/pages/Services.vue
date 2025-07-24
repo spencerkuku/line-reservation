@@ -342,15 +342,19 @@ onMounted(() => {
             
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">預約時長</label>
-              <select
-                v-model="newSlotDuration"
-                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-              >
-                <option :value="30">30分鐘</option>
-                <option :value="60">1小時</option>
-                <option :value="90">1.5小時</option>
-                <option :value="120">2小時</option>
-              </select>
+              <div class="relative">
+                <input
+                  v-model="newSlotDuration"
+                  type="number"
+                  min="5"
+                  max="480"
+                  step="5"
+                  placeholder="30"
+                  class="w-full pr-12 px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                />
+                <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">分鐘</span>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">建議：5-480分鐘，5分鐘為一個單位</p>
             </div>
 
             <div>
@@ -451,15 +455,19 @@ onMounted(() => {
             
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">預約時長</label>
-              <select
-                v-model="newSlotDuration"
-                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-              >
-                <option :value="30">30分鐘</option>
-                <option :value="60">1小時</option>
-                <option :value="90">1.5小時</option>
-                <option :value="120">2小時</option>
-              </select>
+              <div class="relative">
+                <input
+                  v-model="newSlotDuration"
+                  type="number"
+                  min="5"
+                  max="480"
+                  step="5"
+                  placeholder="30"
+                  class="w-full pr-12 px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                />
+                <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">分鐘</span>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">建議：5-480分鐘，5分鐘為一個單位</p>
             </div>
 
             <div>

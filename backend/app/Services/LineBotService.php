@@ -699,78 +699,13 @@ class LineBotService
         foreach ($services as $service) {
             $priceText = $service->price ? "NT$ " . number_format((float)$service->price) : "免費";
             
-            $contents[] = [
+            // 建立服務卡片基本結構
+            $bubble = [
                 'type' => 'bubble',
                 'body' => [
                     'type' => 'box',
                     'layout' => 'vertical',
-                    'contents' => [
-                        [
-                            'type' => 'text',
-                            'text' => $service->name,
-                            'weight' => 'bold',
-                            'size' => 'lg'
-                        ],
-                        [
-                            'type' => 'text',
-                            'text' => $service->description,
-                            'size' => 'sm',
-                            'color' => '#666666',
-                            'wrap' => true
-                        ],
-                        [
-                            'type' => 'box',
-                            'layout' => 'vertical',
-                            'margin' => 'lg',
-                            'spacing' => 'sm',
-                            'contents' => [
-                                [
-                                    'type' => 'box',
-                                    'layout' => 'baseline',
-                                    'spacing' => 'sm',
-                                    'contents' => [
-                                        [
-                                            'type' => 'text',
-                                            'text' => '時間',
-                                            'color' => '#aaaaaa',
-                                            'size' => 'sm',
-                                            'flex' => 1
-                                        ],
-                                        [
-                                            'type' => 'text',
-                                            'text' => $service->duration . ' 分鐘',
-                                            'wrap' => true,
-                                            'color' => '#666666',
-                                            'size' => 'sm',
-                                            'flex' => 2
-                                        ]
-                                    ]
-                                ],
-                                [
-                                    'type' => 'box',
-                                    'layout' => 'baseline',
-                                    'spacing' => 'sm',
-                                    'contents' => [
-                                        [
-                                            'type' => 'text',
-                                            'text' => '價格',
-                                            'color' => '#aaaaaa',
-                                            'size' => 'sm',
-                                            'flex' => 1
-                                        ],
-                                        [
-                                            'type' => 'text',
-                                            'text' => $priceText,
-                                            'wrap' => true,
-                                            'color' => '#666666',
-                                            'size' => 'sm',
-                                            'flex' => 2
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
+                    'contents' => []
                 ],
                 'footer' => [
                     'type' => 'box',
@@ -790,6 +725,89 @@ class LineBotService
                     ]
                 ]
             ];
+
+            // 如果有圖片且 URL 有效，添加 hero 區塊
+            if ($service->full_image_url && $this->isValidImageUrl($service->full_image_url)) {
+                $bubble['hero'] = [
+                    'type' => 'image',
+                    'url' => $service->full_image_url,
+                    'size' => 'full',
+                    'aspectRatio' => '20:13',
+                    'aspectMode' => 'cover'
+                ];
+            }
+
+            // 添加服務資訊到 body
+            $bubble['body']['contents'] = [
+                [
+                    'type' => 'text',
+                    'text' => $service->name,
+                    'weight' => 'bold',
+                    'size' => 'lg'
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $service->description,
+                    'size' => 'sm',
+                    'color' => '#666666',
+                    'wrap' => true,
+                    'margin' => 'md'
+                ],
+                [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'margin' => 'lg',
+                    'spacing' => 'sm',
+                    'contents' => [
+                        [
+                            'type' => 'box',
+                            'layout' => 'baseline',
+                            'spacing' => 'sm',
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '時間',
+                                    'color' => '#aaaaaa',
+                                    'size' => 'sm',
+                                    'flex' => 1
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => $service->duration . ' 分鐘',
+                                    'wrap' => true,
+                                    'color' => '#666666',
+                                    'size' => 'sm',
+                                    'flex' => 2
+                                ]
+                            ]
+                        ],
+                        [
+                            'type' => 'box',
+                            'layout' => 'baseline',
+                            'spacing' => 'sm',
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '價格',
+                                    'color' => '#aaaaaa',
+                                    'size' => 'sm',
+                                    'flex' => 1
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => $priceText,
+                                    'wrap' => true,
+                                    'color' => '#666666',
+                                    'size' => 'sm',
+                                    'flex' => 2
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+
+            $contents[] = $bubble;
         }
 
         $message = [
@@ -1922,8 +1940,18 @@ class LineBotService
                 // 如果客戶被軟刪除，恢復它
                 if ($customer->trashed()) {
                     $customer->restore();
-                    $customer->update(['status' => 'active']);
                 }
+                
+                // 更新 LINE 資訊和狀態
+                $profile = $this->getUserProfile($userId);
+                $customer->update([
+                    'status' => 'active',
+                    'line_display_name' => $profile['displayName'] ?? $customer->line_display_name,
+                    'line_picture_url' => $profile['pictureUrl'] ?? $customer->line_picture_url,
+                    'line_status_message' => $profile['statusMessage'] ?? $customer->line_status_message,
+                    'last_interaction_at' => now()
+                ]);
+                
                 return $customer;
             }
             
@@ -1934,6 +1962,9 @@ class LineBotService
                 $customer = Customer::create([
                     'line_user_id' => $userId,
                     'name' => $profile['displayName'] ?? '未知用戶',
+                    'line_display_name' => $profile['displayName'] ?? null,
+                    'line_picture_url' => $profile['pictureUrl'] ?? null,
+                    'line_status_message' => $profile['statusMessage'] ?? null,
                     'status' => 'active'
                 ]);
                 
@@ -1979,10 +2010,14 @@ class LineBotService
             
             // 如果還是找不到，建立一個預設客戶
             try {
+                $profile = $this->getUserProfile($userId);
                 $customer = Customer::firstOrCreate(
                     ['line_user_id' => $userId],
                     [
-                        'name' => '未知用戶',
+                        'name' => $profile['displayName'] ?? '未知用戶',
+                        'line_display_name' => $profile['displayName'] ?? null,
+                        'line_picture_url' => $profile['pictureUrl'] ?? null,
+                        'line_status_message' => $profile['statusMessage'] ?? null,
                         'status' => 'active'
                     ]
                 );
@@ -2252,7 +2287,7 @@ class LineBotService
                 return;
             }
             
-            // 建立或更新客戶資料
+            // 只需要確保 LINE 客戶記錄存在，不更新客戶資料
             $customer = $this->getOrCreateCustomer($userId, null);
             
             if (!$customer) {
@@ -2263,11 +2298,9 @@ class LineBotService
                 return;
             }
             
-            $customer->update([
-                'name' => $customerData['name'],
-                'phone' => $customerData['phone'],
-                'notes' => $customerData['notes'] ?? null,
-            ]);
+            // 將預約時填寫的資料保存到上下文中，稍後存到 reservations 表
+            $context['customer_data'] = $customerData;
+            Cache::put($contextKey, $context, now()->addMinutes(30));
             
             // 完成預約
             $this->completeReservation($replyToken, $context, $customer);
@@ -2339,6 +2372,12 @@ class LineBotService
 
     private function completeReservation($replyToken, $context, $customer)
     {
+        // Debug log to check context data
+        Log::info('completeReservation called', [
+            'context' => $context,
+            'customer_id' => $customer->id
+        ]);
+        
         $service = Service::find($context['service_id']);
         $virtualTimeSlot = $this->findVirtualTimeSlot($context['service_id'], $context['time_id']);
         
@@ -2370,6 +2409,14 @@ class LineBotService
                 // 獲取基礎時段
                 $baseTimeSlot = AvailableTime::find($virtualTimeSlot->base_time_slot_id);
                 
+                // Debug log for customer data
+                Log::info('Creating reservation with customer data', [
+                    'customer_data' => $context['customer_data'] ?? 'NOT_SET',
+                    'customer_name' => $context['customer_data']['name'] ?? 'NOT_SET',
+                    'customer_phone' => $context['customer_data']['phone'] ?? 'NOT_SET',
+                    'customer_notes' => $context['customer_data']['notes'] ?? 'NOT_SET'
+                ]);
+                
                 // 建立預約，使用虛擬時段的具體時間
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
@@ -2378,8 +2425,11 @@ class LineBotService
                     'available_time_id' => $baseTimeSlot->id,
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
+                    'customer_name' => $context['customer_data']['name'] ?? '',
+                    'customer_phone' => $context['customer_data']['phone'] ?? '',
+                    'customer_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => 'confirmed',
-                    'notes' => $context['customer_data']['notes'] ?? '透過 LINE Bot 預約',
+                    'notes' => '透過 LINE Bot 預約',
                 ]);
             });
             
@@ -2467,7 +2517,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $customer->name,
+                            'text' => $context['customer_data']['name'] ?? '',
                             'size' => 'sm',
                             'color' => '#333333',
                             'weight' => 'bold',
@@ -2488,7 +2538,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $customer->phone,
+                            'text' => $context['customer_data']['phone'] ?? '',
                             'size' => 'sm',
                             'color' => '#333333',
                             'weight' => 'bold',
@@ -3233,7 +3283,7 @@ class LineBotService
     private function completeStepByStepReservation($replyToken, $context, $userId)
     {
         try {
-            // 建立或更新客戶資料
+            // 只需要確保 LINE 客戶記錄存在，不更新客戶資料
             $customer = $this->getOrCreateCustomer($userId, null);
             
             if (!$customer) {
@@ -3243,19 +3293,6 @@ class LineBotService
                 ]);
                 return;
             }
-            
-            // 安全地更新客戶資料
-            $updateData = [
-                'name' => $context['customer_data']['name'],
-                'phone' => $context['customer_data']['phone'],
-            ];
-            
-            // 只有當有備註時才更新
-            if (isset($context['customer_data']['notes']) && $context['customer_data']['notes'] !== null) {
-                $updateData['notes'] = $context['customer_data']['notes'];
-            }
-            
-            $customer->update($updateData);
             
             // 獲取服務和虛擬時段資訊
             $service = Service::find($context['service_id']);
@@ -3278,6 +3315,14 @@ class LineBotService
                 return;
             }
             
+            // Debug log for customer data
+            Log::info('Creating step-by-step reservation with customer data', [
+                'customer_data' => $context['customer_data'] ?? 'NOT_SET',
+                'customer_name' => $context['customer_data']['name'] ?? 'NOT_SET',
+                'customer_phone' => $context['customer_data']['phone'] ?? 'NOT_SET',
+                'customer_notes' => $context['customer_data']['notes'] ?? 'NOT_SET'
+            ]);
+            
             // 使用資料庫事務來防止並發問題
             $reservation = DB::transaction(function () use ($virtualTimeSlot, $service, $customer, $context) {
                 // 在事務內再次檢查虛擬時段是否可以預約（防止並發問題）
@@ -3285,16 +3330,22 @@ class LineBotService
                     throw new \Exception('該時段已無法容納此服務');
                 }
                 
-                // 建立預約記錄，使用虛擬時段的具體時間
+                // 獲取基礎時段
+                $baseTimeSlot = AvailableTime::find($virtualTimeSlot->base_time_slot_id);
+                
+                // 建立預約記錄，使用虛擬時段的具體時間和預約時填寫的客戶資料
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
                     'customer_id' => $customer->id,
                     'service_id' => $service->id,
-                    'available_time_id' => $virtualTimeSlot->base_time_slot_id, // 使用基礎時段 ID
+                    'available_time_id' => $baseTimeSlot->id,
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
+                    'customer_name' => $context['customer_data']['name'] ?? '',
+                    'customer_phone' => $context['customer_data']['phone'] ?? '',
+                    'customer_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => 'confirmed',
-                    'notes' => $context['customer_data']['notes'] ?? '透過 LINE Bot 預約',
+                    'notes' => '透過 LINE Bot 預約',
                 ]);
             });
             
@@ -5724,5 +5775,20 @@ class LineBotService
                 'text' => '更新時間時發生錯誤，請稍後再試。'
             ]);
         }
+    }
+
+    private function isValidImageUrl($url)
+    {
+        // 檢查是否為有效的 HTTP(S) URL
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+        
+        // 檢查是否為 HTTPS (LINE Bot 要求)
+        if (!str_starts_with($url, 'https://')) {
+            return false;
+        }
+        
+        return true;
     }
 }

@@ -20,8 +20,10 @@ class ReservationController extends Controller
                 'id' => $reservation->id,
                 'user_name' => $reservation->user->name ?? '系統管理員',
                 'customer_id' => $reservation->customer_id,
-                'customer_name' => $reservation->customer->name ?? '未知客戶',
-                'customer_phone' => $reservation->customer->phone,
+                'customer_name' => $reservation->customer_name, // 預約時填寫的姓名
+                'customer_phone' => $reservation->customer_phone, // 預約時填寫的電話
+                'customer_notes' => $reservation->customer_notes, // 預約時填寫的備註
+                'customer_line_display_name' => $reservation->customer->line_display_name ?? null, // LINE 顯示名稱
                 'customer_line_user_id' => $reservation->customer->line_user_id,
                 'service_name' => $reservation->service->name,
                 'service_price' => $reservation->service->price,

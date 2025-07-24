@@ -9,6 +9,7 @@ import Services from "./pages/Services.vue";
 import AvailableTimes from "./pages/AvailableTimes.vue";
 import Reservations from "./pages/Reservations.vue";
 import Settings from "./pages/Settings.vue";
+import Profile from "./pages/Profile.vue";
 import Login from "./pages/Login.vue";
 import NotFound from "./pages/NotFound.vue";
 import Customers from './pages/Customers.vue'
@@ -25,6 +26,7 @@ const routes = [
             { path: 'services', name: 'Services', component: Services },
             { path: 'available-times', name: 'AvailableTimes', component: AvailableTimes },
             { path: 'reservations', name: 'Reservations', component: Reservations },
+            { path: 'profile', name: 'Profile', component: Profile },
             { path: 'settings', name: 'Settings', component: Settings },
         ]
     },
