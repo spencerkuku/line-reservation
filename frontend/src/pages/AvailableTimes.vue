@@ -505,32 +505,47 @@ onMounted(() => {
     </div>
 
     <!-- Google 風格的工具列 -->
-    <div class="calendar-header">
+    <div class="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 bg-white rounded-t-xl mb-6">
       <!-- 日曆導航 -->
-      <div class="calendar-nav">
-        <button @click="goToToday" class="nav-btn today-btn">今天</button>
-        <button @click="navigatePrev" class="nav-btn prev-btn">‹</button>
-        <button @click="navigateNext" class="nav-btn next-btn">›</button>
-        <h2 class="current-period">{{ currentPeriod }}</h2>
+      <div class="flex items-center gap-2">
+        <button @click="goToToday" class="px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border-0 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900">今天</button>
+        <button @click="navigatePrev" class="flex items-center justify-center w-9 h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-sm hover:bg-gray-100">‹</button>
+        <button @click="navigateNext" class="flex items-center justify-center w-9 h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-sm hover:bg-gray-100">›</button>
+        <h2 class="text-lg font-semibold text-gray-900 mx-2 md:mx-4">{{ currentPeriod }}</h2>
       </div>
       
       <!-- 檢視切換 -->
-      <div class="view-switcher">
+      <div class="flex border border-gray-300 rounded-lg overflow-hidden">
         <button 
           @click="changeView('timeGridWeek')"
-          :class="['view-btn', { active: currentView === 'timeGridWeek' }]"
+          :class="[
+            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            currentView === 'timeGridWeek' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          ]"
         >
           週
         </button>
         <button 
           @click="changeView('timeGridDay')"
-          :class="['view-btn', { active: currentView === 'timeGridDay' }]"
+          :class="[
+            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            currentView === 'timeGridDay' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          ]"
         >
           日
         </button>
         <button 
           @click="changeView('dayGridMonth')"
-          :class="['view-btn', { active: currentView === 'dayGridMonth' }]"
+          :class="[
+            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            currentView === 'dayGridMonth' 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          ]"
         >
           月
         </button>
@@ -538,229 +553,126 @@ onMounted(() => {
     </div>
 
     <!-- 主要日曆區域 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div v-if="isLoading" class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <p class="loading-text">載入中...</p>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+      <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10">
+        <div class="w-8 h-8 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+        <p class="mt-3 text-gray-500 text-sm">載入中...</p>
       </div>
       
       <FullCalendar 
         ref="calendarRef"
         :options="calendarOptions" 
-        class="google-calendar"
+        class="p-4 md:p-6"
       />
     </div>
 
     <!-- 快速建立氣泡 -->
-    <div v-if="showQuickCreate" class="quick-create-bubble">
+    <div v-if="showQuickCreate" class="fixed bg-white border border-gray-300 rounded-xl shadow-lg p-5 min-w-80 z-[1000] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 max-md:left-4 max-md:right-4 max-md:transform-none max-md:top-1/2 max-md:-mt-24 max-md:min-w-0">
       <input 
         ref="quickInput"
         v-model="quickSlotTitle"
         placeholder="可預約時段"
         @keyup.enter="createQuickSlot"
         @keyup.escape="cancelQuickCreate"
-        class="quick-title-input"
+        class="w-full border-0 outline-none text-base font-medium text-gray-900 mb-2 bg-transparent placeholder-gray-400"
       />
-      <div class="quick-time-display">
+      <div class="text-gray-500 text-sm mb-4 font-medium">
         {{ formatTimeRange(selectedTime) }}
       </div>
-      <div class="quick-actions">
-        <button @click="createQuickSlot" class="save-btn">儲存</button>
-        <button @click="showDetailModal" class="more-btn">更多選項</button>
+      <div class="flex justify-end gap-2">
+        <button @click="createQuickSlot" class="bg-blue-500 text-white border-0 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40">儲存</button>
+        <button @click="showDetailModal" class="bg-transparent text-blue-500 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:border-blue-500">更多選項</button>
       </div>
     </div>
 
     <!-- 編輯 Modal -->
-    <div v-if="showEditModal" class="edit-modal-overlay">
-      <div class="edit-modal">
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
         <!-- 簡潔的標題列 -->
-        <div class="modal-header">
-          <h3>{{ editForm.id ? '編輯' : '新增' }}可預約時段</h3>
-          <button @click="closeEditModal" class="close-btn">×</button>
+        <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900 m-0">{{ editForm.id ? '編輯' : '新增' }}可預約時段</h3>
+          <button @click="closeEditModal" class="w-8 h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
         </div>
         
         <!-- 最少必要欄位 -->
-        <div class="modal-content">
-          <div class="field-group">
-            <label>時段名稱</label>
+        <div class="p-6">
+          <div class="mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-2">時段名稱</label>
             <input 
               v-model="editForm.title" 
               placeholder="例如：諮詢服務"
-              class="form-input"
+              class="w-full border border-gray-300 rounded-md p-3 text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
             />
           </div>
           
-          <div class="field-group">
-            <label>時間</label>
-            <div class="time-display">
+          <div class="mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-2">時間</label>
+            <div class="p-3 bg-gray-50 rounded-md text-gray-500 text-sm font-medium border border-gray-200">
               {{ formatDateTime(editForm.start) }} - {{ formatDateTime(editForm.end) }}
             </div>
           </div>
           
-          <div class="field-group">
-            <label>備註 <span class="optional">(選填)</span></label>
+          <div class="mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-2">備註 <span class="font-normal text-gray-500">(選填)</span></label>
             <textarea 
               v-model="editForm.description"
               rows="2"
               placeholder="額外說明..."
-              class="form-textarea"
+              class="w-full border border-gray-300 rounded-md p-3 text-sm text-gray-900 transition-all duration-200 bg-white resize-y min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
             ></textarea>
           </div>
         </div>
         
         <!-- 簡單的操作按鈕 -->
-        <div class="modal-footer">
+        <div class="flex items-center justify-between px-6 pb-6 pt-4 border-t border-gray-200">
           <button 
             v-if="editForm.id" 
             @click="deleteCurrentSlot" 
-            class="delete-btn"
+            class="bg-transparent text-red-600 border border-red-200 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600"
           >
             刪除
           </button>
-          <div class="action-buttons">
-            <button @click="closeEditModal" class="cancel-btn">取消</button>
-            <button @click="saveSlot" class="save-btn">儲存</button>
+          <div class="flex gap-3 ml-auto">
+            <button @click="closeEditModal" class="bg-transparent text-gray-500 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400">取消</button>
+            <button @click="saveSlot" class="bg-blue-500 text-white border-0 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40">儲存</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 簡單的 Toast 通知 -->
-    <div v-if="toast.show" :class="['toast', toast.type]">
+    <div v-if="toast.show" :class="[
+      'fixed top-6 right-6 px-4 py-3 rounded-lg text-sm font-medium shadow-lg z-[1100] animate-slide-in',
+      toast.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
+    ]">
       {{ toast.message }}
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Google Calendar 風格的工具列 */
-.calendar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: #ffffff;
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 24px;
+/* 自定義樣式 */
+.border-3 {
+  border-width: 3px;
 }
 
-.calendar-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* 自定義動畫 */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background-color: transparent;
-  color: #6b7280;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-size: 14px;
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
 }
 
-.nav-btn:hover {
-  background-color: #f3f4f6;
-}
-
-.today-btn {
-  width: auto;
-  padding: 0 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.today-btn:hover {
-  background-color: #f3f4f6;
-  color: #1f2937;
-}
-
-.current-period {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 16px;
-}
-
-.view-switcher {
-  display: flex;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.view-btn {
-  padding: 8px 16px;
-  border: none;
-  background-color: #ffffff;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.view-btn:hover {
-  background-color: #f9fafb;
-  color: #374151;
-}
-
-.view-btn.active {
-  background-color: #3b82f6;
-  color: #ffffff;
-}
-
-/* 載入狀態 */
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(255, 255, 255, 0.9);
-  z-index: 10;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top: 3px solid #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin-top: 12px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-/* Google Calendar 樣式 */
-.google-calendar {
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  padding: 24px;
-}
-
-/* FullCalendar 客製化 - 與其他頁面一致的風格 */
+/* FullCalendar 客製化 - 無法用 Tailwind 替代的樣式 */
 :deep(.fc) {
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
@@ -805,7 +717,7 @@ onMounted(() => {
   background-color: #f9fafb;
 }
 
-/* 可預約時段樣式 - 與其他頁面一致 */
+/* 可預約時段樣式 - 無法用 Tailwind 替代的樣式 */
 :deep(.available-slot) {
   background-color: #3b82f6 !important;
   border: none !important;
@@ -838,319 +750,8 @@ onMounted(() => {
   border-radius: 6px !important;
 }
 
-/* 快速建立氣泡 */
-.quick-create-bubble {
-  position: fixed;
-  background-color: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  padding: 20px;
-  min-width: 320px;
-  z-index: 1000;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.quick-title-input {
-  width: 100%;
-  border: none;
-  outline: none;
-  font-size: 16px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 8px;
-  background: transparent;
-}
-
-.quick-title-input::placeholder {
-  color: #9ca3af;
-}
-
-.quick-time-display {
-  color: #6b7280;
-  font-size: 14px;
-  margin-bottom: 16px;
-  font-weight: 500;
-}
-
-.quick-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.save-btn {
-  background-color: #3b82f6;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.save-btn:hover {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-
-.more-btn {
-  background-color: transparent;
-  color: #3b82f6;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.more-btn:hover {
-  background-color: #f9fafb;
-  border-color: #3b82f6;
-}
-
-/* 編輯 Modal */
-.edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
-
-.edit-modal {
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  width: 100%;
-  max-width: 480px;
-  max-height: 90vh;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24px 24px 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.close-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 50%;
-  background-color: transparent;
-  color: #6b7280;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.close-btn:hover {
-  background-color: #f3f4f6;
-  color: #374151;
-}
-
-.modal-content {
-  padding: 24px;
-}
-
-.field-group {
-  margin-bottom: 20px;
-}
-
-.field-group label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 8px;
-}
-
-.optional {
-  font-weight: 400;
-  color: #6b7280;
-}
-
-.form-input, .form-textarea {
-  width: 100%;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 12px;
-  font-size: 14px;
-  color: #1f2937;
-  transition: all 0.2s;
-  background-color: #ffffff;
-}
-
-.form-input:focus, .form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 60px;
-}
-
-.time-display {
-  padding: 12px;
-  background-color: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
-  border: 1px solid #e5e7eb;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.cancel-btn {
-  background-color: transparent;
-  color: #6b7280;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.cancel-btn:hover {
-  background-color: #f9fafb;
-  color: #374151;
-  border-color: #9ca3af;
-}
-
-.delete-btn {
-  background-color: transparent;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.delete-btn:hover {
-  background-color: #fef2f2;
-  border-color: #dc2626;
-}
-
-/* Toast 通知 - 與其他頁面一致 */
-.toast {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  z-index: 1100;
-  animation: slideIn 0.3s ease-out;
-}
-
-.toast.success {
-  background-color: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
-}
-
-.toast.error {
-  background-color: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-/* 響應式設計 */
+/* 響應式設計 - 使用 Tailwind 無法完全處理的複雜響應式邏輯 */
 @media (max-width: 768px) {
-  .calendar-header {
-    flex-direction: column;
-    gap: 16px;
-    padding: 16px;
-  }
-
-  .calendar-nav {
-    order: 2;
-  }
-
-  .view-switcher {
-    order: 3;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .current-period {
-    font-size: 16px;
-    margin: 0 8px;
-  }
-
-  .quick-create-bubble {
-    left: 16px;
-    right: 16px;
-    transform: none;
-    top: 50%;
-    margin-top: -100px;
-    min-width: auto;
-  }
-
-  .edit-modal {
-    margin: 16px;
-    width: auto;
-  }
-
   :deep(.fc-timegrid-slot-label) {
     font-size: 10px;
   }
@@ -1158,29 +759,6 @@ onMounted(() => {
   :deep(.available-slot) {
     font-size: 10px !important;
     padding: 2px 4px !important;
-  }
-
-  .google-calendar {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .current-period {
-    font-size: 14px;
-  }
-
-  .view-btn {
-    padding: 6px 12px;
-    font-size: 12px;
-  }
-
-  .modal-header h3 {
-    font-size: 16px;
-  }
-
-  .google-calendar {
-    padding: 12px;
   }
 }
 </style>
