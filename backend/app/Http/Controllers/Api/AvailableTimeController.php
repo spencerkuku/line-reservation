@@ -35,11 +35,14 @@ class AvailableTimeController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
-        // 只顯示未來的時段給公開API
-        if (!$request->user() || $request->user()->role !== 'admin') {
-            $query->where('start_time', '>=', now())
-                  ->where('is_active', true);
-        }
+        // 管理員頁面 - 顯示所有曾經建立的時段（不限制時間範圍）
+        // 移除時間過濾，讓管理員可以看到所有歷史時段
+        
+        // 添加調試信息
+        Log::info('Admin page - showing all time slots:', [
+            'current_time' => now()->toDateTimeString(),
+            'no_time_filter' => 'showing all historical slots',
+        ]);
 
         $perPage = $request->get('per_page', 50);
         $availableTimes = $query->orderBy('start_time')
@@ -48,6 +51,13 @@ class AvailableTimeController extends Controller
                 $q->select('id', 'available_time_id', 'status');
             }])
             ->paginate($perPage);
+
+        // 添加調試信息
+        Log::info('Query results:', [
+            'total_found' => $availableTimes->total(),
+            'items_count' => count($availableTimes->items()),
+            'first_few_items' => $availableTimes->items()
+        ]);
 
         return response()->json([
             'success' => true,

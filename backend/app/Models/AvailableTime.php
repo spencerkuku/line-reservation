@@ -25,6 +25,26 @@ class AvailableTime extends Model
         'is_active' => 'boolean'
     ];
 
+    // 自定義時間序列化格式，確保返回本地時區
+    protected $dateFormat = 'Y-m-d H:i:s';
+
+    // 確保時間以本地時區格式返回給前端
+    public function toArray()
+    {
+        $array = parent::toArray();
+        
+        // 將時間轉換為應用程式時區格式
+        if (isset($array['start_time'])) {
+            $array['start_time'] = $this->start_time->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+        }
+        
+        if (isset($array['end_time'])) {
+            $array['end_time'] = $this->end_time->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+        }
+        
+        return $array;
+    }
+
     public function reservations()
     {
         return $this->hasMany(Reservation::class);
