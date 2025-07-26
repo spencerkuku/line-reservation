@@ -1,6 +1,6 @@
 import router from '../router.js'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 // 輸入過濾函數 (防止XSS)
 function sanitizeInput(input) {
@@ -44,6 +44,7 @@ async function getCsrfCookie() {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             }
         });
         
@@ -92,6 +93,8 @@ async function apiRequest(url, options = {}) {
         if (!csrfSuccess) {
             console.warn('無法獲取 CSRF cookie，可能影響認證請求');
         }
+        // 等待一小段時間確保 cookie 設置完成
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
     
     // 獲取 CSRF token
