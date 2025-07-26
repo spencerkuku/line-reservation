@@ -36,8 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // 禁用一些不安全的中間件（OWASP安全考量）
         $middleware->validateCsrfTokens(except: [
-            '/api/line/webhook', // LINE webhook需要排除CSRF檢查
-            '/api/auth/login',   // 登入請求排除CSRF檢查
+            '/api/*',            // 所有 API 路由排除CSRF檢查，使用 Sanctum token 認證
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

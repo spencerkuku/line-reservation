@@ -87,8 +87,8 @@ async function apiRequest(url, options = {}) {
         throw new Error('Invalid token format');
     }
     
-    // 對於認證相關的請求，先獲取 CSRF cookie
-    if (url.startsWith('/auth/') && (options.method === 'POST' || !options.method)) {
+    // 對於登入請求，先獲取 CSRF cookie
+    if (url === '/auth/login' && (options.method === 'POST' || !options.method)) {
         const csrfSuccess = await getCsrfCookie();
         if (!csrfSuccess) {
             console.warn('無法獲取 CSRF cookie，可能影響認證請求');
@@ -97,16 +97,16 @@ async function apiRequest(url, options = {}) {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    // 獲取 CSRF token
-    const csrfToken = getCsrfTokenFromCookie();
+    // 只對登入請求獲取 CSRF token
+    const csrfToken = (url === '/auth/login') ? getCsrfTokenFromCookie() : null;
     
     // 預設設定
     const defaultOptions = {
-        credentials: 'include', // 支援cookies和CSRF
+        credentials: (url === '/auth/login') ? 'include' : 'same-origin', // 只有登入請求需要 cookies
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest', // 防CSRF
+            'X-Requested-With': 'XMLHttpRequest',
             ...(token && { 'Authorization': `Bearer ${token}` }),
             ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken })
         }
@@ -223,20 +223,13 @@ export async function apiDelete(url) {
 export async function apiUpload(url, formData, method = 'POST') {
     const token = localStorage.getItem('token')
     
-    // 先獲取 CSRF cookie
-    await getCsrfCookie();
-    
-    // 獲取 CSRF token
-    const csrfToken = getCsrfTokenFromCookie();
-    
     const response = await fetch(`${API_BASE_URL}${url}`, {
         method: method,
-        credentials: 'include', // 支援cookies和CSRF
+        credentials: 'same-origin',
         headers: {
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            ...(token && { 'Authorization': `Bearer ${token}` }),
-            ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken })
+            ...(token && { 'Authorization': `Bearer ${token}` })
             // 不設定 Content-Type，讓瀏覽器自動設定 multipart/form-data
         },
         body: formData
