@@ -14,13 +14,31 @@ class SettingController extends Controller
         $channelAccessToken = Setting::get('line_channel_access_token', '');
         $channelSecret = Setting::get('line_channel_secret', '');
 
+        // 為了安全，只返回部分遮蔽的 token 讓前端顯示
+        $maskedToken = $channelAccessToken ? $this->maskToken($channelAccessToken) : '';
+        $maskedSecret = $channelSecret ? $this->maskToken($channelSecret) : '';
+
         return response()->json([
             'success' => true,
             'data' => [
-                'channel_access_token' => $channelAccessToken,
-                'channel_secret' => $channelSecret
+                'channel_access_token' => $maskedToken,
+                'channel_secret' => $maskedSecret
             ]
         ]);
+    }
+
+    // 遮蔽敏感資訊的輔助方法
+    private function maskToken($token)
+    {
+        if (!$token || strlen($token) <= 8) {
+            return $token;
+        }
+        
+        $start = substr($token, 0, 4);
+        $end = substr($token, -4);
+        $middle = str_repeat('*', strlen($token) - 8);
+        
+        return $start . $middle . $end;
     }
 
     // 更新 LINE 設定

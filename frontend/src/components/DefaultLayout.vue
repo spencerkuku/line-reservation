@@ -46,7 +46,7 @@
                     <span class="absolute -inset-1.5" />
                     <span class="sr-only">開啟用戶選單</span>
                     <div class="flex items-center space-x-3 px-3 py-2">
-                      <img class="h-8 w-8 rounded-full ring-2 ring-gray-200" :src="user.imageUrl" alt="" />
+                      <img class="h-8 w-8 rounded-full ring-2 ring-gray-200" :src="userAvatarUrl" alt="用戶頭像" />
                       <div class="text-left">
                         <div class="text-sm font-medium text-gray-900">{{ user.name }}</div>
                         <div class="text-xs text-gray-500">{{ user.role === 'admin' ? '管理員' : '一般用戶' }}</div>
@@ -138,7 +138,7 @@
         <div class="border-t border-gray-200 pt-4 pb-3">
           <div class="flex items-center px-5">
             <div class="flex-shrink-0">
-              <img class="h-10 w-10 rounded-full ring-2 ring-gray-200" :src="user.imageUrl" alt="" />
+              <img class="h-10 w-10 rounded-full ring-2 ring-gray-200" :src="userAvatarUrl" alt="用戶頭像" />
             </div>
             <div class="ml-3">
               <div class="text-base font-medium text-gray-800">{{ user.name }}</div>
@@ -180,6 +180,7 @@ const user = ref({
   email: '',
   role: 'user',
   imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+  avatar: null
 })
 
 // 根據用戶角色生成導航選單
@@ -195,12 +196,20 @@ const navigation = computed(() => {
       { name: '服務項目', to: { name: 'Services' } },
       { name: '可預約時段', to: { name: 'AvailableTimes' } },
       { name: '客戶管理', to: { name: 'Customers' } },
-      { name: '管理人員', to: { name: 'Users' } },
-      { name: '設定', to: { name: 'Settings' } }
+      { name: '管理員管理', to: { name: 'Users' } },
+      { name: '系統設定', to: { name: 'Settings' } }
     )
   }
   
   return baseNav
+})
+
+// 計算用戶頭像 URL
+const userAvatarUrl = computed(() => {
+  if (user.value.avatar) {
+    return `http://127.0.0.1:8000/storage/${user.value.avatar}`
+  }
+  return user.value.imageUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
 })
 
 // 載入用戶資料
@@ -212,6 +221,7 @@ onMounted(async () => {
       user.value.name = parsedUser.name || 'User'
       user.value.email = parsedUser.email || ''
       user.value.role = parsedUser.role || 'user'
+      user.value.avatar = parsedUser.avatar || null
     } catch (e) {
       console.error('Failed to parse user data:', e)
       // 如果用戶數據解析失敗，嘗試重新驗證 token

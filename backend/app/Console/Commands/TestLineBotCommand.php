@@ -45,7 +45,11 @@ class TestLineBotCommand extends Command
         foreach ($settings as $key) {
             $setting = Setting::where('key', $key)->first();
             if ($setting) {
-                $value = $key === 'line_channel_secret' ? '***隱藏***' : $setting->value;
+                // 使用 Setting::get() 來正確解密值
+                $decryptedValue = Setting::get($key);
+                $value = in_array($key, ['line_channel_access_token', 'line_channel_secret']) 
+                    ? '***隱藏***' 
+                    : $decryptedValue;
                 $this->line("✓ {$key}: {$value}");
             } else {
                 $this->error("✗ {$key}: 未設定");

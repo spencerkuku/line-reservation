@@ -41,7 +41,7 @@
                   type="password"
                   :disabled="loading"
                   placeholder="請輸入您的 Channel Access Token"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
                 />
                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
                   <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,6 +49,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 </div>
+              </div>
+              <div v-if="currentAccessToken" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
+                目前設定: {{ currentAccessToken }}
               </div>
               <p class="mt-1 text-xs text-gray-500">
                 從 LINE Developers Console 的 Messaging API 設定中取得
@@ -67,13 +70,16 @@
                   type="password"
                   :disabled="loading"
                   placeholder="請輸入您的 Channel Secret"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
                 />
                 <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
                   <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
+              </div>
+              <div v-if="currentSecret" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
+                目前設定: {{ currentSecret }}
               </div>
               <p class="mt-1 text-xs text-gray-500">
                 用於驗證 webhook 請求的數位簽章
@@ -196,15 +202,26 @@ const LineChannelSecret = ref('')
 const successMessage = ref('')
 const loading = ref(false)
 
-
+// 顯示後端返回的遮蔽版本
+const currentAccessToken = ref('')
+const currentSecret = ref('')
 
 // 獲取當前設定
 async function fetchSettings() {
   loading.value = true
   try {
     const data = await apiGet('/settings/line')
-    LineChannelAccessToken.value = data.channel_access_token || ''
-    LineChannelSecret.value = data.channel_secret || ''
+    // 後端已經返回遮蔽版本，直接顯示
+    currentAccessToken.value = data.channel_access_token || ''
+    currentSecret.value = data.channel_secret || ''
+    
+    // 如果有現有設定，也在輸入框中顯示遮蔽版本
+    if (data.channel_access_token) {
+      LineChannelAccessToken.value = data.channel_access_token
+    }
+    if (data.channel_secret) {
+      LineChannelSecret.value = data.channel_secret
+    }
   } catch (err) {
     console.error('Error fetching settings:', err)
   } finally {
@@ -228,6 +245,12 @@ async function submitToken() {
     })
     
     successMessage.value = '設定已儲存'
+    
+    // 儲存成功後重新獲取設定以更新顯示
+    setTimeout(async () => {
+      await fetchSettings()
+    }, 1000)
+    
   } catch (err) {
     successMessage.value = `儲存失敗: ${err.message}`
   } finally {
