@@ -212,17 +212,70 @@ class CustomerController extends Controller
     // 客戶統計資料
     public function statistics()
     {
+        // 基本統計
         $stats = [
             'total_customers' => Customer::count(),
             'active_customers' => Customer::active()->count(),
             'new_customers_this_month' => Customer::whereMonth('created_at', now()->month)
                 ->whereYear('created_at', now()->year)
                 ->count(),
-            'vip_customers' => Customer::vip()->count(),
             'customers_with_reservations' => Customer::whereHas('reservations')->count(),
-            'average_reservations_per_customer' => round(Customer::avg('total_reservations'), 2),
-            'total_customer_spending' => Customer::sum('total_spent'),
         ];
+
+        // VIP 客戶統計 - 使用更精確的計算
+        $stats['vip_customers'] = Customer::where(function ($q) {
+            $q->where('total_reservations', '>=', 20)
+              ->orWhere('total_spent', '>=', 2000);
+        })->count();
+
+        // 客戶等級分布
+        $stats['customer_levels'] = [
+            'VIP' => Customer::where(function ($q) {
+                $q->where('total_reservations', '>=', 20)
+                  ->orWhere('total_spent', '>=', 2000);
+            })->count(),
+            'Gold' => Customer::where(function ($q) {
+                $q->whereBetween('total_reservations', [10, 19])
+                  ->orWhereBetween('total_spent', [1000, 1999]);
+            })->count(),
+            'Silver' => Customer::where(function ($q) {
+                $q->whereBetween('total_reservations', [5, 9])
+                  ->orWhereBetween('total_spent', [500, 999]);
+            })->count(),
+            'Bronze' => Customer::where('total_reservations', '<', 5)
+                ->where('total_spent', '<', 500)
+                ->count()
+        ];
+
+        // 平均數據計算
+        $allCustomers = Customer::all();
+        $stats['average_reservations_per_customer'] = $allCustomers->count() > 0 
+            ? round($allCustomers->avg('total_reservations'), 2) 
+            : 0;
+        
+        $stats['total_customer_spending'] = $allCustomers->sum('total_spent');
+        $stats['average_spending_per_customer'] = $allCustomers->count() > 0 
+            ? round($stats['total_customer_spending'] / $allCustomers->count(), 2)
+            : 0;
+
+        // 本月新增的客戶消費金額
+        $newCustomersThisMonth = Customer::whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->get();
+        
+        $stats['new_customers_spending_this_month'] = $newCustomersThisMonth->sum('total_spent');
+
+        // 活躍客戶統計（最近30天有互動）
+        $stats['recently_active_customers'] = Customer::where('last_interaction_at', '>=', now()->subDays(30))
+            ->count();
+
+        // 客戶來源統計
+        $stats['referral_sources'] = Customer::whereNotNull('referral_source')
+            ->groupBy('referral_source')
+            ->selectRaw('referral_source, count(*) as count')
+            ->get()
+            ->pluck('count', 'referral_source')
+            ->toArray();
 
         return response()->json([
             'success' => true,
@@ -239,5 +292,41 @@ class CustomerController extends Controller
             'success' => true,
             'message' => '互動時間已更新'
         ]);
+    }
+
+    // 重新計算客戶統計數據
+    public function recalculateStats(Request $request)
+    {
+        try {
+            if ($request->has('customer_id')) {
+                // 重新計算單一客戶
+                $customer = Customer::findOrFail($request->customer_id);
+                $customer->recalculateStats();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => '客戶統計數據已更新',
+                    'data' => $customer->fresh()
+                ]);
+            } else {
+                // 重新計算所有客戶
+                $count = Customer::recalculateAllStats();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => "已更新 {$count} 位客戶的統計數據"
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('重新計算客戶統計失敗', [
+                'error' => $e->getMessage(),
+                'customer_id' => $request->get('customer_id')
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => '統計數據更新失敗，請稍後再試'
+            ], 500);
+        }
     }
 }

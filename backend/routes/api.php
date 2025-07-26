@@ -87,9 +87,11 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
         Route::get('/', [App\Http\Controllers\Api\CustomerController::class, 'index']);
         Route::post('/', [App\Http\Controllers\Api\CustomerController::class, 'store']);
         Route::get('/statistics', [App\Http\Controllers\Api\CustomerController::class, 'statistics']);
+        Route::post('/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
         Route::get('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'show']);
         Route::put('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'update']);
         Route::delete('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'destroy']);
         Route::post('/{customer}/interaction', [App\Http\Controllers\Api\CustomerController::class, 'updateInteraction']);
+        Route::post('/{customer}/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
     });
 });

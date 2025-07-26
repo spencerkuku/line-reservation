@@ -125,6 +125,7 @@
           </svg>
           新增客戶
         </button>
+
       </div>
       
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -337,13 +338,16 @@
                     <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    預約 {{ customer.total_reservations || 0 }} 次
+                    <span class="font-medium">{{ customer.total_reservations || 0 }}</span> 次預約
                   </div>
                   <div class="flex items-center">
                     <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                     </svg>
-                    ${{ customer.total_spent || 0 }}
+                    <span class="font-medium text-green-600">NT$ {{ Number(customer.total_spent || 0).toLocaleString() }}</span>
+                  </div>
+                  <div v-if="customer.total_reservations > 0" class="text-xs text-gray-500 mt-1">
+                    平均每次: NT$ {{ Math.round((customer.total_spent || 0) / (customer.total_reservations || 1)).toLocaleString() }}
                   </div>
                 </div>
               </td>
@@ -376,6 +380,15 @@
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    @click="recalculateCustomerStats(customer.id)"
+                    class="inline-flex items-center p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                    title="重新計算統計"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>
                   <button
@@ -614,6 +627,7 @@ const showAddModal = ref(false)
 const showEditModal = ref(false)
 const currentCustomer = ref(null)
 const submitting = ref(false)
+const calculatingStats = ref(false)
 
 // 客戶表單
 const customerForm = reactive({
@@ -812,6 +826,54 @@ function getStatusText(status) {
 function formatDate(dateString) {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleDateString('zh-TW')
+}
+
+// 重新計算所有客戶統計數據
+async function recalculateAllStats() {
+  calculatingStats.value = true
+  
+  try {
+    const response = await apiPost('/customers/recalculate-stats')
+    if (response.success) {
+      // 刷新客戶列表和統計數據
+      await Promise.all([
+        fetchCustomers(),
+        fetchStatistics()
+      ])
+      
+      // 顯示成功訊息
+      if (import.meta.env.DEV) {
+        console.log('統計數據更新成功:', response.message)
+      }
+    }
+  } catch (err) {
+    error.value = err.message || '重新計算統計數據失敗'
+    if (import.meta.env.DEV) {
+      console.error('重新計算統計數據失敗:', err)
+    }
+  } finally {
+    calculatingStats.value = false
+  }
+}
+
+// 重新計算單一客戶統計數據
+async function recalculateCustomerStats(customerId) {
+  try {
+    const response = await apiPost(`/customers/${customerId}/recalculate-stats`)
+    if (response.success) {
+      // 刷新客戶列表
+      await fetchCustomers()
+      
+      if (import.meta.env.DEV) {
+        console.log('客戶統計數據更新成功:', response.message)
+      }
+    }
+  } catch (err) {
+    error.value = err.message || '重新計算客戶統計數據失敗'
+    if (import.meta.env.DEV) {
+      console.error('重新計算客戶統計數據失敗:', err)
+    }
+  }
 }
 
 // 組件載入時獲取數據

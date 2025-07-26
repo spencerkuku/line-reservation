@@ -105,6 +105,39 @@ class Customer extends Model
         $this->increment('total_spent', $amount);
     }
 
+    // 重新計算客戶統計數據
+    public function recalculateStats()
+    {
+        $confirmedReservations = $this->reservations()
+            ->where('status', 'confirmed')
+            ->with('service')
+            ->get();
+
+        $totalReservations = $confirmedReservations->count();
+        $totalSpent = $confirmedReservations->sum(function($reservation) {
+            return $reservation->service ? $reservation->service->price : 0;
+        });
+
+        $this->update([
+            'total_reservations' => $totalReservations,
+            'total_spent' => $totalSpent
+        ]);
+
+        return $this;
+    }
+
+    // 批量重新計算所有客戶統計數據
+    public static function recalculateAllStats()
+    {
+        $customers = static::with(['reservations.service'])->get();
+        
+        foreach ($customers as $customer) {
+            $customer->recalculateStats();
+        }
+        
+        return $customers->count();
+    }
+
     // 根據LINE用戶ID查找或創建客戶
     public static function findOrCreateByLineUserId($lineUserId, $name = null)
     {

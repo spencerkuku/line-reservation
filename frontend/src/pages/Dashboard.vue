@@ -78,6 +78,9 @@
               <p class="text-3xl font-bold text-gray-900 mt-2">NT$ {{ formatCurrency(stats.this_month_revenue || 0) }}</p>
               <p class="text-sm text-purple-600 mt-1">
                 預約數: {{ stats.this_month_reservations || 0 }}
+                <span v-if="stats.avg_reservation_value" class="ml-2">
+                  (平均: NT$ {{ formatCurrency(stats.avg_reservation_value) }})
+                </span>
               </p>
             </div>
             <div class="flex-shrink-0">
@@ -139,6 +142,20 @@
               </div>
             </div>
           </div>
+          
+          <!-- 數據刷新按鈕 -->
+          <div class="flex justify-end mt-4">
+            <button
+              @click="fetchDashboardData"
+              :disabled="loading"
+              class="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+            >
+              <svg class="w-3 h-3 mr-1" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新數據
+            </button>
+          </div>
         </div>
 
         <!-- 熱門服務 -->
@@ -160,6 +177,9 @@
                   <p class="text-sm font-medium text-gray-900">{{ service.name }}</p>
                   <p class="text-xs text-gray-500">
                     {{ service.price ? `NT$ ${Number(service.price).toLocaleString()}` : '免費服務' }}
+                    <span v-if="service.month_revenue" class="ml-2 text-purple-600">
+                      (本月營收: NT$ {{ Number(service.month_revenue).toLocaleString() }})
+                    </span>
                   </p>
                 </div>
               </div>
@@ -304,7 +324,7 @@
 
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { apiGet } from '../utils/api.js'
 
 // 響應式數據
@@ -500,6 +520,18 @@ const fetchDashboardData = async () => {
 // 組件掛載時獲取數據
 onMounted(() => {
   fetchDashboardData()
+  
+  // 設定自動刷新（每5分鐘刷新一次）
+  const refreshInterval = setInterval(() => {
+    if (isAdmin.value && !loading.value) {
+      fetchDashboardData()
+    }
+  }, 5 * 60 * 1000) // 5分鐘
+
+  // 組件卸載時清除定時器
+  onUnmounted(() => {
+    clearInterval(refreshInterval)
+  })
 })
 </script>
 
