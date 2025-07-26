@@ -78,28 +78,6 @@ async function fetchAvailableTimes() {
     
     console.log('Final events:', events) // Debug log
     calendarEvents.value = events
-    
-    // 如果有事件且不在當前檢視範圍內，自動導航到第一個事件的日期
-    if (events.length > 0 && calendarRef.value) {
-      const firstEventDate = new Date(events[0].start)
-      const calendar = calendarRef.value.getApi()
-      const currentCalendarDate = calendar.getDate()
-      
-      // 檢查第一個事件是否在當前週/月的檢視範圍內
-      const timeDiff = Math.abs(firstEventDate.getTime() - currentCalendarDate.getTime())
-      const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24))
-      
-      console.log('First event date:', firstEventDate)
-      console.log('Current calendar date:', currentCalendarDate)
-      console.log('Days difference:', daysDiff)
-      
-      // 如果相差超過3天，自動導航到事件日期
-      if (daysDiff > 3) {
-        console.log('Navigating to first event date')
-        calendar.gotoDate(firstEventDate)
-        currentDate.value = firstEventDate
-      }
-    }
   } catch (err) {
     console.error('Fetch error:', err)
     showToast('error', '載入失敗')
@@ -192,7 +170,7 @@ const calendarOptions = computed(() => ({
   },
   
   // 簡潔的時間設定 - 24小時顯示範圍
-  slotMinTime: '00:00:00',
+  slotMinTime: '06:00:00',
   slotMaxTime: '24:00:00',
   slotDuration: '00:30:00',
   slotLabelInterval: '01:00:00',
@@ -505,9 +483,16 @@ function handleKeydown(e) {
 document.addEventListener('keydown', handleKeydown)
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
-// 組件載入時獲取數據
+// 組件載入時獲取數據並導航到今天
 onMounted(() => {
   fetchAvailableTimes()
+  
+  // 等待 FullCalendar 初始化完成後導航到今天
+  nextTick(() => {
+    setTimeout(() => {
+      goToToday()
+    }, 100)
+  })
 })
 </script>
 
