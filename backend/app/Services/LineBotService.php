@@ -489,6 +489,7 @@ class LineBotService
         foreach ($reservations->take(10) as $reservation) { // 限制最多10筆記錄
             $service = $reservation->service;
             $availableTime = $reservation->availableTime;
+            $customer = $reservation->customer;
             
             // 總是使用實際的預約時間，而不是 available_time 的時間
             // 使用模型的輔助方法獲取完整的預約日期時間
@@ -496,8 +497,156 @@ class LineBotService
             
             $statusText = $reservation->status === 'confirmed' ? '已確認' : '待確認';
             $statusColor = $reservation->status === 'confirmed' ? '#27AE60' : '#F39C12';
+            
+            // 檢查預約是否已過期
+            $isExpired = $dateTime->isPast();
 
-            $bubbles[] = [
+            // 建立基本資訊內容
+            $infoContents = [
+                [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '服務項目',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $service->name,
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3,
+                            'wrap' => true
+                        ]
+                    ]
+                ],
+                [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '預約日期',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $dateTime->format('Y年m月d日'),
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3
+                        ]
+                    ]
+                ],
+                [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '預約時間',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $dateTime->format('H:i'),
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3
+                        ]
+                    ]
+                ]
+            ];
+            
+            // 如果有客戶資訊，添加姓名
+            if ($customer && $customer->name) {
+                $infoContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '預約姓名',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $customer->line_display_name ?: $customer->name,
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3,
+                            'wrap' => true
+                        ]
+                    ]
+                ];
+            }
+            
+            // 如果有電話，添加電話資訊
+            if ($customer && $customer->phone) {
+                $infoContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '聯絡電話',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $customer->phone,
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3
+                        ]
+                    ]
+                ];
+            }
+            
+            // 如果有備註，添加備註資訊
+            if ($reservation->notes && trim($reservation->notes)) {
+                $infoContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '備註事項',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $reservation->notes,
+                            'size' => 'sm',
+                            'color' => '#333333',
+                            'weight' => 'bold',
+                            'flex' => 3,
+                            'wrap' => true
+                        ]
+                    ]
+                ];
+            }
+
+            $bubble = [
                 'type' => 'bubble',
                 'header' => [
                     'type' => 'box',
@@ -505,7 +654,7 @@ class LineBotService
                     'contents' => [
                         [
                             'type' => 'text',
-                            'text' => '預約資訊',
+                            'text' => $isExpired ? '已過期預約' : '預約資訊',
                             'weight' => 'bold',
                             'color' => '#ffffff',
                             'size' => 'lg',
@@ -520,7 +669,7 @@ class LineBotService
                             'margin' => 'xs'
                         ]
                     ],
-                    'backgroundColor' => '#27AE60',
+                    'backgroundColor' => $isExpired ? '#95A5A6' : '#27AE60',
                     'paddingAll' => 'lg'
                 ],
                 'body' => [
@@ -540,9 +689,9 @@ class LineBotService
                                 ],
                                 [
                                     'type' => 'text',
-                                    'text' => $statusText,
+                                    'text' => $isExpired ? '已過期' : $statusText,
                                     'size' => 'lg',
-                                    'color' => $statusColor,
+                                    'color' => $isExpired ? '#95A5A6' : $statusColor,
                                     'weight' => 'bold',
                                     'margin' => 'xs'
                                 ]
@@ -561,77 +710,16 @@ class LineBotService
                             'layout' => 'vertical',
                             'margin' => 'xl',
                             'spacing' => 'md',
-                            'contents' => [
-                                [
-                                    'type' => 'box',
-                                    'layout' => 'horizontal',
-                                    'contents' => [
-                                        [
-                                            'type' => 'text',
-                                            'text' => '服務項目',
-                                            'size' => 'sm',
-                                            'color' => '#666666',
-                                            'flex' => 2
-                                        ],
-                                        [
-                                            'type' => 'text',
-                                            'text' => $service->name,
-                                            'size' => 'sm',
-                                            'color' => '#333333',
-                                            'weight' => 'bold',
-                                            'flex' => 3,
-                                            'wrap' => true
-                                        ]
-                                    ]
-                                ],
-                                [
-                                    'type' => 'box',
-                                    'layout' => 'horizontal',
-                                    'contents' => [
-                                        [
-                                            'type' => 'text',
-                                            'text' => '預約日期',
-                                            'size' => 'sm',
-                                            'color' => '#666666',
-                                            'flex' => 2
-                                        ],
-                                        [
-                                            'type' => 'text',
-                                            'text' => $dateTime->format('Y年m月d日'),
-                                            'size' => 'sm',
-                                            'color' => '#333333',
-                                            'weight' => 'bold',
-                                            'flex' => 3
-                                        ]
-                                    ]
-                                ],
-                                [
-                                    'type' => 'box',
-                                    'layout' => 'horizontal',
-                                    'contents' => [
-                                        [
-                                            'type' => 'text',
-                                            'text' => '預約時間',
-                                            'size' => 'sm',
-                                            'color' => '#666666',
-                                            'flex' => 2
-                                        ],
-                                        [
-                                            'type' => 'text',
-                                            'text' => $dateTime->format('H:i'),
-                                            'size' => 'sm',
-                                            'color' => '#333333',
-                                            'weight' => 'bold',
-                                            'flex' => 3
-                                        ]
-                                    ]
-                                ]
-                            ]
+                            'contents' => $infoContents
                         ]
                     ],
                     'paddingAll' => 'xl'
-                ],
-                'footer' => [
+                ]
+            ];
+            
+            // 只有未過期的預約才添加操作按鈕
+            if (!$isExpired) {
+                $bubble['footer'] = [
                     'type' => 'box',
                     'layout' => 'vertical',
                     'contents' => [
@@ -666,8 +754,10 @@ class LineBotService
                         ]
                     ],
                     'paddingAll' => 'lg'
-                ]
-            ];
+                ];
+            }
+
+            $bubbles[] = $bubble;
         }
 
         $message = [

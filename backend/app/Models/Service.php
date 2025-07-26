@@ -41,10 +41,10 @@ class Service extends Model
                 $path = 'storage/' . $path;
             }
             
-            // 使用 asset() 而不是 url() 來確保產生正確的 URL
-            $baseUrl = config('app.url');
+            // 使用環境變數決定基礎 URL，優先使用 DOMAIN_URL，其次使用 APP_URL
+            $baseUrl = env('DOMAIN_URL', config('app.url'));
             
-            // 如果是本地開發環境且使用 ngrok，確保 HTTPS
+            // 如果是 ngrok 域名，確保使用 HTTPS
             if (str_contains($baseUrl, 'ngrok')) {
                 $baseUrl = str_replace('http://', 'https://', $baseUrl);
             }
