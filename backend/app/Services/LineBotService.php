@@ -569,8 +569,9 @@ class LineBotService
                 ]
             ];
             
-            // 如果有客戶資訊，添加姓名
-            if ($customer && $customer->name) {
+            // 顯示預約時填寫的姓名，優先使用 reservation 表中的 customer_name
+            $displayName = $reservation->customer_name ?: ($customer ? ($customer->line_display_name ?: $customer->name) : '');
+            if ($displayName) {
                 $infoContents[] = [
                     'type' => 'box',
                     'layout' => 'horizontal',
@@ -584,7 +585,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $customer->line_display_name ?: $customer->name,
+                            'text' => $displayName,
                             'size' => 'sm',
                             'color' => '#333333',
                             'weight' => 'bold',
@@ -595,8 +596,9 @@ class LineBotService
                 ];
             }
             
-            // 如果有電話，添加電話資訊
-            if ($customer && $customer->phone) {
+            // 顯示預約時填寫的電話，優先使用 reservation 表中的 customer_phone
+            $displayPhone = $reservation->customer_phone ?: ($customer ? $customer->phone : '');
+            if ($displayPhone) {
                 $infoContents[] = [
                     'type' => 'box',
                     'layout' => 'horizontal',
@@ -610,7 +612,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $customer->phone,
+                            'text' => $displayPhone,
                             'size' => 'sm',
                             'color' => '#333333',
                             'weight' => 'bold',
@@ -620,8 +622,9 @@ class LineBotService
                 ];
             }
             
-            // 如果有備註，添加備註資訊
-            if ($reservation->notes && trim($reservation->notes)) {
+            // 顯示預約時填寫的備註，優先使用 reservation 表中的 customer_notes
+            $displayNotes = $reservation->customer_notes ?: $reservation->notes;
+            if ($displayNotes && trim($displayNotes)) {
                 $infoContents[] = [
                     'type' => 'box',
                     'layout' => 'horizontal',
@@ -635,7 +638,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => $reservation->notes,
+                            'text' => $displayNotes,
                             'size' => 'sm',
                             'color' => '#333333',
                             'weight' => 'bold',
@@ -1413,7 +1416,7 @@ class LineBotService
                             'color' => '#27AE60',
                             'action' => [
                                 'type' => 'postback',
-                                'label' => '開始填寫資訊',
+                                'label' => '點我開始填寫資訊',
                                 'data' => "action=start_info_collection&service_id={$serviceId}&time_id={$timeId}"
                             ]
                         ],
@@ -1423,13 +1426,6 @@ class LineBotService
                             'margin' => 'md',
                             'spacing' => 'sm',
                             'contents' => [
-                                [
-                                    'type' => 'text',
-                                    'text' => '📋',
-                                    'size' => 'sm',
-                                    'color' => '#999999',
-                                    'flex' => 0
-                                ],
                                 [
                                     'type' => 'text',
                                     'text' => '需要填寫：姓名、電話、備註(選填)',
