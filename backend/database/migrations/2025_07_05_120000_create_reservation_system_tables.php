@@ -52,6 +52,7 @@ return new class extends Migration
         // 預約表
         Schema::create('reservations', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('customer_id')->nullable(); // 將通過後續 migration 添加外鍵約束
             $table->foreignId('service_id')->constrained()->onDelete('cascade');
             $table->foreignId('available_time_id')->nullable()->constrained()->onDelete('set null');
             $table->date('reservation_date');
@@ -61,6 +62,8 @@ return new class extends Migration
             $table->timestamp('confirmed_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
+            
+            $table->index('customer_id');
         });
 
         // 系統設定表

@@ -18,7 +18,6 @@ class Reservation extends Model
      * - 請使用 getReservationDateTime() 方法獲取完整的預約日期時間
      */
     protected $fillable = [
-        'user_id',
         'customer_id', // LINE 客戶關聯
         'service_id',
         'available_time_id',
