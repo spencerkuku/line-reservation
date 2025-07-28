@@ -20,6 +20,7 @@ class ReservationController extends Controller
                 'id' => $reservation->id,
                 'user_name' => $reservation->user->name ?? '系統管理員',
                 'customer_id' => $reservation->customer_id,
+                'customer' => $reservation->customer, // 完整的customer對象
                 'customer_name' => $reservation->customer_name, // 預約時填寫的姓名
                 'customer_phone' => $reservation->customer_phone, // 預約時填寫的電話
                 'customer_notes' => $reservation->customer_notes, // 預約時填寫的備註

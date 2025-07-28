@@ -197,11 +197,15 @@
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-10 w-10">
                     <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
-                      <span class="text-sm font-medium text-white">{{ (record.customer_name || record.name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                      <span class="text-sm font-medium text-white">{{ (record.customer?.line_display_name || record.customer?.name || record.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
                     </div>
                   </div>
                   <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">{{ record.customer_name || record.name || '未指定客戶' }}</div>
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ record.customer?.line_display_name || record.customer?.name || record.customer_name || '未指定客戶' }}
+                      <span v-if="record.customer_name && record.customer_name !== (record.customer?.line_display_name || record.customer?.name)" 
+                            class="ml-2 text-xs text-gray-500">({{ record.customer_name }})</span>
+                    </div>
                     <div class="text-sm text-gray-500 flex items-center">
                       <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                         #{{ record.id }}
@@ -326,10 +330,14 @@
               <div class="space-y-3">
                 <div class="flex items-center">
                   <div class="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center mr-3">
-                    <span class="text-sm font-medium text-white">{{ (selectedRecord.customer_name || selectedRecord.name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                    <span class="text-sm font-medium text-white">{{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
                   </div>
                   <div>
-                    <p class="text-sm font-medium text-gray-900">{{ selectedRecord.customer_name || selectedRecord.name || '未指定' }}</p>
+                    <p class="text-sm font-medium text-gray-900">
+                      {{ selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name || '未指定' }}
+                      <span v-if="selectedRecord.customer_name && selectedRecord.customer_name !== (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name)" 
+                            class="ml-2 text-xs text-gray-500">({{ selectedRecord.customer_name }})</span>
+                    </p>
                     <p class="text-sm text-gray-500">預約編號：#{{ selectedRecord.id }}</p>
                   </div>
                 </div>

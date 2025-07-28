@@ -277,7 +277,20 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-12 w-12">
-                    <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <div v-if="customer.line_picture_url" class="h-12 w-12 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img 
+                        :src="customer.line_picture_url" 
+                        :alt="customer.line_display_name || customer.name"
+                        class="h-full w-full object-cover"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                      />
+                      <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style="display: none;">
+                        <span class="text-sm font-semibold text-white">
+                          {{ (customer.line_display_name || customer.name).charAt(0).toUpperCase() }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                       <span class="text-sm font-semibold text-white">
                         {{ (customer.line_display_name || customer.name).charAt(0).toUpperCase() }}
                       </span>

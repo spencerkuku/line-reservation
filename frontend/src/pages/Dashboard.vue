@@ -223,7 +223,11 @@
               <tbody class="bg-white divide-y divide-gray-200">
                 <tr v-for="reservation in recentReservations" :key="reservation.id" class="hover:bg-gray-50">
                   <td class="px-4 py-3 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">{{ reservation.customer?.name || '未知客戶' }}</div>
+                    <div class="text-sm font-medium text-gray-900">
+                      {{ reservation.customer?.line_display_name || reservation.customer?.name || reservation.customer_name || '未知客戶' }}
+                      <span v-if="reservation.customer_name && reservation.customer_name !== (reservation.customer?.line_display_name || reservation.customer?.name)" 
+                            class="ml-2 text-xs text-gray-500">({{ reservation.customer_name }})</span>
+                    </div>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap">
                     <div class="text-sm text-gray-900">{{ reservation.service?.name || '未知服務' }}</div>
