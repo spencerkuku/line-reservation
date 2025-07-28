@@ -11,10 +11,12 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LineWebhookController;
 use App\Http\Controllers\Api\TestController;
+use App\Http\Controllers\Api\FrontendLogController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
+Route::post('/logs', [FrontendLogController::class, 'store']); // 前端日誌接收端點
 
 // 公開的可預約時段查詢（允許前端查看可用時段）
 Route::get('/available-times', [AvailableTimeController::class, 'index']);

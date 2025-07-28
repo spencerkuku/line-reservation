@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\Reservation;
 use App\Models\AvailableTime;
 use App\Models\LineMessageLog;
+use App\Services\LoggingService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -50,32 +51,59 @@ class LineBotService
 
     public function handleWebhook($events)
     {
+        $requestId = LoggingService::generateRequestId();
+        LoggingService::logLineBotEvent('webhook_received', 'system', ['event_count' => count($events)], $requestId);
+        
         Log::info('LineBotService: handleWebhook called with ' . count($events) . ' events');
         
         if (!$this->channelAccessToken) {
+            LoggingService::logLineBotError('webhook_config_error', 'system', 
+                new \Exception('LINE Bot not configured - missing access token'), 
+                ['events_count' => count($events)], $requestId);
             Log::error('LINE Bot not configured - missing access token');
             return;
         }
 
         foreach ($events as $event) {
+            $userId = $event['source']['userId'] ?? 'unknown';
+            LoggingService::logLineBotEvent('event_processing', $userId, [
+                'event_type' => $event['type'],
+                'event_data' => $event
+            ], $requestId);
+            
             Log::info('Processing event: ' . json_encode($event));
             $this->logMessage($event);
 
-            switch ($event['type']) {
-                case 'message':
-                    $this->handleMessage($event);
-                    break;
-                case 'postback':
-                    $this->handlePostback($event);
-                    break;
-                case 'follow':
-                    $this->handleFollow($event);
-                    break;
-                case 'unfollow':
-                    $this->handleUnfollow($event);
-                    break;
-                default:
-                    Log::info('Unhandled event type: ' . $event['type']);
+            try {
+                switch ($event['type']) {
+                    case 'message':
+                        $this->handleMessage($event);
+                        break;
+                    case 'postback':
+                        $this->handlePostback($event);
+                        break;
+                    case 'follow':
+                        $this->handleFollow($event);
+                        break;
+                    case 'unfollow':
+                        $this->handleUnfollow($event);
+                        break;
+                    default:
+                        LoggingService::logLineBotEvent('unhandled_event', $userId, [
+                            'event_type' => $event['type'],
+                            'event' => $event
+                        ], $requestId);
+                        Log::info('Unhandled event type: ' . $event['type']);
+                }
+            } catch (\Exception $e) {
+                LoggingService::logLineBotError('event_processing_error', $userId, $e, [
+                    'event_type' => $event['type'],
+                    'event' => $event
+                ], $requestId);
+                Log::error('Error processing event', [
+                    'error' => $e->getMessage(),
+                    'event' => $event
+                ]);
             }
         }
     }
@@ -85,6 +113,12 @@ class LineBotService
         $message = $event['message'];
         $userId = $event['source']['userId'];
         $replyToken = $event['replyToken'];
+
+        LoggingService::logLineBotEvent('message_received', $userId, [
+            'message_type' => $message['type'],
+            'text' => $message['text'] ?? null,
+            'reply_token' => $replyToken
+        ]);
 
         Log::info('Handling message', [
             'userId' => $userId,
@@ -98,6 +132,10 @@ class LineBotService
         
         // 如果無法建立或取得客戶，發送錯誤訊息
         if (!$customer) {
+            LoggingService::logLineBotError('customer_creation_failed', $userId, 
+                new \Exception('Unable to create or retrieve customer'), 
+                ['event' => $event]);
+                
             $this->replyMessage($replyToken, [
                 'type' => 'text',
                 'text' => '系統忙碌中，請稍後再試。'
@@ -108,15 +146,25 @@ class LineBotService
         if ($message['type'] === 'text') {
             $text = trim($message['text']);
             
+            LoggingService::logLineBotEvent('text_message_processing', $userId, [
+                'text' => $text,
+                'customer_id' => $customer->id ?? null
+            ]);
+            
             Log::info('Processing text message: ' . $text);
             
             // 檢查是否為強制終止指令
             if ($this->isCancelKeyword($text)) {
+                LoggingService::logLineBotEvent('cancel_command', $userId, ['text' => $text]);
                 Log::info('Cancel keyword detected, clearing reservation context');
                 $this->handleCancelCommand($replyToken, $userId);
             }
             // 檢查是否為填寫預約資訊的回覆
             elseif ($this->isCustomerInfoMessage($text, $replyToken, $userId)) {
+                LoggingService::logLineBotEvent('customer_info_processing', $userId, [
+                    'text' => $text,
+                    'customer_id' => $customer->id ?? null
+                ]);
                 Log::info('Customer info message detected, processing reservation', [
                     'text' => $text,
                     'replyToken' => $replyToken,
@@ -2026,6 +2074,10 @@ class LineBotService
                 // 如果客戶被軟刪除，恢復它
                 if ($customer->trashed()) {
                     $customer->restore();
+                    LoggingService::logCustomerEvent('customer_restored', [
+                        'customer_id' => $customer->id,
+                        'line_user_id' => $userId
+                    ]);
                 }
                 
                 // 更新 LINE 資訊和狀態
@@ -2036,6 +2088,13 @@ class LineBotService
                     'line_picture_url' => $profile['pictureUrl'] ?? $customer->line_picture_url,
                     'line_status_message' => $profile['statusMessage'] ?? $customer->line_status_message,
                     'last_interaction_at' => now()
+                ]);
+
+                LoggingService::logCustomerEvent('customer_info_updated', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $userId,
+                    'has_display_name' => !empty($profile['displayName']),
+                    'has_picture' => !empty($profile['pictureUrl'])
                 ]);
                 
                 return $customer;
@@ -2052,6 +2111,14 @@ class LineBotService
                     'line_picture_url' => $profile['pictureUrl'] ?? null,
                     'line_status_message' => $profile['statusMessage'] ?? null,
                     'status' => 'active'
+                ]);
+
+                LoggingService::logCustomerEvent('customer_created', [
+                    'customer_id' => $customer->id,
+                    'line_user_id' => $userId,
+                    'name' => $customer->name,
+                    'has_display_name' => !empty($profile['displayName']),
+                    'has_picture' => !empty($profile['pictureUrl'])
                 ]);
                 
                 return $customer;
@@ -2458,6 +2525,12 @@ class LineBotService
 
     private function completeReservation($replyToken, $context, $customer)
     {
+        LoggingService::logReservationEvent('reservation_completion_start', [
+            'customer_id' => $customer->id,
+            'service_id' => $context['service_id'] ?? null,
+            'time_id' => $context['time_id'] ?? null
+        ]);
+
         // Debug log to check context data
         Log::info('completeReservation called', [
             'context' => $context,
@@ -2795,8 +2868,26 @@ class LineBotService
             
             // 清理所有相關的預約上下文，避免後續輸入被誤判為客戶資訊
             $this->clearAllReservationContexts();
+
+            LoggingService::logReservationEvent('reservation_completed', [
+                'reservation_id' => $reservation->id,
+                'customer_id' => $customer->id,
+                'service_id' => $service->id,
+                'service_name' => $service->name,
+                'reservation_date' => $reservation->reservation_date,
+                'reservation_time' => $reservation->reservation_time,
+                'customer_name' => $reservation->customer_name,
+                'customer_phone' => $reservation->customer_phone
+            ]);
             
         } catch (\Exception $e) {
+            LoggingService::logLineBotError('reservation_creation_failed', $customer->line_user_id, $e, [
+                'context' => $context,
+                'customer_id' => $customer->id,
+                'service_id' => $context['service_id'] ?? null,
+                'time_id' => $context['time_id'] ?? null
+            ]);
+
             Log::error('Failed to create reservation', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

@@ -54,7 +54,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'single')),
+            'channels' => explode(',', env('LOG_STACK', 'daily,linebot,reservations')),
             'ignore_exceptions' => false,
         ],
 
@@ -70,6 +70,51 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        // LINE Bot 專用日誌頻道
+        'linebot' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/linebot.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
+        // 預約系統專用日誌頻道
+        'reservations' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/reservations.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
+        // 客戶管理專用日誌頻道
+        'customers' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/customers.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
+        // 前端日誌頻道
+        'frontend' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/frontend.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
+        // API 請求專用日誌頻道
+        'api' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/api.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
         ],
 

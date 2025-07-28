@@ -1,4 +1,5 @@
 import router from '../router.js'
+import logger from './logger.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
@@ -73,18 +74,29 @@ function getCsrfTokenFromCookie() {
 
 // 統一的 HTTP 請求函數
 async function apiRequest(url, options = {}) {
+    const startTime = performance.now();
+    const requestId = logger.generateRequestId();
+    const method = options.method || 'GET';
+    
+    // 記錄 API 請求開始
+    logger.logApiRequest(method, url, options.body ? JSON.parse(options.body) : null, requestId);
+
     const token = localStorage.getItem('token')
     
     // 驗證URL安全性
     if (!url.startsWith('/')) {
-        throw new Error('Invalid API endpoint');
+        const error = new Error('Invalid API endpoint');
+        logger.logError('Invalid API endpoint', error, { url, method }, 'api_security');
+        throw error;
     }
     
     // 驗證token格式
     if (token && !isValidToken(token)) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        throw new Error('Invalid token format');
+        const error = new Error('Invalid token format');
+        logger.logError('Invalid token format', error, { url, method }, 'api_auth');
+        throw error;
     }
     
     // 對於登入請求，先獲取 CSRF cookie
@@ -134,9 +146,17 @@ async function apiRequest(url, options = {}) {
     
     try {
         const response = await fetch(`${API_BASE_URL}${url}`, mergedOptions)
+        const duration = performance.now() - startTime;
         
         // 檢查 401 或 403 錯誤
         if (response.status === 401 || response.status === 403) {
+            logger.logError('Authentication failed', null, {
+                url,
+                method,
+                status: response.status,
+                request_id: requestId
+            }, 'api_auth');
+            
             console.warn('Token 驗證失敗或權限不足，重定向到登入頁面')
             
             // 清除本地存儲
@@ -150,23 +170,45 @@ async function apiRequest(url, options = {}) {
             
             // 拋出錯誤
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.message || '認證失敗，請重新登入')
+            const error = new Error(errorData.message || '認證失敗，請重新登入');
+            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            throw error;
         }
         
         // 檢查速率限制
         if (response.status === 429) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.message || '請求過於頻繁，請稍後再試')
+            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            const error = new Error(errorData.message || '請求過於頻繁，請稍後再試');
+            logger.logError('Rate limit exceeded', error, { url, method, request_id: requestId }, 'api_rate_limit');
+            throw error;
         }
         
         // 檢查其他錯誤
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            logger.logError('API request failed', error, { url, method, request_id: requestId }, 'api_error');
+            throw error;
         }
+
+        // 記錄成功響應
+        const responseData = await response.clone().json().catch(() => null);
+        logger.logApiResponse(method, url, response.status, responseData, requestId, duration);
         
         return response
     } catch (error) {
+        const duration = performance.now() - startTime;
+        
+        // 記錄網絡錯誤
+        logger.logError('API request failed', error, {
+            url,
+            method,
+            request_id: requestId,
+            duration_ms: duration
+        }, 'api_network');
+        
         // 網絡錯誤或其他錯誤
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
             throw new Error('無法連接到服務器，請檢查網絡連接')

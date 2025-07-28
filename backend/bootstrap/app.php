@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\SecurityHeadersMiddleware::class,
             \App\Http\Middleware\ApiRateLimitMiddleware::class,
+            \App\Http\Middleware\ApiLoggingMiddleware::class,
         ]);
 
         $middleware->alias([
