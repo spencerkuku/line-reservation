@@ -1785,7 +1785,7 @@ class LineBotService
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
                     'status' => 'confirmed',
-                    'notes' => '透過 LINE Bot 預約',
+                    'notes' => '無',
                 ]);
             });
 
@@ -2515,7 +2515,7 @@ class LineBotService
                     'customer_phone' => $context['customer_data']['phone'] ?? '',
                     'customer_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => 'confirmed',
-                    'notes' => '透過 LINE Bot 預約',
+                    'notes' => '無',
                 ]);
             });
             
@@ -3431,7 +3431,7 @@ class LineBotService
                     'customer_phone' => $context['customer_data']['phone'] ?? '',
                     'customer_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => 'confirmed',
-                    'notes' => '透過 LINE Bot 預約',
+                    'notes' => '無',
                 ]);
             });
             
