@@ -22,8 +22,8 @@ class DatabaseSeeder extends Seeder
         // 創建管理員用戶
         $admin = User::create([
             'name' => 'System Admin',
-            'email' => 'admin@line-reservation.com',
-            'password' => Hash::make('admin123'),
+            'email' => 'admin@example.com',
+            'password' => Hash::make('password'),
             'role' => 'admin',
             'status' => 'Active',
             'email_verified_at' => now(),
@@ -72,97 +72,6 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        // 創建客戶（兩筆）
-        $customer1 = Customer::create([
-            'line_user_id' => 'U1234567890abcdef',
-            'name' => '張小明',
-            'line_display_name' => '小明',
-            'line_picture_url' => 'https://profile.line-scdn.net/0h1234567890abcdef_large',
-            'line_status_message' => '今天也要加油！',
-            'phone' => '0912345678',
-            'email' => 'ming@example.com',
-            'gender' => 'male',
-            'birthday' => '1990-05-15',
-            'address' => '台北市中正區中山南路1號',
-            'notes' => '偏好短髮造型',
-            'status' => 'active',
-            'preferences' => json_encode([
-                'preferred_time' => 'morning',
-                'notification' => true
-            ]),
-            'last_interaction_at' => now()->subDays(2),
-            'referral_source' => 'LINE',
-            'total_reservations' => 0,
-            'total_spent' => 0,
-        ]);
-
-        $customer2 = Customer::create([
-            'line_user_id' => 'U0987654321fedcba',
-            'name' => '李小華',
-            'line_display_name' => 'Hua Lin',
-            'line_picture_url' => 'https://profile.line-scdn.net/0h0987654321fedcba_large',
-            'line_status_message' => '生活就是要美美的~',
-            'phone' => '0987654321',
-            'email' => 'hua@example.com',
-            'gender' => 'female',
-            'birthday' => '1985-08-20',
-            'address' => '台北市信義區市府路2號',
-            'notes' => '對化學藥劑過敏，請使用天然產品',
-            'status' => 'active',
-            'preferences' => json_encode([
-                'preferred_time' => 'afternoon',
-                'notification' => true,
-                'allergies' => ['chemical']
-            ]),
-            'last_interaction_at' => now()->subDays(1),
-            'referral_source' => 'friend',
-            'total_reservations' => 0,
-            'total_spent' => 0,
-        ]);
-
-        // 創建預約（兩筆）
-        $reservation1 = Reservation::create([
-            'customer_id' => $customer1->id,
-            'service_id' => $service1->id,
-            'available_time_id' => $availableTime1->id,
-            'customer_name' => $customer1->name,
-            'customer_phone' => $customer1->phone,
-            'customer_notes' => '希望剪短一點',
-            'reservation_date' => $today->toDateString(),
-            'reservation_time' => '10:00:00',
-            'status' => 'confirmed',
-            'notes' => '客戶偏好短髮',
-            'confirmed_at' => now()->subHours(2),
-        ]);
-
-        $reservation2 = Reservation::create([
-            'customer_id' => $customer2->id,
-            'service_id' => $service2->id,
-            'available_time_id' => $availableTime2->id,
-            'customer_name' => $customer2->name,
-            'customer_phone' => $customer2->phone,
-            'customer_notes' => '想要棕色調染髮',
-            'reservation_date' => $tomorrow->toDateString(),
-            'reservation_time' => '15:00:00',
-            'status' => 'pending',
-            'notes' => '客戶對化學藥劑過敏',
-        ]);
-
-        // 更新客戶的預約統計
-        $customer1->update([
-            'total_reservations' => 1,
-            'total_spent' => $service1->price,
-        ]);
-
-        $customer2->update([
-            'total_reservations' => 1,
-            'total_spent' => 0, // 尚未確認，所以還沒計算費用
-        ]);
-
-        // 更新可預約時段的當前預約數
-        $availableTime1->update(['current_bookings' => 1]);
-        $availableTime2->update(['current_bookings' => 1]);
-
         // 創建系統設定（兩筆）
         Setting::create([
             'key' => 'line_channel_access_token',
@@ -201,7 +110,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->command->info('資料庫初始化完成！');
-        $this->command->info('管理員帳號：admin@line-reservation.com / admin123');
+        $this->command->info('管理員帳號：admin@example.com / password');
         $this->command->info('客戶：2 筆');
         $this->command->info('服務項目：2 筆');
         $this->command->info('可預約時段：2 筆');
