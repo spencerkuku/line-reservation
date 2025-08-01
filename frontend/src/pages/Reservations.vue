@@ -470,11 +470,14 @@ function startAutoRefresh() {
     clearInterval(autoRefreshInterval.value)
   }
   
+  console.log('[自動刷新] 啟動自動刷新，每5秒刷新一次')
+  
   autoRefreshInterval.value = setInterval(() => {
     if (autoRefreshEnabled.value && !loading.value) {
+      console.log('[自動刷新] 執行定時刷新...')
       fetchReservations()
     }
-  }, 15000) // 每15秒刷新一次 (加快刷新頻率)
+  }, 5000) // 每5秒刷新一次，確保即時更新
 }
 
 // 停止自動刷新
@@ -482,12 +485,15 @@ function stopAutoRefresh() {
   if (autoRefreshInterval.value) {
     clearInterval(autoRefreshInterval.value)
     autoRefreshInterval.value = null
+    console.log('[自動刷新] 已停止自動刷新')
   }
 }
 
 // 切換自動刷新
 function toggleAutoRefresh() {
   autoRefreshEnabled.value = !autoRefreshEnabled.value
+  console.log('[自動刷新] 切換狀態:', autoRefreshEnabled.value ? '開啟' : '關閉')
+  
   if (autoRefreshEnabled.value) {
     startAutoRefresh()
   } else {
@@ -577,14 +583,36 @@ const totalPages = computed(() => Math.ceil(filteredRecords.value.length / items
 async function fetchReservations() {
   loading.value = true
   error.value = ''
+  
+  console.log('[刷新] 開始獲取預約資料...', new Date().toLocaleString())
+  
   try {
-    const data = await apiGet('/reservations')
-    records.value = data.data || data
+    // 添加時間戳參數防止快取
+    const timestamp = Date.now()
+    const data = await apiGet(`/reservations?_t=${timestamp}`)
+    
+    const newData = data.data || data
+    console.log('[刷新] 成功獲取預約資料:', {
+      總數: newData.length,
+      新資料: newData,
+      時間: new Date().toLocaleString()
+    })
+    
+    records.value = newData
+    
+    // 檢查是否有第9筆資料
+    if (newData.length >= 9) {
+      console.log('[刷新] ✅ 第9筆預約已顯示:', newData[8])
+    } else {
+      console.log('[刷新] ⚠️ 目前只有', newData.length, '筆預約')
+    }
+    
   } catch (err) {
     error.value = err.message || '載入預約資料失敗'
-    console.error('Error fetching reservations:', err)
+    console.error('[刷新] ❌ 獲取預約資料失敗:', err)
   } finally {
     loading.value = false
+    console.log('[刷新] 完成')
   }
 }
 
@@ -600,10 +628,6 @@ async function confirmRecord(record) {
     // 顯示成功通知
     showNotification('預約已確認', 'success')
     
-    // 立即刷新數據
-    if (autoRefreshEnabled.value) {
-      startAutoRefresh()
-    }
   } catch (err) {
     showNotification(`確認失敗: ${err.message}`, 'error')
   } finally {
@@ -623,10 +647,6 @@ async function cancelRecord(record) {
     // 顯示成功通知
     showNotification('預約已取消', 'success')
     
-    // 立即刷新數據
-    if (autoRefreshEnabled.value) {
-      startAutoRefresh()
-    }
   } catch (err) {
     showNotification(`取消失敗: ${err.message}`, 'error')
   } finally {
