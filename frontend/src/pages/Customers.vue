@@ -116,7 +116,8 @@
           <h2 class="text-lg font-semibold text-gray-900">客戶搜尋與篩選</h2>
           <p class="text-sm text-gray-600">快速找到您需要的客戶資料</p>
         </div>
-        <button
+        <!-- 新增客戶按鈕已暫時停用 -->
+        <!-- <button
           @click="showAddModal = true"
           class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 shadow-sm"
         >
@@ -124,7 +125,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
           新增客戶
-        </button>
+        </button> -->
 
       </div>
       
@@ -236,7 +237,8 @@
         </div>
         <h3 class="text-lg font-medium text-gray-900 mb-2">沒有找到客戶</h3>
         <p class="text-sm text-gray-500 mb-4">目前沒有符合條件的客戶資料</p>
-        <button
+        <!-- 新增客戶按鈕已暫時停用 -->
+        <!-- <button
           @click="showAddModal = true"
           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
@@ -244,7 +246,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
           新增第一位客戶
-        </button>
+        </button> -->
       </div>
       
       <!-- 客戶表格 -->
@@ -286,24 +288,24 @@
                       />
                       <div class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center" style="display: none;">
                         <span class="text-sm font-semibold text-white">
-                          {{ (customer.line_display_name || customer.name).charAt(0).toUpperCase() }}
+                          {{ (customer.line_display_name || customer.name || '?').charAt(0).toUpperCase() }}
                         </span>
                       </div>
                     </div>
                     <div v-else class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                       <span class="text-sm font-semibold text-white">
-                        {{ (customer.line_display_name || customer.name).charAt(0).toUpperCase() }}
+                        {{ (customer.line_display_name || customer.name || '?').charAt(0).toUpperCase() }}
                       </span>
                     </div>
                   </div>
                   <div class="ml-4">
                     <div class="text-sm font-medium text-gray-900">
-                      {{ customer.line_display_name || customer.name }}
-                      <span v-if="customer.line_display_name && customer.line_display_name !== customer.name" 
+                      {{ customer.line_display_name || customer.name || '未知客戶' }}
+                      <span v-if="customer.line_display_name && customer.line_display_name !== customer.name && customer.name" 
                             class="ml-2 text-xs text-gray-500">({{ customer.name }})</span>
                     </div>
                     <div class="text-sm text-gray-500">
-                      <span>ID: {{ customer.id }}</span>
+                      <span>ID: {{ customer.id || '無' }}</span>
                       <span v-if="customer.line_user_id" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                         LINE
                       </span>
@@ -666,10 +668,26 @@ async function fetchCustomers() {
     params.page = searchForm.page
     
     const data = await apiGet('/customers', params)
-    customers.value = data.data
-    pagination.value = data.pagination
+    
+    // 驗證返回的資料結構
+    if (data && data.data && Array.isArray(data.data)) {
+      customers.value = data.data
+      pagination.value = data.pagination || {
+        current_page: 1,
+        last_page: 1,
+        per_page: 20,
+        total: 0
+      }
+    } else {
+      throw new Error('返回的客戶資料格式不正確')
+    }
   } catch (err) {
-    error.value = err.message
+    error.value = err.message || '獲取客戶資料失敗'
+    customers.value = []
+    
+    if (import.meta.env.DEV) {
+      console.error('獲取客戶列表失敗:', err)
+    }
   } finally {
     loading.value = false
   }
@@ -761,7 +779,21 @@ async function updateCustomer() {
     closeModals()
     await fetchCustomers()
   } catch (err) {
-    error.value = err.message
+    // 處理不同類型的錯誤
+    if (err.message.includes('No query results for model') || err.message.includes('404')) {
+      // 客戶已不存在
+      closeModals()
+      alert('客戶資料已不存在，將自動刷新列表')
+      await fetchCustomers()
+    } else {
+      // 其他錯誤
+      error.value = err.message
+      alert(`更新客戶失敗：${err.message}`)
+    }
+    
+    if (import.meta.env.DEV) {
+      console.error('更新客戶失敗:', err)
+    }
   } finally {
     submitting.value = false
   }
@@ -769,14 +801,35 @@ async function updateCustomer() {
 
 // 刪除客戶
 async function deleteCustomer(customer) {
-  if (!confirm(`確定要刪除客戶「${customer.line_display_name || customer.name}」嗎？`)) return
+  const customerName = customer.line_display_name || customer.name || '未知客戶'
+  if (!confirm(`確定要刪除客戶「${customerName}」嗎？`)) return
   
   try {
     await apiDelete(`/customers/${customer.id}`)
+    // 成功刪除後刷新數據
     await fetchCustomers()
     await fetchStatistics()
+    
+    // 顯示成功訊息
+    if (import.meta.env.DEV) {
+      console.log(`客戶「${customerName}」已成功刪除`)
+    }
   } catch (err) {
-    error.value = err.message
+    // 處理不同類型的錯誤
+    if (err.message.includes('No query results for model') || err.message.includes('404')) {
+      // 客戶已不存在，直接刷新列表
+      alert(`客戶「${customerName}」已不存在，將自動刷新列表`)
+      await fetchCustomers()
+      await fetchStatistics()
+    } else {
+      // 其他錯誤
+      error.value = err.message
+      alert(`刪除客戶失敗：${err.message}`)
+    }
+    
+    if (import.meta.env.DEV) {
+      console.error('刪除客戶失敗:', err)
+    }
   }
 }
 
@@ -787,6 +840,26 @@ function viewCustomer(customer) {
     console.log('查看客戶:', customer)
   }
   // TODO: 實現客戶詳情查看功能
+}
+
+// 通用錯誤處理函數
+function handleApiError(err, actionName, customerName = '') {
+  if (err.message.includes('No query results for model') || err.message.includes('404')) {
+    // 資源不存在
+    const message = customerName 
+      ? `客戶「${customerName}」已不存在，將自動刷新列表`
+      : '資源已不存在，將自動刷新列表'
+    alert(message)
+    return true // 表示需要刷新列表
+  } else {
+    // 其他錯誤
+    error.value = err.message
+    const message = customerName 
+      ? `${actionName}客戶「${customerName}」失敗：${err.message}`
+      : `${actionName}失敗：${err.message}`
+    alert(message)
+    return false
+  }
 }
 
 // 關閉所有Modal
@@ -831,7 +904,7 @@ function getStatusText(status) {
   const texts = {
     'active': '活躍',
     'inactive': '非活躍',
-    'blocked': '已封鎖'
+      'blocked': '已封鎖'
   }
   return texts[status] || status
 }
@@ -882,7 +955,17 @@ async function recalculateCustomerStats(customerId) {
       }
     }
   } catch (err) {
-    error.value = err.message || '重新計算客戶統計數據失敗'
+    // 處理不同類型的錯誤
+    if (err.message.includes('No query results for model') || err.message.includes('404')) {
+      // 客戶已不存在，直接刷新列表
+      alert('客戶已不存在，將自動刷新列表')
+      await fetchCustomers()
+    } else {
+      // 其他錯誤
+      error.value = err.message || '重新計算客戶統計數據失敗'
+      alert(`重新計算統計失敗：${err.message}`)
+    }
+    
     if (import.meta.env.DEV) {
       console.error('重新計算客戶統計數據失敗:', err)
     }
