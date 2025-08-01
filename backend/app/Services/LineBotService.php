@@ -239,6 +239,9 @@ class LineBotService
             case 'edit_time':
                 $this->handleEditTime($replyToken, $data['reservation_id'], $data['service_id'], $userId);
                 break;
+            case 'edit_date_selected':
+                $this->handleEditTimeSelection($replyToken, $data['reservation_id'], $data['service_id'], $data['selected_date'], $userId);
+                break;
             case 'update_service':
                 $this->handleUpdateService($replyToken, $data['reservation_id'], $data['new_service_id'], $userId);
                 break;
@@ -454,9 +457,9 @@ class LineBotService
             return;
         }
 
-        // 獲取客戶的預約記錄（最近30天，狀態為 confirmed 或 pending）
+        // 獲取客戶的預約記錄（最近30天，包含已取消的預約）
         $reservations = Reservation::where('customer_id', $customer->id)
-            ->whereIn('status', ['confirmed', 'pending'])
+            ->whereIn('status', ['confirmed', 'pending', 'cancelled'])
             ->where('reservation_date', '>=', now()->subDays(30))
             ->with(['service', 'availableTime'])
             ->orderBy('reservation_date', 'desc')
@@ -543,8 +546,18 @@ class LineBotService
             // 使用模型的輔助方法獲取完整的預約日期時間
             $dateTime = $reservation->getReservationDateTime();
             
-            $statusText = $reservation->status === 'confirmed' ? '已確認' : '待確認';
-            $statusColor = $reservation->status === 'confirmed' ? '#27AE60' : '#F39C12';
+            $statusText = match($reservation->status) {
+                'confirmed' => '已確認',
+                'pending' => '待確認',
+                'cancelled' => '已取消',
+                default => '未知狀態'
+            };
+            $statusColor = match($reservation->status) {
+                'confirmed' => '#27AE60',
+                'pending' => '#F39C12',
+                'cancelled' => '#E74C3C',
+                default => '#95A5A6'
+            };
             
             // 檢查預約是否已過期
             $isExpired = $dateTime->isPast();
@@ -768,44 +781,101 @@ class LineBotService
                 ]
             ];
             
-            // 只有未過期的預約才添加操作按鈕
-            if (!$isExpired) {
-                $bubble['footer'] = [
-                    'type' => 'box',
-                    'layout' => 'vertical',
-                    'contents' => [
-                        [
-                            'type' => 'box',
-                            'layout' => 'horizontal',
-                            'spacing' => 'sm',
-                            'contents' => [
-                                [
-                                    'type' => 'button',
-                                    'style' => 'secondary',
-                                    'height' => 'sm',
-                                    'flex' => 1,
-                                    'action' => [
-                                        'type' => 'postback',
-                                        'label' => '編輯',
-                                        'data' => "action=edit_reservation&reservation_id={$reservation->id}"
-                                    ]
-                                ],
-                                [
-                                    'type' => 'button',
-                                    'style' => 'secondary',
-                                    'height' => 'sm',
-                                    'flex' => 1,
-                                    'action' => [
-                                        'type' => 'postback',
-                                        'label' => '取消',
-                                        'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
-                                    ]
-                                ]
-                            ]
+            // 根據預約狀態和時間決定顯示的操作按鈕
+            if (!$isExpired && $reservation->status !== 'cancelled') {
+                $footerContents = [];
+                $reservationDateTime = $reservation->getReservationDateTime();
+                $hoursUntilReservation = now()->diffInHours($reservationDateTime, false);
+                
+                Log::info('Reservation button logic check', [
+                    'reservation_id' => $reservation->id,
+                    'reservation_datetime' => $reservationDateTime->format('Y-m-d H:i:s'),
+                    'current_time' => now()->format('Y-m-d H:i:s'),
+                    'hours_until_reservation' => $hoursUntilReservation,
+                    'status' => $reservation->status
+                ]);
+                
+                // 編輯按鈕 - 只有待確認狀態可以編輯
+                if ($reservation->status === 'pending') {
+                    $footerContents[] = [
+                        'type' => 'button',
+                        'style' => 'secondary',
+                        'height' => 'sm',
+                        'flex' => 1,
+                        'action' => [
+                            'type' => 'postback',
+                            'label' => '編輯',
+                            'data' => "action=edit_reservation&reservation_id={$reservation->id}"
                         ]
-                    ],
-                    'paddingAll' => 'lg'
-                ];
+                    ];
+                    
+                    // 取消按鈕 - 只有待確認狀態可以取消
+                    $footerContents[] = [
+                        'type' => 'button',
+                        'style' => 'secondary',
+                        'height' => 'sm',
+                        'flex' => 1,
+                        'action' => [
+                            'type' => 'postback',
+                            'label' => '取消',
+                            'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
+                        ]
+                    ];
+                } elseif ($reservation->status === 'confirmed') {
+                    // 已確認的預約 - 根據時間判斷是否可以修改
+                    if ($hoursUntilReservation <= 24) {
+                        // 24小時內 - 顯示聯絡客服說明
+                        $footerContents[] = [
+                            'type' => 'text',
+                            'text' => '已確認預約如需修改或取消，請聯絡客服',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'align' => 'center',
+                            'wrap' => true
+                        ];
+                    } else {
+                        // 超過24小時 - 提供修改取消按鈕
+                        $footerContents[] = [
+                            'type' => 'button',
+                            'style' => 'secondary',
+                            'height' => 'sm',
+                            'flex' => 1,
+                            'action' => [
+                                'type' => 'postback',
+                                'label' => '編輯',
+                                'data' => "action=edit_reservation&reservation_id={$reservation->id}"
+                            ]
+                        ];
+                        
+                        $footerContents[] = [
+                            'type' => 'button',
+                            'style' => 'secondary',
+                            'height' => 'sm',
+                            'flex' => 1,
+                            'action' => [
+                                'type' => 'postback',
+                                'label' => '取消',
+                                'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
+                            ]
+                        ];
+                    }
+                }
+                
+                if (!empty($footerContents)) {
+                    $bubble['footer'] = [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => count($footerContents) > 1 ? [
+                            [
+                                'type' => 'box',
+                                'layout' => 'horizontal',
+                                'spacing' => 'sm',
+                                'contents' => $footerContents
+                            ]
+                        ] : $footerContents,
+                        'paddingAll' => 'lg'
+                    ];
+                }
             }
 
             $bubbles[] = $bubble;
@@ -2440,7 +2510,7 @@ class LineBotService
                 return;
             }
             
-            // 只需要確保 LINE 客戶記錄存在，不更新客戶資料
+            // 確保 LINE 客戶記錄存在，並在第一次預約時更新客戶資料
             $customer = $this->getOrCreateCustomer($userId, null);
             
             if (!$customer) {
@@ -2449,6 +2519,30 @@ class LineBotService
                     'text' => '建立客戶資料時發生錯誤，請稍後再試。'
                 ]);
                 return;
+            }
+            
+            // 如果是第一次預約，更新客戶的電話和姓名資訊
+            if ($customer->total_reservations == 0) {
+                $updateData = [];
+                
+                // 如果客戶表中沒有電話，更新預約時填寫的電話
+                if (empty($customer->phone) && !empty($customerData['phone'])) {
+                    $updateData['phone'] = $customerData['phone'];
+                }
+                
+                // 如果客戶表中的姓名是預設值或為空，更新預約時填寫的姓名
+                if ((empty($customer->name) || $customer->name === '未知用戶') && !empty($customerData['name'])) {
+                    $updateData['name'] = $customerData['name'];
+                }
+                
+                // 執行更新
+                if (!empty($updateData)) {
+                    $customer->update($updateData);
+                    Log::info('Updated customer info from first reservation (legacy flow)', [
+                        'customer_id' => $customer->id,
+                        'updated_fields' => array_keys($updateData)
+                    ]);
+                }
             }
             
             // 將預約時填寫的資料保存到上下文中，稍後存到 reservations 表
@@ -3149,7 +3243,7 @@ class LineBotService
     {
         // 檢查是否要跳過備註
         if ($text === 'skip_notes') {
-            $context['customer_data']['notes'] = null;
+            $context['customer_data']['notes'] = ''; // 使用空字串而不是 null
             $this->completeStepByStepReservation($replyToken, $context, $userId);
             Cache::forget($contextKey);
             $this->removeFromActiveKeys($contextKey);
@@ -3409,7 +3503,7 @@ class LineBotService
                             'margin' => 'lg',
                             'action' => [
                                 'type' => 'message',
-                                'label' => '沒有備註，直接完成預約',
+                                'label' => '沒有備註，點擊我完成預約',
                                 'text' => 'no_notes'
                             ]
                         ]
@@ -3424,19 +3518,43 @@ class LineBotService
 
     private function processNotesStep($text, $replyToken, $contextKey, $context, $userId)
     {
-        // 如果沒有上下文，嘗試用備用方法檢索
+        // 如果沒有上下文，嘗試用 userId 重新檢索
         if (!$context) {
-            $allKeys = Cache::get('active_reservation_keys', []);
-            foreach ($allKeys as $key) {
-                $context = Cache::get($key);
-                if ($context && $context['step'] === 'waiting_notes') {
-                    $contextKey = $key;
-                    break;
+            Log::warning('No context provided to processNotesStep, attempting to retrieve', [
+                'userId' => $userId,
+                'contextKey' => $contextKey
+            ]);
+            
+            if ($userId) {
+                $contextKeyRef = Cache::get('user_reservation_context_' . $userId);
+                if ($contextKeyRef) {
+                    $context = Cache::get($contextKeyRef);
+                    $contextKey = $contextKeyRef;
+                }
+            }
+            
+            // 如果還是沒有，嘗試從活動鍵中搜索
+            if (!$context) {
+                $allKeys = Cache::get('active_reservation_keys', []);
+                foreach ($allKeys as $key) {
+                    $tempContext = Cache::get($key);
+                    if ($tempContext && $tempContext['step'] === 'waiting_notes' && 
+                        isset($tempContext['user_id']) && $tempContext['user_id'] === $userId) {
+                        $context = $tempContext;
+                        $contextKey = $key;
+                        break;
+                    }
                 }
             }
         }
         
         if (!$context) {
+            Log::error('No context found in processNotesStep', [
+                'userId' => $userId,
+                'contextKey' => $contextKey,
+                'replyToken' => $replyToken
+            ]);
+            
             $this->replyMessage($replyToken, [
                 'type' => 'text',
                 'text' => '預約資訊已過期，請重新開始預約流程。'
@@ -3444,11 +3562,20 @@ class LineBotService
             return;
         }
         
+        Log::info('Processing notes step', [
+            'text' => $text,
+            'userId' => $userId,
+            'contextKey' => $contextKey,
+            'step' => $context['step'] ?? 'unknown'
+        ]);
+        
         // 處理備註
         if ($text === 'no_notes') {
-            $context['customer_data']['notes'] = null;
+            $context['customer_data']['notes'] = ''; // 使用空字串而不是 null
+            Log::info('User selected no notes');
         } else {
             $context['customer_data']['notes'] = trim($text);
+            Log::info('User provided notes', ['notes' => trim($text)]);
         }
         
         // 完成預約
@@ -3460,7 +3587,7 @@ class LineBotService
     private function completeStepByStepReservation($replyToken, $context, $userId)
     {
         try {
-            // 只需要確保 LINE 客戶記錄存在，不更新客戶資料
+            // 確保 LINE 客戶記錄存在
             $customer = $this->getOrCreateCustomer($userId, null);
             
             if (!$customer) {
@@ -3469,6 +3596,30 @@ class LineBotService
                     'text' => '建立客戶資料時發生錯誤，請稍後再試或聯絡客服。'
                 ]);
                 return;
+            }
+            
+            // 如果是第一次預約，更新客戶的電話和姓名資訊
+            if ($customer->total_reservations == 0) {
+                $updateData = [];
+                
+                // 如果客戶表中沒有電話，更新預約時填寫的電話
+                if (empty($customer->phone) && !empty($context['customer_data']['phone'])) {
+                    $updateData['phone'] = $context['customer_data']['phone'];
+                }
+                
+                // 如果客戶表中的姓名是預設值或為空，更新預約時填寫的姓名
+                if ((empty($customer->name) || $customer->name === '未知用戶') && !empty($context['customer_data']['name'])) {
+                    $updateData['name'] = $context['customer_data']['name'];
+                }
+                
+                // 執行更新
+                if (!empty($updateData)) {
+                    $customer->update($updateData);
+                    Log::info('Updated customer info from first reservation', [
+                        'customer_id' => $customer->id,
+                        'updated_fields' => array_keys($updateData)
+                    ]);
+                }
             }
             
             // 獲取服務和虛擬時段資訊
@@ -3676,7 +3827,7 @@ class LineBotService
                                             ],
                                             [
                                                 'type' => 'text',
-                                                'text' => $customer->name,
+                                                'text' => $context['customer_data']['name'] ?? $customer->name,
                                                 'size' => 'sm',
                                                 'color' => '#333333',
                                                 'weight' => 'bold',
@@ -3697,7 +3848,7 @@ class LineBotService
                                             ],
                                             [
                                                 'type' => 'text',
-                                                'text' => $customer->phone,
+                                                'text' => $context['customer_data']['phone'] ?? $customer->phone,
                                                 'size' => 'sm',
                                                 'color' => '#333333',
                                                 'weight' => 'bold',
@@ -4216,6 +4367,101 @@ class LineBotService
                 return;
             }
 
+            // 檢查預約狀態和時間限制
+            if ($reservation->status === 'cancelled') {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '此預約已被取消。'
+                ]);
+                return;
+            }
+            
+            // 計算距離預約時間的小時數
+            $reservationDateTime = $reservation->getReservationDateTime();
+            $hoursUntilReservation = now()->diffInHours($reservationDateTime, false);
+            
+            Log::info('Cancel reservation time check', [
+                'reservation_id' => $reservationId,
+                'reservation_datetime' => $reservationDateTime->format('Y-m-d H:i:s'),
+                'current_time' => now()->format('Y-m-d H:i:s'),
+                'hours_until_reservation' => $hoursUntilReservation,
+                'status' => $reservation->status
+            ]);
+            
+            // 檢查是否可以取消
+            if ($reservation->status === 'confirmed' && $hoursUntilReservation <= 24) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'flex',
+                    'altText' => '無法取消預約',
+                    'contents' => [
+                        'type' => 'bubble',
+                        'header' => [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '無法取消預約',
+                                    'weight' => 'bold',
+                                    'color' => '#ffffff',
+                                    'size' => 'xl',
+                                    'align' => 'center'
+                                ]
+                            ],
+                            'backgroundColor' => '#E74C3C',
+                            'paddingAll' => 'lg'
+                        ],
+                        'body' => [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '預約時間在24小時內，無法自行取消',
+                                    'size' => 'lg',
+                                    'color' => '#333333',
+                                    'align' => 'center',
+                                    'weight' => 'bold',
+                                    'margin' => 'md'
+                                ],
+                                [
+                                    'type' => 'separator',
+                                    'margin' => 'xl'
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => '距離預約時間不足24小時的已確認預約如需修改或取消，請聯絡客服處理。我們會盡快為您安排。',
+                                    'size' => 'sm',
+                                    'color' => '#666666',
+                                    'margin' => 'xl',
+                                    'wrap' => true,
+                                    'align' => 'center'
+                                ]
+                            ],
+                            'paddingAll' => 'xl'
+                        ],
+                        'footer' => [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'contents' => [
+                                [
+                                    'type' => 'button',
+                                    'style' => 'secondary',
+                                    'height' => 'sm',
+                                    'action' => [
+                                        'type' => 'message',
+                                        'label' => '返回預約查詢',
+                                        'text' => '查詢預約'
+                                    ]
+                                ]
+                            ],
+                            'paddingAll' => 'lg'
+                        ]
+                    ]
+                ]);
+                return;
+            }
+
             // 使用模型的輔助方法獲取完整的預約日期時間
             $reservationDateTime = $reservation->getReservationDateTime();
 
@@ -4387,6 +4633,36 @@ class LineBotService
                 $this->replyMessage($replyToken, [
                     'type' => 'text',
                     'text' => '找不到此預約記錄。'
+                ]);
+                return;
+            }
+
+            // 檢查預約狀態和時間限制
+            if ($reservation->status === 'cancelled') {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '此預約已被取消。'
+                ]);
+                return;
+            }
+            
+            // 計算距離預約時間的小時數
+            $reservationDateTime = $reservation->getReservationDateTime();
+            $hoursUntilReservation = now()->diffInHours($reservationDateTime, false);
+            
+            Log::info('Confirm cancel time check', [
+                'reservation_id' => $reservationId,
+                'reservation_datetime' => $reservationDateTime->format('Y-m-d H:i:s'),
+                'current_time' => now()->format('Y-m-d H:i:s'),
+                'hours_until_reservation' => $hoursUntilReservation,
+                'status' => $reservation->status
+            ]);
+            
+            // 檢查是否可以取消
+            if ($reservation->status === 'confirmed' && $hoursUntilReservation <= 24) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '預約時間在24小時內的已確認預約無法自行取消，請聯絡客服處理。'
                 ]);
                 return;
             }
@@ -5559,10 +5835,52 @@ class LineBotService
                 return;
             }
 
-            // 獲取可用時段
-            $availableTimes = $this->getAvailableTimeSlotsForService($serviceId);
+            // 先顯示日期選擇，而不是直接顯示時間
+            $this->handleEditDateSelection($replyToken, $reservationId, $serviceId, $userId);
 
-            if ($availableTimes->isEmpty()) {
+        } catch (\Exception $e) {
+            Log::error('Failed to handle edit time', [
+                'error' => $e->getMessage(),
+                'reservation_id' => $reservationId,
+                'service_id' => $serviceId,
+                'userId' => $userId
+            ]);
+            
+            $this->replyMessage($replyToken, [
+                'type' => 'text',
+                'text' => '編輯預約時間時發生錯誤，請稍後再試。'
+            ]);
+        }
+    }
+
+    /**
+     * 處理編輯預約日期選擇
+     */
+    private function handleEditDateSelection($replyToken, $reservationId, $serviceId, $userId)
+    {
+        try {
+            $service = Service::find($serviceId);
+            if (!$service) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '找不到指定的服務項目。'
+                ]);
+                return;
+            }
+
+            $reservation = Reservation::find($reservationId);
+            if (!$reservation) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '找不到此預約記錄。'
+                ]);
+                return;
+            }
+
+            // 獲取可用時段
+            $availableTimeSlots = $this->getAvailableTimeSlotsForService($serviceId);
+            
+            if ($availableTimeSlots->isEmpty()) {
                 $this->replyMessage($replyToken, [
                     'type' => 'text',
                     'text' => "目前沒有適合「{$service->name}」的可用時段。"
@@ -5570,47 +5888,97 @@ class LineBotService
                 return;
             }
 
-            // 建立時間選擇的 Flex Message
-            $timeButtons = [];
-            $buttonRows = [];
-            $buttonsPerRow = 1; // 改為每行1個按鈕，讓時間更清楚可見
-            
-            foreach ($availableTimes->take(12) as $index => $time) {
-                $dateStr = Carbon::parse($time->start_time)->format('m/d');
-                $dayOfWeek = Carbon::parse($time->start_time)->locale('zh_TW')->dayName;
-                $timeStr = Carbon::parse($time->start_time)->format('H:i');
-                $endTimeStr = Carbon::parse($time->end_time)->format('H:i');
+            // 按日期分組
+            $availableDates = [];
+            foreach ($availableTimeSlots as $timeSlot) {
+                $dateStr = Carbon::parse($timeSlot->start_time)->format('Y-m-d');
+                $dateObj = Carbon::parse($timeSlot->start_time);
                 
-                $timeButtons[] = [
-                    'type' => 'button',
-                    'height' => 'sm',
-                    'color' => '#3498DB',
-                    'action' => [
-                        'type' => 'postback',
-                        'label' => "{$dateStr} ({$dayOfWeek}) {$timeStr}-{$endTimeStr}",
-                        'data' => "action=update_time&reservation_id={$reservationId}&new_time_id={$time->id}"
-                    ],
-                    'style' => 'primary',
-                    'margin' => 'sm'
-                ];
-                
-                // 每1個按鈕組成一行
-                if (count($timeButtons) == $buttonsPerRow || $index == count($availableTimes) - 1) {
-                    $buttonRows[] = [
-                        'type' => 'box',
-                        'layout' => 'vertical',
-                        'spacing' => 'md',
-                        'contents' => $timeButtons
-                    ];
-                    $timeButtons = [];
+                if (!isset($availableDates[$dateStr])) {
+                    $availableDates[$dateStr] = $dateObj;
                 }
             }
 
-            $currentDateTime = Carbon::parse($reservation->getRawOriginal('reservation_time'));
-            
+            // 只取未來7天的日期
+            $today = now()->startOfDay();
+            $availableDates = array_filter($availableDates, function($dateObj) use ($today) {
+                return $dateObj->gte($today) && $dateObj->lte($today->copy()->addDays(7));
+            });
+
+            if (empty($availableDates)) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '接下來7天沒有可用的預約時段。'
+                ]);
+                return;
+            }
+
+            // 建立日期選擇按鈕
+            $dateButtons = [];
+            $buttonRows = [];
+            $buttonsPerRow = 2;
+
+            foreach ($availableDates as $dateStr => $dateObj) {
+                $dayMapping = [
+                    'Monday' => '週一',
+                    'Tuesday' => '週二',
+                    'Wednesday' => '週三',
+                    'Thursday' => '週四',
+                    'Friday' => '週五',
+                    'Saturday' => '週六',
+                    'Sunday' => '週日'
+                ];
+                $dayOfWeek = $dayMapping[$dateObj->format('l')] ?? $dateObj->format('l');
+                $isToday = $dateObj->isToday();
+                $isTomorrow = $dateObj->isTomorrow();
+                
+                $displayText = $dateObj->format('m/d');
+                if ($isToday) {
+                    $displayText .= ' (今天)';
+                } elseif ($isTomorrow) {
+                    $displayText .= ' (明天)';
+                } else {
+                    $displayText .= " ({$dayOfWeek})";
+                }
+
+                $dateButtons[] = [
+                    'type' => 'button',
+                    'height' => 'sm',
+                    'action' => [
+                        'type' => 'postback',
+                        'label' => $displayText,
+                        'data' => "action=edit_date_selected&reservation_id={$reservationId}&service_id={$serviceId}&selected_date={$dateStr}"
+                    ],
+                    'style' => 'primary',
+                    'color' => '#3498DB'
+                ];
+
+                if (count($dateButtons) == $buttonsPerRow) {
+                    $buttonRows[] = [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'spacing' => 'sm',
+                        'contents' => $dateButtons
+                    ];
+                    $dateButtons = [];
+                }
+            }
+
+            // 確保至少有一行按鈕
+            if (!empty($dateButtons)) {
+                $buttonRows[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'spacing' => 'sm',
+                    'contents' => $dateButtons
+                ];
+            }
+
+            $currentDateTime = $reservation->getReservationDateTime();
+            $durationText = $service->duration . '分鐘';
             $message = [
                 'type' => 'flex',
-                'altText' => '選擇新的預約時間',
+                'altText' => '選擇新的預約日期',
                 'contents' => [
                     'type' => 'bubble',
                     'header' => [
@@ -5619,7 +5987,7 @@ class LineBotService
                         'contents' => [
                             [
                                 'type' => 'text',
-                                'text' => '選擇新的預約時間',
+                                'text' => '選擇新的預約日期',
                                 'weight' => 'bold',
                                 'color' => '#ffffff',
                                 'size' => 'xl',
@@ -5627,7 +5995,7 @@ class LineBotService
                             ],
                             [
                                 'type' => 'text',
-                                'text' => "目前時間：{$currentDateTime->format('m/d H:i')}",
+                                'text' => "目前：{$currentDateTime->format('m/d H:i')}",
                                 'color' => '#ffffff',
                                 'size' => 'sm',
                                 'align' => 'center',
@@ -5643,29 +6011,37 @@ class LineBotService
                         'contents' => [
                             [
                                 'type' => 'text',
-                                'text' => '可選擇時段',
+                                'text' => $service->name,
                                 'size' => 'lg',
                                 'color' => '#333333',
                                 'weight' => 'bold',
-                                'margin' => 'none'
+                                'align' => 'center'
                             ],
                             [
                                 'type' => 'text',
-                                'text' => '選擇您希望更改的新時間',
+                                'text' => "服務時長：{$durationText}",
                                 'size' => 'sm',
                                 'color' => '#666666',
-                                'margin' => 'xs',
-                                'wrap' => true
+                                'align' => 'center',
+                                'margin' => 'xs'
                             ],
                             [
                                 'type' => 'separator',
                                 'margin' => 'lg'
                             ],
                             [
+                                'type' => 'text',
+                                'text' => '請選擇日期',
+                                'size' => 'md',
+                                'color' => '#333333',
+                                'weight' => 'bold',
+                                'margin' => 'lg'
+                            ],
+                            [
                                 'type' => 'box',
                                 'layout' => 'vertical',
                                 'spacing' => 'sm',
-                                'margin' => 'lg',
+                                'margin' => 'md',
                                 'contents' => $buttonRows
                             ]
                         ],
@@ -5676,14 +6052,17 @@ class LineBotService
                         'layout' => 'vertical',
                         'contents' => [
                             [
-                                'type' => 'text',
-                                'text' => '⚠️ 更改時間將重新安排您的預約',
-                                'size' => 'xs',
-                                'color' => '#E74C3C',
-                                'align' => 'center'
+                                'type' => 'button',
+                                'style' => 'secondary',
+                                'height' => 'sm',
+                                'action' => [
+                                    'type' => 'message',
+                                    'label' => '返回預約編輯',
+                                    'text' => '查詢預約'
+                                ]
                             ]
                         ],
-                        'paddingAll' => 'md'
+                        'paddingAll' => 'lg'
                     ]
                 ]
             ];
@@ -5691,15 +6070,228 @@ class LineBotService
             $this->replyMessage($replyToken, $message);
 
         } catch (\Exception $e) {
-            Log::error('Failed to handle edit time', [
+            Log::error('Failed to handle edit date selection', [
                 'error' => $e->getMessage(),
                 'reservation_id' => $reservationId,
+                'service_id' => $serviceId,
                 'userId' => $userId
             ]);
             
             $this->replyMessage($replyToken, [
                 'type' => 'text',
-                'text' => '編輯時間時發生錯誤，請稍後再試。'
+                'text' => '選擇日期時發生錯誤，請稍後再試。'
+            ]);
+        }
+    }
+
+    /**
+     * 處理選定日期後的時間選擇
+     */
+    private function handleEditTimeSelection($replyToken, $reservationId, $serviceId, $selectedDate, $userId)
+    {
+        try {
+            $customer = Customer::where('line_user_id', $userId)->first();
+            if (!$customer) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '找不到您的客戶資料。'
+                ]);
+                return;
+            }
+
+            $reservation = Reservation::where('id', $reservationId)
+                ->where('customer_id', $customer->id)
+                ->first();
+
+            if (!$reservation) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '找不到此預約記錄。'
+                ]);
+                return;
+            }
+
+            $service = Service::find($serviceId);
+            if (!$service) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '找不到指定的服務項目。'
+                ]);
+                return;
+            }
+
+            // 獲取選定日期的可用時段
+            $availableTimeSlots = $this->getAvailableTimeSlotsForService($serviceId);
+            
+            // 篩選選定日期的時段
+            $selectedDateTimeSlots = $availableTimeSlots->filter(function($timeSlot) use ($selectedDate) {
+                return Carbon::parse($timeSlot->start_time)->format('Y-m-d') === $selectedDate;
+            });
+
+            if ($selectedDateTimeSlots->isEmpty()) {
+                $this->replyMessage($replyToken, [
+                    'type' => 'text',
+                    'text' => '該日期沒有可用的時段，請選擇其他日期。'
+                ]);
+                return;
+            }
+
+            // 建立時間選擇按鈕
+            $timeButtons = [];
+            $buttonRows = [];
+            $buttonsPerRow = 1; // 每行1個按鈕，顯示更清楚
+
+            foreach ($selectedDateTimeSlots as $index => $timeSlot) {
+                $startTime = Carbon::parse($timeSlot->start_time);
+                $endTime = Carbon::parse($timeSlot->end_time);
+                $timeStr = $startTime->format('H:i');
+                $endTimeStr = $endTime->format('H:i');
+                
+                $timeButtons[] = [
+                    'type' => 'button',
+                    'height' => 'sm',
+                    'action' => [
+                        'type' => 'postback',
+                        'label' => "{$timeStr} - {$endTimeStr}",
+                        'data' => "action=update_time&reservation_id={$reservationId}&new_time_id={$timeSlot->id}"
+                    ],
+                    'style' => 'primary',
+                    'color' => '#3498DB',
+                    'margin' => 'sm'
+                ];
+
+                // 每1個按鈕組成一行
+                if (count($timeButtons) == $buttonsPerRow || $index == count($selectedDateTimeSlots) - 1) {
+                    $buttonRows[] = [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'spacing' => 'sm',
+                        'contents' => $timeButtons
+                    ];
+                    $timeButtons = [];
+                }
+            }
+
+            $selectedDateObj = Carbon::parse($selectedDate);
+            $dayMapping = [
+                'Monday' => '週一',
+                'Tuesday' => '週二',
+                'Wednesday' => '週三',
+                'Thursday' => '週四',
+                'Friday' => '週五',
+                'Saturday' => '週六',
+                'Sunday' => '週日'
+            ];
+            $dayOfWeek = $dayMapping[$selectedDateObj->format('l')] ?? $selectedDateObj->format('l');
+            $displayDate = $selectedDateObj->format('m/d') . " ({$dayOfWeek})";
+            
+            $currentDateTime = $reservation->getReservationDateTime();
+            
+            $message = [
+                'type' => 'flex',
+                'altText' => '選擇新的預約時間',
+                'contents' => [
+                    'type' => 'bubble',
+                    'header' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'text',
+                                'text' => '選擇預約時間',
+                                'weight' => 'bold',
+                                'color' => '#ffffff',
+                                'size' => 'xl',
+                                'align' => 'center'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => "選定日期：{$displayDate}",
+                                'color' => '#ffffff',
+                                'size' => 'sm',
+                                'align' => 'center',
+                                'margin' => 'xs'
+                            ]
+                        ],
+                        'backgroundColor' => '#27AE60',
+                        'paddingAll' => 'lg'
+                    ],
+                    'body' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'text',
+                                'text' => $service->name,
+                                'size' => 'lg',
+                                'color' => '#333333',
+                                'weight' => 'bold',
+                                'align' => 'center'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => "目前：{$currentDateTime->format('m/d H:i')}",
+                                'size' => 'sm',
+                                'color' => '#666666',
+                                'align' => 'center',
+                                'margin' => 'xs'
+                            ],
+                            [
+                                'type' => 'separator',
+                                'margin' => 'lg'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => '請選擇時間',
+                                'size' => 'md',
+                                'color' => '#333333',
+                                'weight' => 'bold',
+                                'margin' => 'lg'
+                            ],
+                            [
+                                'type' => 'box',
+                                'layout' => 'vertical',
+                                'spacing' => 'sm',
+                                'margin' => 'md',
+                                'contents' => $buttonRows
+                            ]
+                        ],
+                        'paddingAll' => 'xl'
+                    ],
+                    'footer' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'button',
+                                'style' => 'secondary',
+                                'height' => 'sm',
+                                'action' => [
+                                    'type' => 'postback',
+                                    'label' => '重新選擇日期',
+                                    'data' => "action=edit_time&reservation_id={$reservationId}&service_id={$serviceId}"
+                                ]
+                            ]
+                        ],
+                        'paddingAll' => 'lg'
+                    ]
+                ]
+            ];
+
+            $this->replyMessage($replyToken, $message);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to handle edit time selection', [
+                'error' => $e->getMessage(),
+                'reservation_id' => $reservationId,
+                'service_id' => $serviceId,
+                'selected_date' => $selectedDate,
+                'userId' => $userId
+            ]);
+            
+            $this->replyMessage($replyToken, [
+                'type' => 'text',
+                'text' => '選擇時間時發生錯誤，請稍後再試。'
             ]);
         }
     }

@@ -109,11 +109,42 @@
           </select>
         </div>
         
-        <div class="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          顯示 {{ filteredRecords.length }} 筆，共 {{ reservations.length }} 筆預約
+        <div class="flex items-center space-x-3">
+          <!-- 自動刷新控制 -->
+          <button
+            @click="toggleAutoRefresh"
+            :class="{
+              'bg-green-100 text-green-700 border-green-200': autoRefreshEnabled,
+              'bg-gray-100 text-gray-600 border-gray-200': !autoRefreshEnabled
+            }"
+            class="inline-flex items-center px-3 py-2 border rounded-lg text-sm font-medium transition-colors hover:shadow-sm"
+            title="切換自動刷新"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {{ autoRefreshEnabled ? '自動刷新' : '手動刷新' }}
+          </button>
+          
+          <!-- 手動刷新按鈕 -->
+          <button
+            @click="fetchReservations"
+            :disabled="loading"
+            class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="立即刷新"
+          >
+            <svg class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            刷新
+          </button>
+          
+          <div class="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            顯示 {{ filteredRecords.length }} 筆，共 {{ reservations.length }} 筆預約
+          </div>
         </div>
       </div>
     </div>
@@ -416,7 +447,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { apiGet, apiPut } from '../utils/api.js'
 
 // 響應式數據
@@ -428,6 +459,41 @@ const reservations = computed(() => records.value)
 const loading = ref(false)
 const error = ref('')
 const currentPage = ref(1)
+
+// 自動刷新相關
+const autoRefreshEnabled = ref(true)
+const autoRefreshInterval = ref(null)
+
+// 啟動自動刷新
+function startAutoRefresh() {
+  if (autoRefreshInterval.value) {
+    clearInterval(autoRefreshInterval.value)
+  }
+  
+  autoRefreshInterval.value = setInterval(() => {
+    if (autoRefreshEnabled.value && !loading.value) {
+      fetchReservations()
+    }
+  }, 15000) // 每15秒刷新一次 (加快刷新頻率)
+}
+
+// 停止自動刷新
+function stopAutoRefresh() {
+  if (autoRefreshInterval.value) {
+    clearInterval(autoRefreshInterval.value)
+    autoRefreshInterval.value = null
+  }
+}
+
+// 切換自動刷新
+function toggleAutoRefresh() {
+  autoRefreshEnabled.value = !autoRefreshEnabled.value
+  if (autoRefreshEnabled.value) {
+    startAutoRefresh()
+  } else {
+    stopAutoRefresh()
+  }
+}
 const itemsPerPage = ref(20)
 const showDetailModal = ref(false)
 const selectedRecord = ref(null)
@@ -533,6 +599,11 @@ async function confirmRecord(record) {
     
     // 顯示成功通知
     showNotification('預約已確認', 'success')
+    
+    // 立即刷新數據
+    if (autoRefreshEnabled.value) {
+      startAutoRefresh()
+    }
   } catch (err) {
     showNotification(`確認失敗: ${err.message}`, 'error')
   } finally {
@@ -551,6 +622,11 @@ async function cancelRecord(record) {
     
     // 顯示成功通知
     showNotification('預約已取消', 'success')
+    
+    // 立即刷新數據
+    if (autoRefreshEnabled.value) {
+      startAutoRefresh()
+    }
   } catch (err) {
     showNotification(`取消失敗: ${err.message}`, 'error')
   } finally {
@@ -680,6 +756,12 @@ function showNotification(message, type = 'info') {
 // 頁面載入時獲取預約列表
 onMounted(() => {
   fetchReservations()
+  startAutoRefresh()
+})
+
+// 組件卸載時清理定時器
+onUnmounted(() => {
+  stopAutoRefresh()
 })
 </script>
 
