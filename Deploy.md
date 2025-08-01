@@ -101,6 +101,9 @@ cd line-reservation
 ```bash
 cd backend
 
+# 使用當前使用的權限
+sudo chown -R $USER:$USER .
+
 # 安裝 PHP 依賴
 composer install --optimize-autoloader --no-dev
 
