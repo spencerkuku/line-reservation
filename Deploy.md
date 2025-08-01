@@ -46,17 +46,17 @@ sudo apt install -y mysql-server
 
 ```
 
-#### 安裝 Node.js 18+
+#### 安裝 Node.js 20+
 ```bash
-# 使用 NodeSource 安裝
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# 使用 NodeSource 安裝 Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# 或使用 NVM
+# 或使用 NVM 安裝 Node.js 20
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 source ~/.bashrc
-nvm install 18
-nvm use 18
+nvm install 20
+nvm use 20
 ```
 
 #### 安裝 Composer
