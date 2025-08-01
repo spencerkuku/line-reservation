@@ -6,7 +6,7 @@
 
 ### 基本需求
 - **作業系統**: Ubuntu 20.04+ / CentOS 8+ / Debian 11+
-- **PHP**: 8.1+
+- **PHP**: 8.3+
 - **Node.js**: 18+
 - **MySQL**: 8.0+
 - **Web Server**: Nginx 或 Apache
@@ -31,11 +31,11 @@ sudo apt update && sudo apt upgrade -y
 
 ```
 
-#### 安裝 PHP 8.1+
+#### 安裝 PHP 8.3+
 ```bash
 # Ubuntu/Debian
-sudo apt install -y php8.1 php8.1-fpm php8.1-mysql php8.1-xml php8.1-curl \
-    php8.1-mbstring php8.1-zip php8.1-gd php8.1-bcmath php8.1-redis
+sudo apt install -y php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl \
+    php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath
 
 ```
 
