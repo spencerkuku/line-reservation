@@ -14,16 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // 全局安全中間件
         $middleware->web(append: [
-            \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\EnhancedSecurityHeadersMiddleware::class,
         ]);
         
-        $middleware->api(prepend: [
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
-        
         $middleware->api(append: [
-            \Illuminate\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\EnhancedSecurityHeadersMiddleware::class,
             \App\Http\Middleware\ApiRateLimitMiddleware::class,
             \App\Http\Middleware\ApiLoggingMiddleware::class,
