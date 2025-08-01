@@ -328,6 +328,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { apiGet, apiPut, apiPost, apiDelete } from '../utils/api.js'
+import { sanitizeName, sanitizeEmail, sanitizePhone } from '../utils/xss-protection.js'
 
 const search = ref('')
 const roleFilter = ref('')
@@ -346,6 +347,47 @@ const newUser = ref({
   role: 'user'
 })
 
+// 輸入驗證函數
+function validateUserData(userData) {
+  const errors = []
+  
+  // 驗證姓名
+  const cleanName = sanitizeName(userData.name)
+  if (!cleanName) {
+    errors.push('姓名格式不正確')
+  }
+  
+  // 驗證電子郵件
+  const cleanEmail = sanitizeEmail(userData.email)
+  if (!cleanEmail) {
+    errors.push('電子郵件格式不正確')
+  }
+  
+  // 驗證電話（可選）
+  if (userData.phone) {
+    const cleanPhone = sanitizePhone(userData.phone)
+    if (!cleanPhone) {
+      errors.push('電話號碼格式不正確')
+    }
+  }
+  
+  // 驗證角色
+  if (!['user', 'admin'].includes(userData.role)) {
+    errors.push('角色選擇無效')
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+    cleanData: {
+      name: cleanName,
+      email: cleanEmail,
+      phone: userData.phone ? sanitizePhone(userData.phone) : '',
+      role: userData.role
+    }
+  }
+}
+
 // 編輯用戶
 function editUser(user) {
   editingUser.value = { ...user }
@@ -356,13 +398,15 @@ function editUser(user) {
 async function saveUser() {
   if (!editingUser.value) return
   
+  // 輸入驗證和清理
+  const validation = validateUserData(editingUser.value)
+  if (!validation.isValid) {
+    alert('輸入驗證失敗：\n' + validation.errors.join('\n'))
+    return
+  }
+  
   try {
-    await apiPut(`/users/${editingUser.value.id}`, {
-      name: editingUser.value.name,
-      email: editingUser.value.email,
-      phone: editingUser.value.phone || '',
-      role: editingUser.value.role
-    })
+    await apiPut(`/users/${editingUser.value.id}`, validation.cleanData)
     
     showEditModal.value = false
     editingUser.value = null
@@ -413,18 +457,32 @@ async function toggleUserStatus(user) {
 
 // 新增用戶
 async function addUser() {
-  if (!newUser.value.name || !newUser.value.email || !newUser.value.password) {
-    alert('請填寫必要資料')
+  // 輸入驗證和清理
+  const validation = validateUserData(newUser.value)
+  if (!validation.isValid) {
+    alert('輸入驗證失敗：\n' + validation.errors.join('\n'))
+    return
+  }
+  
+  // 密碼驗證
+  if (!newUser.value.password || newUser.value.password.length < 8) {
+    alert('密碼長度至少需要 8 個字符')
     return
   }
   
   if (newUser.value.password !== newUser.value.password_confirmation) {
-    alert('密碼確認不一致')
+    alert('密碼確認不符')
     return
   }
-
+  
   try {
-    await apiPost('/users', newUser.value)
+    const userData = {
+      ...validation.cleanData,
+      password: newUser.value.password,
+      password_confirmation: newUser.value.password_confirmation
+    }
+    
+    await apiPost('/users', userData)
     await fetchUsers()
     cancelAdd()
     alert('管理人員新增成功')

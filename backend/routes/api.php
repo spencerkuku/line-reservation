@@ -15,12 +15,19 @@ use App\Http\Controllers\Api\FrontendLogController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
-Route::post('/logs', [FrontendLogController::class, 'store']); // 前端日誌接收端點
 
-// 公開的可預約時段查詢（允許前端查看可用時段）
-Route::get('/available-times', [AvailableTimeController::class, 'index']);
-Route::get('/services', [ServiceController::class, 'index']); // 允許查看服務列表
+// LINE Webhook 路由 - 暫時停用簽名驗證以修復問題
+Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
+    // ->middleware('verify.line.signature'); // 暫時註解
+
+Route::post('/logs', [FrontendLogController::class, 'store'])
+    ->middleware('throttle:100,1'); // 限制日誌提交頻率
+
+// 公開的可預約時段查詢（允許前端查看可用時段） - 添加 Rate Limiting
+Route::get('/available-times', [AvailableTimeController::class, 'index'])
+    ->middleware('throttle:60,1');
+Route::get('/services', [ServiceController::class, 'index'])
+    ->middleware('throttle:60,1'); // 允許查看服務列表
 
 // 測試路由
 Route::get('/test', function () {
@@ -75,10 +82,15 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::put('/users/{user}/status', [UserController::class, 'updateStatus']);
     Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
-    // 預約管理
-    Route::get('/reservations', [ReservationController::class, 'index']);
-    Route::put('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm']);
-    Route::put('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel']);
+    // 預約管理 - 添加 Rate Limiting
+    Route::get('/reservations', [ReservationController::class, 'index'])
+        ->middleware('throttle:120,1');
+    Route::post('/reservations', [ReservationController::class, 'store'])
+        ->middleware('throttle:10,1'); // 限制預約建立頻率
+    Route::put('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm'])
+        ->middleware('throttle:30,1');
+    Route::put('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
+        ->middleware('throttle:30,1');
 
     // 設定
     Route::get('/settings/line', [SettingController::class, 'getLineSettings']);

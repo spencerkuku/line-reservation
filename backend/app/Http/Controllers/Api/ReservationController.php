@@ -5,7 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Services\LoggingService;
+use App\Http\Requests\ReservationRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 class ReservationController extends Controller
 {
@@ -14,38 +18,99 @@ class ReservationController extends Controller
         $requestId = LoggingService::generateRequestId();
         LoggingService::logApiRequestStart($request, $requestId, 'Get Reservations');
         
-        $reservations = Reservation::with(['user', 'customer', 'service'])
-            ->orderBy('reservation_date', 'desc')
-            ->orderBy('reservation_time', 'desc')
-            ->get();
+        try {
+            $reservations = Reservation::with(['user', 'customer', 'service'])
+                ->orderBy('reservation_date', 'desc')
+                ->orderBy('reservation_time', 'desc')
+                ->get();
 
-        $data = $reservations->map(function ($reservation) {
-            return [
-                'id' => $reservation->id,
-                'user_name' => $reservation->user->name ?? '系統管理員',
-                'customer_id' => $reservation->customer_id,
-                'customer' => $reservation->customer, // 完整的customer對象
-                'customer_name' => $reservation->customer_name, // 預約時填寫的姓名
-                'customer_phone' => $reservation->customer_phone, // 預約時填寫的電話
-                'customer_notes' => $reservation->customer_notes, // 預約時填寫的備註
-                'customer_line_display_name' => $reservation->customer->line_display_name ?? null, // LINE 顯示名稱
-                'customer_line_user_id' => $reservation->customer->line_user_id,
-                'service_name' => $reservation->service->name,
-                'service_price' => $reservation->service->price,
-                'reservation_date' => $reservation->reservation_date,
-                'reservation_time' => $reservation->reservation_time,
-                'status' => $reservation->status,
-                'notes' => $reservation->notes,
-                'created_at' => $reservation->created_at
-            ];
-        });
+            $data = $reservations->map(function ($reservation) {
+                return [
+                    'id' => $reservation->id,
+                    'user_name' => e($reservation->user->name ?? '系統管理員'),
+                    'customer_id' => $reservation->customer_id,
+                    'customer' => $reservation->customer,
+                    'customer_name' => e($reservation->customer_name),
+                    'customer_phone' => e($reservation->customer_phone),
+                    'customer_notes' => e($reservation->customer_notes),
+                    'customer_line_display_name' => e($reservation->customer->line_display_name ?? null),
+                    'customer_line_user_id' => e($reservation->customer->line_user_id),
+                    'service_name' => e($reservation->service->name),
+                    'service_price' => $reservation->service->price,
+                    'reservation_date' => $reservation->reservation_date,
+                    'reservation_time' => $reservation->reservation_time,
+                    'status' => $reservation->status,
+                    'notes' => e($reservation->notes),
+                    'created_at' => $reservation->created_at
+                ];
+            });
 
-        LoggingService::logApiRequestSuccess($requestId, ['count' => $reservations->count()]);
+            LoggingService::logApiRequestSuccess($requestId, ['count' => $reservations->count()]);
 
-        return response()->json([
-            'success' => true,
-            'data' => $data
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch reservations', [
+                'request_id' => $requestId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => '獲取預約資料失敗'
+            ], 500);
+        }
+    }
+
+    public function store(ReservationRequest $request)
+    {
+        $requestId = LoggingService::generateRequestId();
+        LoggingService::logApiRequestStart($request, $requestId, 'Create Reservation');
+        
+        try {
+            DB::beginTransaction();
+            
+            $validated = $request->validated();
+            
+            $reservation = Reservation::create([
+                'customer_name' => $validated['customer_name'],
+                'customer_phone' => $validated['customer_phone'],
+                'customer_line_user_id' => $validated['customer_line_user_id'] ?? null,
+                'service_id' => $validated['service_id'],
+                'reservation_date' => $validated['reservation_date'],
+                'reservation_time' => $validated['reservation_time'],
+                'notes' => $validated['notes'] ?? null,
+                'status' => 'pending'
+            ]);
+            
+            DB::commit();
+            
+            LoggingService::logApiRequestSuccess($requestId, ['reservation_id' => $reservation->id]);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $reservation,
+                'message' => '預約建立成功'
+            ], 201);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Failed to create reservation', [
+                'request_id' => $requestId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'input' => $request->except(['customer_phone']) // 不記錄敏感資訊
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => '建立預約失敗'
+            ], 500);
+        }
     }
 
     public function confirm(Reservation $reservation)

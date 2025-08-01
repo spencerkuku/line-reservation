@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'rate_limit' => \App\Http\Middleware\ApiRateLimitMiddleware::class,
             'access_control' => \App\Http\Middleware\EnhancedAccessControlMiddleware::class,
+            'verify.line.signature' => \App\Http\Middleware\VerifyLineSignature::class,
         ]);
 
         // 禁用一些不安全的中間件（OWASP安全考量）

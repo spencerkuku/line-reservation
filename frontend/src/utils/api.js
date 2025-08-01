@@ -1,13 +1,9 @@
 import router from '../router.js'
 import logger from './logger.js'
 import { SecureStorage, InputSecurity } from './security.js'
+import { sanitizeInput, sanitizeName, sanitizeEmail, sanitizePhone, sanitizeNote } from './xss-protection.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
-
-// 輸入過濾函數 (防止XSS) - 使用安全模組
-function sanitizeInput(input) {
-    return InputSecurity.sanitizeHtml(input)
-}
 
 // 檢查是否為有效的 token（Laravel Sanctum 使用隨機字符串）
 function isValidToken(token) {
@@ -80,22 +76,26 @@ async function apiRequest(url, options = {}) {
         throw error;
     }
     
-    // 對於登入請求，先獲取 CSRF cookie
-    if (url === '/auth/login' && (options.method === 'POST' || !options.method)) {
-        const csrfSuccess = await getCsrfCookie();
-        if (!csrfSuccess) {
-            console.warn('無法獲取 CSRF cookie，可能影響認證請求');
-        }
-        // 等待一小段時間確保 cookie 設置完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    // 對於所有狀態變更請求（POST、PUT、DELETE），獲取 CSRF token
+    const shouldGetCsrf = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
+    let csrfToken = null;
     
-    // 只對登入請求獲取 CSRF token
-    const csrfToken = (url === '/auth/login') ? getCsrfTokenFromCookie() : null;
+    if (shouldGetCsrf) {
+        const csrfSuccess = await getCsrfCookie();
+        if (csrfSuccess) {
+            // 等待一小段時間確保 cookie 設置完成
+            await new Promise(resolve => setTimeout(resolve, 100));
+            csrfToken = getCsrfTokenFromCookie();
+        }
+        
+        if (!csrfToken) {
+            console.warn('無法獲取 CSRF token，可能影響請求安全性');
+        }
+    }
     
     // 預設設定
     const defaultOptions = {
-        credentials: (url === '/auth/login') ? 'include' : 'same-origin', // 只有登入請求需要 cookies
+        credentials: shouldGetCsrf ? 'include' : 'same-origin', // 狀態變更請求需要 cookies
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
