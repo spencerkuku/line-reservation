@@ -1,31 +1,12 @@
 import router from '../router.js'
 import logger from './logger.js'
+import { SecureStorage, InputSecurity } from './security.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
-// 輸入過濾函數 (防止XSS)
+// 輸入過濾函數 (防止XSS) - 使用安全模組
 function sanitizeInput(input) {
-    if (typeof input === 'string') {
-        return input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                   .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-                   .replace(/javascript:/gi, '')
-                   .replace(/on\w+\s*=/gi, '')
-                   .replace(/data:text\/html/gi, '');
-    }
-    if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
-        const sanitized = {};
-        for (const [key, value] of Object.entries(input)) {
-            // 只處理安全的鍵名
-            if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-                sanitized[key] = sanitizeInput(value);
-            }
-        }
-        return sanitized;
-    }
-    if (Array.isArray(input)) {
-        return input.map(item => sanitizeInput(item));
-    }
-    return input;
+    return InputSecurity.sanitizeHtml(input)
 }
 
 // 檢查是否為有效的 token（Laravel Sanctum 使用隨機字符串）

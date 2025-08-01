@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // 全局安全中間件
         $middleware->web(append: [
             \Illuminate\Http\Middleware\HandleCors::class,
-            \App\Http\Middleware\SecurityHeadersMiddleware::class,
+            \App\Http\Middleware\EnhancedSecurityHeadersMiddleware::class,
         ]);
         
         $middleware->api(prepend: [
@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->api(append: [
             \Illuminate\Http\Middleware\HandleCors::class,
-            \App\Http\Middleware\SecurityHeadersMiddleware::class,
+            \App\Http\Middleware\EnhancedSecurityHeadersMiddleware::class,
             \App\Http\Middleware\ApiRateLimitMiddleware::class,
             \App\Http\Middleware\ApiLoggingMiddleware::class,
         ]);
@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'rate_limit' => \App\Http\Middleware\ApiRateLimitMiddleware::class,
+            'access_control' => \App\Http\Middleware\EnhancedAccessControlMiddleware::class,
         ]);
 
         // 禁用一些不安全的中間件（OWASP安全考量）

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\SecurityLoggingService;
+use App\Services\CryptographyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -23,18 +25,34 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->getAuthPassword())) {
+            // 記錄登入失敗
+            SecurityLoggingService::logLoginFailure(
+                $request->email,
+                '帳號或密碼錯誤',
+                $request
+            );
+            
             throw ValidationException::withMessages([
                 'email' => ['帳號或密碼錯誤'],
             ]);
         }
 
         if ($user->status !== 'Active') {
+            SecurityLoggingService::logLoginFailure(
+                $request->email,
+                '帳號已被停權或待審核',
+                $request
+            );
+            
             throw ValidationException::withMessages([
                 'email' => ['帳號已被停權或待審核'],
             ]);
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        // 記錄登入成功
+        SecurityLoggingService::logLoginSuccess($user, $request);
 
         return response()->json([
             'success' => true,
@@ -51,6 +69,14 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        // 記錄登出
+        SecurityLoggingService::logSecurityEvent(
+            SecurityLoggingService::EVENT_TYPES['LOGOUT'],
+            ['user_id' => $request->user()->id],
+            'info',
+            $request
+        );
+
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([

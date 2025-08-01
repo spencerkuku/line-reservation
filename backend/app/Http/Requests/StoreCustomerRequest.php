@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreCustomerRequest extends FormRequest
+class StoreCustomerRequest extends SecureFormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -19,17 +19,17 @@ class StoreCustomerRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'name' => 'required|string|max:255',
-            'line_user_id' => 'nullable|string|unique:customers,line_user_id',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:255',
+        return array_merge($this->getBaseRules(), [
+            'name' => 'required|string|max:255|regex:/^[\p{L}\p{M}\p{N}\s\-\.]+$/u',
+            'line_user_id' => 'nullable|string|unique:customers,line_user_id|max:100|regex:/^[a-zA-Z0-9]+$/',
+            'phone' => 'nullable|string|max:20|regex:/^[\+]?[0-9\-\s\(\)]+$/',
+            'email' => 'nullable|email:rfc,dns|max:255',
             'gender' => 'nullable|in:male,female,other',
             'birthday' => 'nullable|date|before:today',
             'address' => 'nullable|string|max:500',
             'notes' => 'nullable|string|max:1000',
             'referral_source' => 'nullable|string|max:255',
-        ];
+        ]);
     }
 
     /**
