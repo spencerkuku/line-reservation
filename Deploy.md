@@ -177,6 +177,9 @@ sudo chmod -R 775 /var/www/line-reservation/backend/bootstrap/cache
 ```bash
 cd ../frontend
 
+# 擁有當前使用者有權限
+sudo chown -R spencer:spencer /var/www/html/frontend
+
 # 安裝 Node.js 依賴
 npm install
 
