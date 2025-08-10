@@ -237,7 +237,7 @@ find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
 
 sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
 sudo chmod -R g+s "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
-sudo chmod -R 700 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example"
+sudo chmod -R 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example"
 
 echo "🖥️ 設定 Apache 虛擬主機..."
 
