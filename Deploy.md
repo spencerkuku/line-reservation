@@ -1,6 +1,6 @@
-# LINE Reservation System 部署指南
+# LINE Reservation System 部署指南 (Apache)
 
-本文檔提供兩種部署方式：**一般架設**和 **Docker 容器化部署**
+本文檔提供使用 **Apache Web Server** 的部署方式，適用於 Laravel + Vue.js 的全端應用程式。
 
 ## 📋 系統需求
 
@@ -9,7 +9,7 @@
 - **PHP**: 8.3+
 - **Node.js**: 18+
 - **MySQL**: 8.0+
-- **Web Server**: Nginx 或 Apache
+- **Web Server**: Apache 2.4+
 - **記憶體**: 最少 2GB，建議 4GB+
 - **硬碟**: 最少 10GB 可用空間
 
@@ -20,7 +20,7 @@
 
 ---
 
-## 🚀 方式一：一般架設步驟
+## 🚀 快速部署步驟
 
 ### 1. 環境準備
 
@@ -66,11 +66,18 @@ php composer-setup.php
 sudo mv composer.phar /usr/local/bin/composer
 ```
 
-#### 安裝 Nginx
+#### 安裝 Apache
 ```bash
 # Ubuntu/Debian
-sudo apt install -y nginx
+sudo apt install -y apache2
 
+# 啟用必要模組
+sudo a2enmod rewrite
+sudo a2enmod ssl
+sudo a2enmod headers
+sudo a2enmod proxy
+sudo a2enmod proxy_fcgi
+sudo a2enmod setenvif
 ```
 
 ### 2. 資料庫設定
@@ -92,7 +99,7 @@ EXIT;
 #### 下載專案
 ```bash
 cd /var/www
-sudo git clone https://github.com/your-repo/line-reservation.git
+sudo git clone https://github.com/spencerkuku/line-reservation.git
 sudo chown -R www-data:www-data line-reservation
 cd line-reservation
 ```
@@ -171,14 +178,22 @@ sudo chown -R www-data:www-data /var/www/line-reservation
 sudo chmod -R 755 /var/www/line-reservation
 sudo chmod -R 775 /var/www/line-reservation/backend/storage
 sudo chmod -R 775 /var/www/line-reservation/backend/bootstrap/cache
+
+# 建立符號連結給前端 API 存取
+sudo ln -s /var/www/line-reservation/backend/public /var/www/line-reservation/frontend/dist/api
 ```
 
 #### 設定前端
 ```bash
 cd ../frontend
 
-# 擁有當前使用者有權限
-sudo chown -R spencer:spencer /var/www/html/frontend
+# 設定環境變數檔案
+cp .env.example .env
+nano .env
+
+# 內容範例：
+# VITE_API_BASE_URL=https://your-domain.com/api
+# VITE_APP_URL=https://your-domain.com
 
 # 安裝 Node.js 依賴
 npm install
@@ -190,92 +205,270 @@ npm run build
 sudo chown -R www-data:www-data /var/www/line-reservation/frontend/dist
 ```
 
-### 4. Web Server 設定
+## 🚀 針對您環境的快速部署
 
-#### Nginx 設定
+### 1. 一鍵安裝腳本
+
+創建並執行以下部署腳本：
+
 ```bash
-sudo nano /etc/nginx/sites-available/line-reservation
+#!/bin/bash
+
+echo "🚀 開始部署 LINE Reservation System (Apache)..."
+
+# 更新系統
+sudo apt update && sudo apt upgrade -y
+
+# 安裝必要套件
+sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml \
+    php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath \
+    mysql-server nodejs npm composer
+
+# 啟用 Apache 模組
+sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif
+
+# 設定資料庫
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS line_reservation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+sudo mysql -e "CREATE USER IF NOT EXISTS 'spencer'@'localhost' IDENTIFIED BY 'Spencerku123@';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON line_reservation.* TO 'spencer'@'localhost';"
+sudo mysql -e "FLUSH PRIVILEGES;"
+
+# 切換到專案目錄
+cd /var/www/line-reservation
+
+# 設定後端
+cd backend
+composer install --optimize-autoloader
+cp .env.example .env
+
+# 更新 .env 為生產環境設定
+sed -i 's/APP_ENV=local/APP_ENV=production/' .env
+sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
+sed -i 's|APP_URL=http://localhost:8000|APP_URL=https://your-domain.com|' .env
+
+php artisan key:generate
+php artisan migrate --force
+php artisan db:seed --force
+
+# 設定前端
+cd ../frontend
+npm install
+npm run build
+
+# 設定權限
+sudo chown -R www-data:www-data /var/www/line-reservation
+sudo chmod -R 755 /var/www/line-reservation
+sudo chmod -R 775 /var/www/line-reservation/backend/storage
+sudo chmod -R 775 /var/www/line-reservation/backend/bootstrap/cache
+
+echo "✅ 部署完成！請設定 Apache 虛擬主機。"
 ```
 
-**Nginx 設定檔：**
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
+### 2. Apache 虛擬主機設定
 
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-    root /var/www/line-reservation/frontend/dist;
-    index index.html;
+創建配置檔案：
 
+```bash
+sudo nano /etc/apache2/sites-available/line-reservation.conf
+```
+
+**針對您當前環境的 Apache 配置：**
+
+根據您的 `.env` 設定和程式碼結構，建議使用以下設定：
+
+```apache
+<VirtualHost *:80>
+    ServerName localhost
+    DocumentRoot /var/www/line-reservation/frontend/dist
+    
+    # 前端 SPA 路由處理
+    <Directory "/var/www/line-reservation/frontend/dist">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+        
+        # Vue.js Router History Mode 支援 - 保護 API 路由
+        RewriteEngine On
+        RewriteRule ^api/ - [L]
+        RewriteRule ^webhook/ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    # Laravel API 路由處理
+    Alias /api /var/www/line-reservation/backend/public
+    <Directory "/var/www/line-reservation/backend/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+        
+        # 自動偵測 PHP-FPM 配置
+        <FilesMatch "\.php$">
+            SetHandler "proxy:unix:/var/run/php/php8.3-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+    </Directory>
+
+    # LINE Webhook 路由處理
+    Alias /webhook /var/www/line-reservation/backend/public
+    <Directory "/var/www/line-reservation/backend/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # CORS 標頭設定（配合您的 .env 設定）
+    Header always set Access-Control-Allow-Origin "http://localhost:5173"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN"
+    Header always set Access-Control-Allow-Credentials "true"
+
+    # 錯誤和存取日誌
+    ErrorLog ${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog ${APACHE_LOG_DIR}/line-reservation_access.log combined
+</VirtualHost>
+```
+
+**HTTPS 版本（生產環境）：**
+```apache
+# HTTP to HTTPS redirect
+<VirtualHost *:80>
+    ServerName your-domain.com
+    DocumentRoot /var/www/line-reservation/frontend/dist
+    Redirect permanent / https://your-domain.com/
+</VirtualHost>
+
+# HTTPS configuration
+<VirtualHost *:443>
+    ServerName your-domain.com
+    DocumentRoot /var/www/line-reservation/frontend/dist
+    
     # SSL 設定
-    ssl_certificate /path/to/your/certificate.crt;
-    ssl_certificate_key /path/to/your/private.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+    SSLEngine on
+    SSLCertificateFile /path/to/your/certificate.crt
+    SSLCertificateKeyFile /path/to/your/private.key
+    SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+    SSLCipherSuite ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
 
-    # 前端路由
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
+    # 前端 SPA 路由處理
+    <Directory "/var/www/line-reservation/frontend/dist">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+        
+        # Vue.js Router History Mode 支援
+        RewriteEngine On
+        RewriteRule ^api/ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
 
-    # API 路由
-    location /api {
-        alias /var/www/line-reservation/backend/public;
-        try_files $uri $uri/ @php;
-    }
+    # Laravel API 路由處理
+    Alias /api /var/www/line-reservation/backend/public
+    <Directory "/var/www/line-reservation/backend/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+        
+        # PHP-FPM 處理
+        <FilesMatch "\.php$">
+            SetHandler "proxy:unix:/var/run/php/php8.3-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+    </Directory>
 
-    location @php {
-        rewrite ^/api(.*)$ /api/index.php$1 last;
-    }
+    # LINE Webhook 路由
+    <Location "/webhook">
+        ProxyPass http://127.0.0.1:8000/api/line/webhook
+        ProxyPassReverse http://127.0.0.1:8000/api/line/webhook
+        ProxyPreserveHost On
+    </Location>
 
-    location ~ ^/api/.*\.php$ {
-        root /var/www/line-reservation/backend/public;
-        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
+    # 靜態資源快取設定
+    <LocationMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
+        ExpiresActive On
+        ExpiresDefault "access plus 1 year"
+        Header append Cache-Control "public, immutable"
+    </LocationMatch>
 
-    # LINE Webhook
-    location /webhook {
-        alias /var/www/line-reservation/backend/public;
-        try_files $uri @webhook;
-    }
+    # 安全標頭
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-    location @webhook {
-        rewrite ^/webhook(.*)$ /webhook/index.php$1 last;
-    }
-
-    # 安全設定
-    location ~ /\. {
-        deny all;
-    }
-
-    # 快取設定
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
+    # 日誌設定
+    ErrorLog ${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog ${APACHE_LOG_DIR}/line-reservation_access.log combined
+</VirtualHost>
 ```
 
-#### 啟用網站
+### 3. 啟用網站
+
 ```bash
-sudo ln -s /etc/nginx/sites-available/line-reservation /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+# 停用預設網站
+sudo a2dissite 000-default
+
+# 啟用新網站
+sudo a2ensite line-reservation
+
+# 檢查設定檔語法
+sudo apache2ctl configtest
+
+# 重啟 Apache
+sudo systemctl restart apache2
+sudo systemctl enable apache2
 ```
+
+### 4. 測試部署
+
+```bash
+# 測試 Apache 狀態
+sudo systemctl status apache2
+
+# 測試 PHP-FPM 狀態
+sudo systemctl status php8.3-fpm
+
+# 測試資料庫連接
+mysql -u line_user -p line_reservation -e "SELECT 1"
+
+# 測試 Laravel 路由
+curl http://localhost/api/
+
+# 測試前端
+curl http://localhost/
+
+# 檢查 Laravel Webhook 路由
+cd /var/www/line-reservation/backend
+php artisan route:list | grep webhook
+```
+
+### 5. 確認 Laravel Webhook 路由設定
+
+檢查並確保 `routes/api.php` 包含 LINE Webhook 路由：
+
+```php
+// routes/api.php
+Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
+```
+
+如果沒有，請新增此路由。Webhook URL 將會是：
+- `https://your-domain.com/webhook/api/line/webhook`
+- 或者 `https://your-domain.com/api/line/webhook`
+
+---
+
+## 🔧 進階配置
 
 ### 5. SSL 憑證設定
 
 #### 使用 Let's Encrypt (免費)
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
+sudo apt install -y certbot python3-certbot-apache
+sudo certbot --apache -d your-domain.com
+
+# 測試自動更新
+sudo certbot renew --dry-run
 ```
 
 ### 6. 設定定時任務 (可選)
@@ -296,337 +489,7 @@ sudo ufw enable
 
 ---
 
-## 🐳 方式二：Docker 容器化部署
-
-### 1. 安裝 Docker 和 Docker Compose
-
-#### Ubuntu/Debian
-```bash
-# 安裝 Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-
-# 安裝 Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-```
-
-### 2. 創建 Docker 設定檔
-
-#### `docker-compose.yml`
-```yaml
-version: '3.8'
-
-services:
-  # MySQL 資料庫
-  mysql:
-    image: mysql:8.0
-    container_name: line-reservation-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: line_reservation
-      MYSQL_USER: line_user
-      MYSQL_PASSWORD: line_password
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
-    ports:
-      - "3306:3306"
-    networks:
-      - line-reservation-network
-
-  # Redis (快取)
-  redis:
-    image: redis:7-alpine
-    container_name: line-reservation-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    networks:
-      - line-reservation-network
-
-  # PHP-FPM (後端 API)
-  php:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-    container_name: line-reservation-php
-    restart: unless-stopped
-    volumes:
-      - ./backend:/var/www/html
-      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
-    depends_on:
-      - mysql
-      - redis
-    networks:
-      - line-reservation-network
-    environment:
-      - APP_ENV=production
-      - DB_HOST=mysql
-      - REDIS_HOST=redis
-
-  # Nginx (Web Server)
-  nginx:
-    build:
-      context: .
-      dockerfile: docker/nginx/Dockerfile
-    container_name: line-reservation-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./frontend/dist:/var/www/html/frontend
-      - ./backend/public:/var/www/html/backend
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - php
-    networks:
-      - line-reservation-network
-
-  # Node.js (前端建構)
-  node:
-    image: node:18-alpine
-    container_name: line-reservation-node
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    command: sh -c "npm install && npm run build"
-    networks:
-      - line-reservation-network
-
-networks:
-  line-reservation-network:
-    driver: bridge
-
-volumes:
-  mysql_data:
-    driver: local
-```
-
-#### `docker/php/Dockerfile`
-```dockerfile
-FROM php:8.1-fpm
-
-# 安裝系統依賴
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    libzip-dev \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
-
-# 安裝 Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# 設定工作目錄
-WORKDIR /var/www/html
-
-# 複製應用程式檔案
-COPY backend/ .
-
-# 安裝 PHP 依賴
-RUN composer install --optimize-autoloader --no-dev
-
-# 設定權限
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
-
-# 暴露端口
-EXPOSE 9000
-
-CMD ["php-fpm"]
-```
-
-#### `docker/nginx/Dockerfile`
-```dockerfile
-FROM nginx:alpine
-
-# 複製設定檔
-COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
-
-# 創建 SSL 目錄
-RUN mkdir -p /etc/nginx/ssl
-
-# 暴露端口
-EXPOSE 80 443
-
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-#### `docker/nginx/default.conf`
-```nginx
-server {
-    listen 80;
-    server_name localhost;
-    root /var/www/html/frontend;
-    index index.html;
-
-    # 前端路由
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 路由
-    location /api {
-        root /var/www/html/backend;
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        root /var/www/html/backend;
-        fastcgi_pass php:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    # LINE Webhook
-    location /webhook {
-        root /var/www/html/backend;
-        try_files $uri /index.php?$query_string;
-    }
-}
-```
-
-#### `docker/mysql/my.cnf`
-```ini
-[mysqld]
-character-set-server=utf8mb4
-collation-server=utf8mb4_unicode_ci
-default-time-zone='+08:00'
-```
-
-#### `docker/php/php.ini`
-```ini
-memory_limit = 256M
-upload_max_filesize = 50M
-post_max_size = 50M
-max_execution_time = 300
-date.timezone = Asia/Taipei
-```
-
-### 3. 環境設定檔
-
-#### `.env.docker`
-```env
-APP_NAME="LINE Reservation System"
-APP_ENV=production
-APP_KEY=base64:your_generated_app_key
-APP_DEBUG=false
-APP_URL=https://your-domain.com
-
-DB_CONNECTION=mysql
-DB_HOST=mysql
-DB_PORT=3306
-DB_DATABASE=line_reservation
-DB_USERNAME=line_user
-DB_PASSWORD=line_password
-
-CACHE_DRIVER=redis
-SESSION_DRIVER=redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_CHANNEL_SECRET=your_line_channel_secret
-```
-
-### 4. 部署腳本
-
-#### `deploy.sh`
-```bash
-#!/bin/bash
-
-echo "🚀 開始部署 LINE Reservation System..."
-
-# 停止現有容器
-echo "📦 停止現有容器..."
-docker-compose down
-
-# 拉取最新程式碼
-echo "📥 拉取最新程式碼..."
-git pull origin main
-
-# 複製環境設定檔
-echo "⚙️ 設定環境變數..."
-cp .env.docker backend/.env
-
-# 建構並啟動容器
-echo "🔨 建構並啟動容器..."
-docker-compose up -d --build
-
-# 等待資料庫啟動
-echo "⏳ 等待資料庫啟動..."
-sleep 30
-
-# 執行資料庫遷移
-echo "🗄️ 執行資料庫遷移..."
-docker-compose exec php php artisan key:generate
-docker-compose exec php php artisan migrate --force
-docker-compose exec php php artisan db:seed --force
-
-# 清除快取
-echo "🧹 清除快取..."
-docker-compose exec php php artisan cache:clear
-docker-compose exec php php artisan config:clear
-docker-compose exec php php artisan route:clear
-
-# 建構前端
-echo "🎨 建構前端..."
-docker-compose run --rm node
-
-echo "✅ 部署完成！"
-echo "🌐 請訪問: http://your-domain.com"
-```
-
-### 5. 執行部署
-
-```bash
-# 給予執行權限
-chmod +x deploy.sh
-
-# 執行部署
-./deploy.sh
-```
-
-### 6. Docker 管理指令
-
-```bash
-# 查看容器狀態
-docker-compose ps
-
-# 查看日誌
-docker-compose logs -f
-
-# 進入容器
-docker-compose exec php bash
-docker-compose exec mysql mysql -u root -p
-
-# 重啟服務
-docker-compose restart php
-docker-compose restart nginx
-
-# 備份資料庫
-docker-compose exec mysql mysqldump -u root -p line_reservation > backup.sql
-
-# 還原資料庫
-docker-compose exec -T mysql mysql -u root -p line_reservation < backup.sql
-```
-
----
-
-## 🔒 安全性設定
+##  安全性設定
 
 ### 1. 防火牆設定
 ```bash
@@ -665,9 +528,9 @@ sudo mysql_secure_installation
 # 應用程式日誌
 tail -f /var/www/line-reservation/backend/storage/logs/laravel.log
 
-# Nginx 日誌
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
+# Apache 日誌
+tail -f /var/log/apache2/line-reservation_access.log
+tail -f /var/log/apache2/line-reservation_error.log
 
 # MySQL 日誌
 tail -f /var/log/mysql/error.log
@@ -703,8 +566,12 @@ find /backup -name "*.sql" -mtime +7 -delete
 #### 1. 502 Bad Gateway
 ```bash
 # 檢查 PHP-FPM 狀態
-sudo systemctl status php8.1-fpm
-sudo systemctl restart php8.1-fpm
+sudo systemctl status php8.3-fpm
+sudo systemctl restart php8.3-fpm
+
+# 檢查 Apache 狀態
+sudo systemctl status apache2
+sudo systemctl restart apache2
 ```
 
 #### 2. 資料庫連接失敗
