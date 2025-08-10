@@ -209,59 +209,182 @@ sudo chown -R www-data:www-data /var/www/line-reservation/frontend/dist
 
 ### 1. 一鍵安裝腳本
 
-創建並執行以下部署腳本：
+使用優化的部署腳本進行自動部署：
 
 ```bash
 #!/bin/bash
 
-echo "🚀 開始部署 LINE Reservation System (Apache)..."
+echo "🚀 開始部署 LINE Reservation System (Apache) - 完整優化版..."
 
-# 更新系統
+set -e
+trap 'echo "❌ 部署失敗於第 $LINENO 行"; exit 1' ERR
+
+# 檢查非 root 執行
+if [[ $EUID -eq 0 ]]; then
+    echo "❌ 請不要用 root 用戶執行，改用一般用戶！"
+    exit 1
+fi
+
+PROJECT_DIR="/var/www/line-reservation"
+USER_HOME=$(eval echo "~$USER")
+
+# 自動偵測 IP 或使用參數
+SERVER_IP=$(hostname -I | awk '{print $1}')
+DOMAIN=${1:-$SERVER_IP}
+
+echo "📁 專案目錄: $PROJECT_DIR"
+echo "🌐 域名/IP: $DOMAIN"
+echo "🔍 偵測到伺服器 IP: $SERVER_IP"
+
+# 更新系統套件
 sudo apt update && sudo apt upgrade -y
+
+# 安裝 Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 
 # 安裝必要套件
 sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml \
     php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath \
-    mysql-server nodejs npm composer
+    mysql-server git curl unzip
+
+# 安裝 Composer
+if ! command -v composer &>/dev/null; then
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    php composer-setup.php
+    sudo mv composer.phar /usr/local/bin/composer
+    rm composer-setup.php
+fi
 
 # 啟用 Apache 模組
-sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif
+sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif expires
 
 # 設定資料庫
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS line_reservation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-sudo mysql -e "CREATE USER IF NOT EXISTS 'spencer'@'localhost' IDENTIFIED BY 'Spencerku123@';"
-sudo mysql -e "GRANT ALL PRIVILEGES ON line_reservation.* TO 'spencer'@'localhost';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+DB_PASS=$(openssl rand -hex 16)
+echo "🔑 生成 MySQL 資料庫密碼：$DB_PASS"
 
-# 切換到專案目錄
-cd /var/www/line-reservation
+# 自動偵測 MySQL 連接方式
+MYSQL_CMD=""
+if sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT 1;" &>/dev/null; then
+    MYSQL_CMD="sudo mysql --defaults-file=/etc/mysql/debian.cnf"
+elif sudo mysql -e "SELECT 1;" &>/dev/null; then
+    MYSQL_CMD="sudo mysql"
+elif mysql -e "SELECT 1;" &>/dev/null; then
+    MYSQL_CMD="mysql"
+else
+    echo "❌ 無法連接 MySQL，請檢查設定後再重試。"
+    exit 1
+fi
+
+# 建立資料庫及使用者
+$MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`line_reservation\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+$MYSQL_CMD -e "CREATE USER IF NOT EXISTS 'line_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';"
+$MYSQL_CMD -e "ALTER USER 'line_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';"
+$MYSQL_CMD -e "GRANT ALL PRIVILEGES ON \`line_reservation\`.* TO 'line_user'@'localhost';"
+$MYSQL_CMD -e "FLUSH PRIVILEGES;"
+
+# 保存資料庫憑證
+CRED_FILE="$USER_HOME/.line-reservation-credentials"
+echo -e "Database: line_reservation\nUsername: line_user\nPassword: $DB_PASS" > "$CRED_FILE"
+chmod 600 "$CRED_FILE"
+echo "📄 資料庫憑證已保存於 $CRED_FILE"
+
+# 下載或更新專案
+if [ -d "$PROJECT_DIR" ]; then
+    echo "📥 更新專案代碼..."
+    sudo chown -R $USER:$USER "$PROJECT_DIR"
+    cd "$PROJECT_DIR"
+    git config --global --add safe.directory "$PROJECT_DIR"
+    git pull origin main || echo "⚠️ Git 更新失敗，請手動檢查"
+else
+    echo "📥 下載專案代碼..."
+    cd /var/www
+    sudo git clone https://github.com/spencerkuku/line-reservation.git
+    sudo chown -R $USER:$USER line-reservation
+    git config --global --add safe.directory "$PROJECT_DIR"
+fi
+
+cd "$PROJECT_DIR"
 
 # 設定後端
 cd backend
-composer install --optimize-autoloader
-cp .env.example .env
+sudo -u $USER composer install --optimize-autoloader --no-dev
 
-# 更新 .env 為生產環境設定
-sed -i 's/APP_ENV=local/APP_ENV=production/' .env
-sed -i 's/APP_DEBUG=true/APP_DEBUG=false/' .env
-sed -i 's|APP_URL=http://localhost:8000|APP_URL=https://your-domain.com|' .env
+# 環境變數設定
+if [ ! -f .env ]; then
+    cp .env.example .env
+fi
 
-php artisan key:generate
-php artisan migrate --force
-php artisan db:seed --force
+# 自動更新環境變數
+update_env_var() {
+    local key="$1"
+    local val="$2"
+    local file=".env"
+    if grep -q "^${key}=" "$file"; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+}
+
+update_env_var "APP_ENV" "production"
+update_env_var "APP_DEBUG" "false"
+update_env_var "APP_URL" "http://$DOMAIN"
+update_env_var "FRONTEND_URL" "http://$DOMAIN"
+update_env_var "DB_CONNECTION" "mysql"
+update_env_var "DB_HOST" "127.0.0.1"
+update_env_var "DB_PORT" "3306"
+update_env_var "DB_DATABASE" "line_reservation"
+update_env_var "DB_USERNAME" "line_user"
+update_env_var "DB_PASSWORD" "$DB_PASS"
+update_env_var "SANCTUM_STATEFUL_DOMAINS" "$DOMAIN"
+
+# Laravel 設定
+sudo -u $USER php artisan config:clear
+sudo -u $USER php artisan config:cache
+sudo -u $USER php artisan key:generate --force
+sudo -u $USER php artisan migrate --force
+sudo -u $USER php artisan db:seed --force 2>/dev/null || echo "⚠️ 種子可能已存在，跳過"
+sudo -u $USER php artisan storage:link 2>/dev/null || echo "⚠️ Storage 連結已存在，跳過"
 
 # 設定前端
 cd ../frontend
-npm install
-npm run build
+
+if [ ! -f .env ]; then
+    cp .env.example .env
+fi
+
+# 前端環境變數設定
+update_frontend_env_var() {
+    local key="$1"
+    local val="$2"
+    local file=".env"
+    if grep -q "^${key}=" "$file"; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+}
+
+update_frontend_env_var "VITE_API_BASE_URL" "http://$DOMAIN/api"
+update_frontend_env_var "VITE_APP_BASE_URL" "http://$DOMAIN"
+update_frontend_env_var "VITE_APP_URL" "http://$DOMAIN"
+update_frontend_env_var "VITE_BACKEND_URL" "http://$DOMAIN/api"
+
+# 前端建構
+[ -d node_modules ] && rm -rf node_modules package-lock.json
+sudo -u $USER npm install
+[ -d dist ] && rm -rf dist
+sudo -u $USER npm run build
 
 # 設定權限
-sudo chown -R www-data:www-data /var/www/line-reservation
-sudo chmod -R 755 /var/www/line-reservation
-sudo chmod -R 775 /var/www/line-reservation/backend/storage
-sudo chmod -R 775 /var/www/line-reservation/backend/bootstrap/cache
+sudo chown -R www-data:www-data "$PROJECT_DIR"
+find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
+find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
+sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+sudo chmod -R g+s "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
 
-echo "✅ 部署完成！請設定 Apache 虛擬主機。"
+echo "✅ 部署完成！"
 ```
 
 ### 2. Apache 虛擬主機設定
@@ -274,56 +397,52 @@ sudo nano /etc/apache2/sites-available/line-reservation.conf
 
 **針對您當前環境的 Apache 配置：**
 
-根據您的 `.env` 設定和程式碼結構，建議使用以下設定：
+根據優化的部署腳本，使用以下 Apache 虛擬主機配置：
 
 ```apache
 <VirtualHost *:80>
-    ServerName localhost
+    ServerName your-domain.com
     DocumentRoot /var/www/line-reservation/frontend/dist
-    
-    # 前端 SPA 路由處理
-    <Directory "/var/www/line-reservation/frontend/dist">
-        Options Indexes FollowSymLinks
+
+    # 前端靜態檔案服務
+    <Directory /var/www/line-reservation/frontend/dist>
         AllowOverride All
         Require all granted
+        Options FollowSymLinks
         
-        # Vue.js Router History Mode 支援 - 保護 API 路由
+        # Vue Router 歷史模式支援
         RewriteEngine On
-        RewriteRule ^api/ - [L]
-        RewriteRule ^webhook/ - [L]
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
         RewriteRule . /index.html [L]
     </Directory>
 
-    # Laravel API 路由處理
-    Alias /api /var/www/line-reservation/backend/public
-    <Directory "/var/www/line-reservation/backend/public">
-        Options Indexes FollowSymLinks
+    # API 路由代理到後端
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ /var/www/line-reservation/backend/public/index.php [QSA,L]
+
+    <Directory /var/www/line-reservation/backend/public>
         AllowOverride All
         Require all granted
-        
-        # 自動偵測 PHP-FPM 配置
+        Options FollowSymLinks
+
         <FilesMatch "\.php$">
-            SetHandler "proxy:unix:/var/run/php/php8.3-fpm.sock|fcgi://localhost"
+            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
         </FilesMatch>
     </Directory>
 
-    # LINE Webhook 路由處理
-    Alias /webhook /var/www/line-reservation/backend/public
-    <Directory "/var/www/line-reservation/backend/public">
-        Options Indexes FollowSymLinks
-        AllowOverride All
+    # 後端存儲檔案
+    Alias /storage /var/www/line-reservation/backend/storage/app/public
+    <Directory /var/www/line-reservation/backend/storage/app/public>
+        AllowOverride None
         Require all granted
+        Options FollowSymLinks
     </Directory>
 
-    # CORS 標頭設定（配合您的 .env 設定）
-    Header always set Access-Control-Allow-Origin "http://localhost:5173"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN"
-    Header always set Access-Control-Allow-Credentials "true"
-
-    # 錯誤和存取日誌
     ErrorLog ${APACHE_LOG_DIR}/line-reservation_error.log
     CustomLog ${APACHE_LOG_DIR}/line-reservation_access.log combined
 </VirtualHost>
@@ -350,39 +469,44 @@ sudo nano /etc/apache2/sites-available/line-reservation.conf
     SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
     SSLCipherSuite ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
 
-    # 前端 SPA 路由處理
-    <Directory "/var/www/line-reservation/frontend/dist">
-        Options Indexes FollowSymLinks
+    # 前端靜態檔案服務
+    <Directory /var/www/line-reservation/frontend/dist>
         AllowOverride All
         Require all granted
+        Options FollowSymLinks
         
-        # Vue.js Router History Mode 支援
+        # Vue Router 歷史模式支援
         RewriteEngine On
-        RewriteRule ^api/ - [L]
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
         RewriteRule . /index.html [L]
     </Directory>
 
-    # Laravel API 路由處理
-    Alias /api /var/www/line-reservation/backend/public
-    <Directory "/var/www/line-reservation/backend/public">
-        Options Indexes FollowSymLinks
+    # API 路由代理到後端
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ /var/www/line-reservation/backend/public/index.php [QSA,L]
+
+    <Directory /var/www/line-reservation/backend/public>
         AllowOverride All
         Require all granted
-        
-        # PHP-FPM 處理
+        Options FollowSymLinks
+
         <FilesMatch "\.php$">
-            SetHandler "proxy:unix:/var/run/php/php8.3-fpm.sock|fcgi://localhost"
+            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
         </FilesMatch>
     </Directory>
 
-    # LINE Webhook 路由
-    <Location "/webhook">
-        ProxyPass http://127.0.0.1:8000/api/line/webhook
-        ProxyPassReverse http://127.0.0.1:8000/api/line/webhook
-        ProxyPreserveHost On
-    </Location>
+    # 後端存儲檔案
+    Alias /storage /var/www/line-reservation/backend/storage/app/public
+    <Directory /var/www/line-reservation/backend/storage/app/public>
+        AllowOverride None
+        Require all granted
+        Options FollowSymLinks
+    </Directory>
 
     # 靜態資源快取設定
     <LocationMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
@@ -453,8 +577,9 @@ Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
 ```
 
 如果沒有，請新增此路由。Webhook URL 將會是：
-- `https://your-domain.com/webhook/api/line/webhook`
-- 或者 `https://your-domain.com/api/line/webhook`
+- `https://your-domain.com/api/line/webhook`
+
+**注意**: 部署腳本會自動配置 Apache 重寫規則，將 `/api/` 路徑正確路由到後端。
 
 ---
 
