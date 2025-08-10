@@ -258,25 +258,23 @@ sudo tee "$APACHE_CONF" > /dev/null <<EOF
         RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
         RewriteRule . /index.html [L]
     </Directory>
 
     # API 路由代理到後端
-    Alias /api $PROJECT_DIR/backend/public
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+
     <Directory $PROJECT_DIR/backend/public>
         AllowOverride All
         Require all granted
+        Options FollowSymLinks
 
         <FilesMatch "\.php$">
             SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
-        
-        # 重寫 API 路由
-        RewriteEngine On
-        RewriteBase /api
-        RewriteCond %{REQUEST_FILENAME} !-f
-        RewriteCond %{REQUEST_FILENAME} !-d
-        RewriteRule ^(.*)$ /api/index.php [L]
     </Directory>
 
     # 後端存儲檔案
@@ -284,6 +282,7 @@ sudo tee "$APACHE_CONF" > /dev/null <<EOF
     <Directory $PROJECT_DIR/backend/storage/app/public>
         AllowOverride None
         Require all granted
+        Options FollowSymLinks
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
