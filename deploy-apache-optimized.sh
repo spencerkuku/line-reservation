@@ -1,94 +1,63 @@
 #!/bin/bash
 
-echo "🚀 開始部署 LINE Reservation System (Apache) - 優化版本..."
+echo "🚀 開始部署 LINE Reservation System (Apache) - 完整優化版..."
 
-# 錯誤處理設定
-set -e  # 遇到錯誤立即退出
-trap 'echo "❌ 部署失敗於第 $LINENO 行"' ERR
+set -e
+trap 'echo "❌ 部署失敗於第 $LINENO 行"; exit 1' ERR
 
-# 檢查是否為 root 用戶
+# 檢查非 root 執行
 if [[ $EUID -eq 0 ]]; then
-   echo "❌ 請不要使用 root 用戶執行此腳本"
-   exit 1
+    echo "❌ 請不要用 root 用戶執行，改用一般用戶！"
+    exit 1
 fi
 
-# 設定變數
 PROJECT_DIR="/var/www/line-reservation"
+USER_HOME=$(eval echo "~$USER")
 
-# 自動偵測伺服器 IP 或使用預設域名
+# 自動偵測 IP 或使用參數
 SERVER_IP=$(hostname -I | awk '{print $1}')
-DOMAIN=${1:-$SERVER_IP}  # 使用命令列參數或自動偵測的 IP
+DOMAIN=${1:-$SERVER_IP}
 
 echo "📁 專案目錄: $PROJECT_DIR"
 echo "🌐 域名/IP: $DOMAIN"
-echo "🔍 偵測到的伺服器 IP: $SERVER_IP"
+echo "🔍 偵測到伺服器 IP: $SERVER_IP"
 
-# 更新系統
 echo "📦 更新系統套件..."
 sudo apt update && sudo apt upgrade -y
 
-# 安裝 Node.js 20 (最新穩定版)
 echo "🔧 安裝 Node.js 20..."
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 
-# 安裝必要套件
 echo "🔧 安裝必要套件..."
-if ! sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml \
-    php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath \
-    mysql-server nodejs; then
-    echo "❌ 套件安裝失敗"
-    exit 1
-fi
+sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath mysql-server git curl unzip
 
-# 檢查 Composer 是否已安裝
-if ! command -v composer &> /dev/null; then
-    echo "📥 安裝 Composer..."
-    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" || exit 1
-    php composer-setup.php || exit 1
-    sudo mv composer.phar /usr/local/bin/composer || exit 1
+echo "📥 安裝 Composer (如未安裝)..."
+if ! command -v composer &>/dev/null; then
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    php composer-setup.php
+    sudo mv composer.phar /usr/local/bin/composer
     rm composer-setup.php
 fi
 
-# 啟用 Apache 模組
-echo "⚙️ 設定 Apache 模組..."
-if ! sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif expires; then
-    echo "❌ Apache 模組啟用失敗"
-    exit 1
-fi
+echo "⚙️ 啟用 Apache 模組..."
+sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif expires
 
-# 自動偵測 PHP-FPM Socket
-echo "🔍 偵測 PHP-FPM 配置..."
-
-# 檢測實際安裝的 PHP-FPM 版本
-INSTALLED_PHP_VERSIONS=$(systemctl list-units --type=service | grep -o 'php[0-9]\+\.[0-9]\+-fpm' | sed 's/-fpm//' | sed 's/php//')
+echo "🔍 偵測 PHP-FPM 版本..."
+INSTALLED_PHP_VERSIONS=$(systemctl list-units --type=service | grep -oP 'php\d+\.\d+-fpm' | sed 's/-fpm//' | sed 's/php//')
 CLI_PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
 
-echo "📋 CLI PHP 版本: $CLI_PHP_VERSION"
-echo "� 已安裝的 PHP-FPM 版本: $INSTALLED_PHP_VERSIONS"
-
-# 優先使用已安裝的 PHP-FPM 服務
 PHP_FPM_VERSION=""
-for version in $INSTALLED_PHP_VERSIONS; do
-    if systemctl is-active --quiet php${version}-fpm; then
-        PHP_FPM_VERSION=$version
-        echo "✅ 找到運行中的 PHP-FPM: php${version}-fpm"
+for v in $INSTALLED_PHP_VERSIONS; do
+    if systemctl is-active --quiet php${v}-fpm; then
+        PHP_FPM_VERSION=$v
         break
     fi
 done
-
-# 如果沒有運行中的，使用第一個安裝的版本
-if [ -z "$PHP_FPM_VERSION" ] && [ -n "$INSTALLED_PHP_VERSIONS" ]; then
-    PHP_FPM_VERSION=$(echo $INSTALLED_PHP_VERSIONS | head -n1 | awk '{print $1}')
-    echo "⚠️  使用第一個可用的 PHP-FPM 版本: $PHP_FPM_VERSION"
-fi
-
-# 如果仍然沒有，使用 CLI 版本
 if [ -z "$PHP_FPM_VERSION" ]; then
     PHP_FPM_VERSION=$CLI_PHP_VERSION
-    echo "⚠️  使用 CLI PHP 版本: $PHP_FPM_VERSION"
 fi
 
-# 檢查 socket 文件
 POSSIBLE_SOCKETS=(
     "/run/php/php${PHP_FPM_VERSION}-fpm.sock"
     "/var/run/php/php${PHP_FPM_VERSION}-fpm.sock"
@@ -97,549 +66,246 @@ POSSIBLE_SOCKETS=(
 
 PHP_FPM_HANDLER=""
 for sock in "${POSSIBLE_SOCKETS[@]}"; do
-    echo "🔍 檢查 Socket: $sock"
     if [ -S "$sock" ]; then
-        echo "✅ 找到 PHP-FPM socket: $sock"
         PHP_FPM_HANDLER="proxy:unix:${sock}|fcgi://localhost"
-        SOCK_FILE="$sock"
         break
     fi
 done
-
-# 如果仍然找不到 socket，使用 TCP 連接
 if [ -z "$PHP_FPM_HANDLER" ]; then
-    echo "⚠️  找不到 PHP-FPM socket，改用 TCP: 127.0.0.1:9000"
     PHP_FPM_HANDLER="proxy:fcgi://127.0.0.1:9000"
 fi
 
 echo "🔧 使用 PHP-FPM 處理器: $PHP_FPM_HANDLER"
 echo "📋 使用 PHP-FPM 版本: $PHP_FPM_VERSION"
 
-# 設定資料庫（如果不存在）
-echo "🗄️ 設定資料庫..."
-
-# 啟動 MySQL 服務
-if ! sudo systemctl start mysql; then
-    echo "❌ MySQL 啟動失敗"
-    exit 1
-fi
+echo "🗄️ 啟動並啟用 MySQL 服務..."
+sudo systemctl start mysql
 sudo systemctl enable mysql
 
 DB_PASS=$(openssl rand -hex 16)
-echo "🔑 生成資料庫密碼: $DB_PASS"
+echo "🔑 生成 MySQL 資料庫密碼：$DB_PASS"
 
-# 嘗試多種方式連接 MySQL
 MYSQL_CMD=""
-echo "🔍 檢測 MySQL 連接方式..."
-
-# 方法1: 嘗試使用 debian-sys-maint
-if sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT 1;" > /dev/null 2>&1; then
-    echo "✅ 使用 debian-sys-maint 連接"
+if sudo mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT 1;" &>/dev/null; then
     MYSQL_CMD="sudo mysql --defaults-file=/etc/mysql/debian.cnf"
-# 方法2: 嘗試直接 sudo mysql
-elif sudo mysql -e "SELECT 1;" > /dev/null 2>&1; then
-    echo "✅ 使用 sudo mysql 連接"
+elif sudo mysql -e "SELECT 1;" &>/dev/null; then
     MYSQL_CMD="sudo mysql"
-# 方法3: 嘗試無密碼連接
-elif mysql -e "SELECT 1;" > /dev/null 2>&1; then
-    echo "✅ 使用無密碼連接"
+elif mysql -e "SELECT 1;" &>/dev/null; then
     MYSQL_CMD="mysql"
 else
-    echo "❌ 無法連接到 MySQL，請檢查以下項目："
-    echo "   1. MySQL 服務是否正在運行: sudo systemctl status mysql"
-    echo "   2. MySQL root 密碼設定: sudo mysql_secure_installation"
-    echo "   3. 或手動設定 MySQL："
-    echo "      sudo mysql_secure_installation"
-    echo "      然後編輯腳本設定 MySQL root 密碼"
+    echo "❌ 無法連接 MySQL，請檢查設定後再重試。"
     exit 1
 fi
 
-$MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`line_reservation\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
-$MYSQL_CMD -e "CREATE USER IF NOT EXISTS 'line_user'@'localhost' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null || true
-$MYSQL_CMD -e "GRANT ALL PRIVILEGES ON \`line_reservation\`.* TO 'line_user'@'localhost';" 2>/dev/null || true
-$MYSQL_CMD -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+# 建立資料庫及使用者，指定 mysql_native_password
+$MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`line_reservation\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+$MYSQL_CMD -e "CREATE USER IF NOT EXISTS 'line_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';"
+$MYSQL_CMD -e "ALTER USER 'line_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASS}';"
+$MYSQL_CMD -e "GRANT ALL PRIVILEGES ON \`line_reservation\`.* TO 'line_user'@'localhost';"
+$MYSQL_CMD -e "FLUSH PRIVILEGES;"
 
-# 確保專案目錄存在後再寫入憑證檔案
-CRED_FILE="/home/$USER/.line-reservation-credentials"
-echo "📄 資料庫資訊已安全存到 $CRED_FILE"
-echo "Database: line_reservation" > $CRED_FILE
-echo "Username: line_user" >> $CRED_FILE
-echo "Password: $DB_PASS" >> $CRED_FILE
-chmod 600 $CRED_FILE
-echo "⚠️  重要：資料庫憑證已保存到 $CRED_FILE，請妥善保管！"
+CRED_FILE="$USER_HOME/.line-reservation-credentials"
+echo -e "Database: line_reservation\nUsername: line_user\nPassword: $DB_PASS" > "$CRED_FILE"
+chmod 600 "$CRED_FILE"
+echo "📄 資料庫憑證已保存於 $CRED_FILE"
 
-# 下載/更新專案
+# 下載或更新專案
 if [ -d "$PROJECT_DIR" ]; then
-    echo "📥 更新現有專案..."
-    cd $PROJECT_DIR
-    
-    # 添加 Git 安全目錄例外
-    sudo git config --global --add safe.directory $PROJECT_DIR
-    
-    # 嘗試更新，如果失敗則跳過（可能是權限或認證問題）
-    if ! sudo git pull origin main 2>/dev/null; then
-        echo "⚠️  Git 更新失敗，使用現有程式碼繼續部署"
-        echo "    如需更新程式碼，請手動執行："
-        echo "    cd $PROJECT_DIR && git pull origin main"
+    echo "📥 更新專案代碼..."
+    sudo chown -R $USER:$USER "$PROJECT_DIR"   # 確保目錄權限
+    cd "$PROJECT_DIR"
+    git config --global --add safe.directory "$PROJECT_DIR"
+    if ! git pull origin main; then
+        echo "⚠️ Git 更新失敗，請手動檢查"
     fi
 else
-    echo "📥 下載專案..."
+    echo "📥 下載專案代碼..."
     cd /var/www
-    
-    # 嘗試下載，如果失敗則提示手動下載
-    if ! sudo git clone https://github.com/spencerkuku/line-reservation.git 2>/dev/null; then
-        echo "❌ Git 下載失敗，請先手動下載專案："
-        echo "    cd /var/www"
-        echo "    sudo git clone https://github.com/spencerkuku/line-reservation.git"
-        echo "    或下載 ZIP 檔案並解壓到 $PROJECT_DIR"
-        exit 1
-    fi
-    
-    # 添加 Git 安全目錄例外
-    sudo git config --global --add safe.directory $PROJECT_DIR
+    sudo git clone https://github.com/spencerkuku/line-reservation.git
+    sudo chown -R $USER:$USER line-reservation
+    git config --global --add safe.directory "$PROJECT_DIR"
 fi
 
-# 切換到專案目錄
-cd $PROJECT_DIR
+cd "$PROJECT_DIR"
 
-# 複製資料庫憑證檔案到專案目錄（備份）
-if [ -f "$CRED_FILE" ]; then
-    sudo cp "$CRED_FILE" "$PROJECT_DIR/db_credentials.txt"
-    sudo chown www-data:www-data "$PROJECT_DIR/db_credentials.txt"
-    sudo chmod 600 "$PROJECT_DIR/db_credentials.txt"
-    echo "📄 資料庫憑證備份已複製到 $PROJECT_DIR/db_credentials.txt"
-fi
+# 備份資料庫憑證
+cp "$CRED_FILE" "$PROJECT_DIR/db_credentials.txt"
+chmod 600 "$PROJECT_DIR/db_credentials.txt"
+echo "📄 資料庫憑證備份已建立於 $PROJECT_DIR/db_credentials.txt"
 
-# 設定後端
-echo "🔨 設定後端..."
+# 後端安裝
 cd backend
 
-# 確保權限正確（使用 www-data 作為 web 伺服器用戶）
-sudo chown -R www-data:www-data .
-
-# 安裝 PHP 依賴
 echo "📦 安裝 PHP 依賴..."
-if ! sudo -u www-data composer install --optimize-autoloader --no-dev; then
-    echo "❌ Composer 安裝失敗"
-    exit 1
-fi
+sudo -u $USER composer install --optimize-autoloader --no-dev
 
-# 設定環境檔案
+# 環境檔案
 if [ ! -f .env ]; then
     cp .env.example .env
-    echo "📄 創建新的 .env 檔案"
-else
-    echo "📄 使用現有的 .env 檔案"
 fi
 
-# 更新 .env 為當前環境設定
-echo "⚙️ 更新後端環境變數..."
-
-# 安全的環境變數更新函數
 update_env_var() {
     local key="$1"
-    local value="$2"
-    local env_file=".env"
-    
-    if grep -q "^${key}=" "$env_file"; then
-        # 使用更安全的 sed 語法，處理特殊字符
-        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+    local val="$2"
+    local file=".env"
+    if grep -q "^${key}=" "$file"; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
     else
-        echo "${key}=${value}" >> "$env_file"
+        echo "${key}=${val}" >> "$file"
     fi
 }
 
-# 基本應用設定
 update_env_var "APP_ENV" "production"
 update_env_var "APP_DEBUG" "false"
 update_env_var "APP_URL" "http://$DOMAIN"
-
-# 前端 URL 設定
 update_env_var "FRONTEND_URL" "http://$DOMAIN"
-
-# 資料庫設定
 update_env_var "DB_CONNECTION" "mysql"
 update_env_var "DB_HOST" "127.0.0.1"
 update_env_var "DB_PORT" "3306"
 update_env_var "DB_DATABASE" "line_reservation"
 update_env_var "DB_USERNAME" "line_user"
 update_env_var "DB_PASSWORD" "$DB_PASS"
-
-# Laravel Sanctum CORS 設定
 update_env_var "SANCTUM_STATEFUL_DOMAINS" "$DOMAIN"
-
-# Session 和安全設定
 update_env_var "SESSION_DRIVER" "file"
 update_env_var "SESSION_LIFETIME" "120"
-
-# Cache 設定
 update_env_var "CACHE_DRIVER" "file"
 update_env_var "QUEUE_CONNECTION" "sync"
-
-# 日誌設定
 update_env_var "LOG_CHANNEL" "stack"
 update_env_var "LOG_LEVEL" "info"
 
-echo "✅ 後端環境變數已更新："
-echo "   APP_URL=http://$DOMAIN"
-echo "   FRONTEND_URL=http://$DOMAIN"
-echo "   SANCTUM_STATEFUL_DOMAINS=$DOMAIN"
-echo "   DB_DATABASE=line_reservation"
-echo "   DB_USERNAME=line_user"
+echo "🔄 Laravel 清除並重建配置快取..."
+sudo -u $USER php artisan config:clear
+sudo -u $USER php artisan config:cache
 
-# 驗證 .env 設定
-echo ""
-echo "📋 驗證 .env 主要設定："
-echo "APP_ENV=$(grep '^APP_ENV=' .env | cut -d'=' -f2)"
-echo "APP_DEBUG=$(grep '^APP_DEBUG=' .env | cut -d'=' -f2)"
-echo "APP_URL=$(grep '^APP_URL=' .env | cut -d'=' -f2-)"
-echo "DB_DATABASE=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)"
-echo "SANCTUM_STATEFUL_DOMAINS=$(grep '^SANCTUM_STATEFUL_DOMAINS=' .env | cut -d'=' -f2-)"
+echo "🔑 生成 Laravel 應用金鑰..."
+sudo -u $USER php artisan key:generate --force
 
-echo ""
-echo "⚠️  請編輯 $PROJECT_DIR/backend/.env 檔案，設定正確的 LINE Bot 金鑰："
-echo "   LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token"
-echo "   LINE_CHANNEL_SECRET=your_line_channel_secret"
+echo "🗄️ 執行資料庫遷移..."
+sudo -u $USER php artisan migrate --force
 
-echo "⚠️  請編輯 $PROJECT_DIR/backend/.env 檔案，設定正確的 LINE Bot 金鑰"
-
-# 生成應用程式金鑰
-echo "🔑 生成應用程式金鑰..."
-if ! sudo -u www-data php artisan key:generate --force; then
-    echo "❌ 金鑰生成失敗"
-    exit 1
+echo "🗄️ 執行資料庫種子..."
+if ! sudo -u $USER php artisan db:seed --force 2>/dev/null; then
+    echo "⚠️ 種子可能已存在，跳過"
 fi
 
-# 執行資料庫遷移（忽略種子錯誤）
-echo "🗄️  執行資料庫遷移..."
-if ! sudo -u www-data php artisan migrate --force; then
-    echo "❌ 資料庫遷移失敗"
-    exit 1
+echo "🔗 建立 Storage 連結..."
+if ! sudo -u $USER php artisan storage:link 2>/dev/null; then
+    echo "⚠️ Storage 連結已存在，跳過"
 fi
 
-# 執行資料庫種子（如果失敗則跳過）
-if ! sudo -u www-data php artisan db:seed --force 2>/dev/null; then
-    echo "⚠️  資料庫種子可能已存在，跳過種子步驟"
-fi
-
-# 建立 Storage 連結 (如果專案有檔案上傳功能，如果已存在則跳過)
-if ! sudo -u www-data php artisan storage:link 2>/dev/null; then
-    echo "⚠️  Storage 連結已存在，跳過此步驟"
-fi
-
-# 設定前端
-echo "🎨 設定前端..."
+# 前端安裝
 cd ../frontend
 
-# 確保前端目錄權限正確
-sudo chown -R www-data:www-data .
-
-# 設定前端環境檔案
 if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
-# 安全的前端環境變數更新函數
 update_frontend_env_var() {
     local key="$1"
-    local value="$2"
-    local env_file=".env"
-    
-    if grep -q "^${key}=" "$env_file"; then
-        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+    local val="$2"
+    local file=".env"
+    if grep -q "^${key}=" "$file"; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
     else
-        echo "${key}=${value}" >> "$env_file"
+        echo "${key}=${val}" >> "$file"
     fi
 }
 
-# 更新前端環境變數為當前伺服器配置
-echo "⚙️ 更新前端環境變數..."
 update_frontend_env_var "VITE_API_BASE_URL" "http://$DOMAIN/api"
 update_frontend_env_var "VITE_APP_BASE_URL" "http://$DOMAIN"
 update_frontend_env_var "VITE_APP_URL" "http://$DOMAIN"
 update_frontend_env_var "VITE_BACKEND_URL" "http://$DOMAIN/api"
 
-echo "✅ 前端環境變數已更新："
-echo "   VITE_API_BASE_URL=http://$DOMAIN/api"
-echo "   VITE_APP_BASE_URL=http://$DOMAIN"
-
-# 清理舊的 node_modules 如果有權限問題
-if [ -d "node_modules" ]; then
+if [ -d node_modules ]; then
     echo "🧹 清理舊的 node_modules..."
-    sudo rm -rf node_modules package-lock.json
+    rm -rf node_modules package-lock.json
 fi
 
-# 安裝 Node.js 依賴
 echo "📦 安裝前端依賴..."
-if ! sudo -u www-data npm install; then
-    echo "❌ NPM 安裝失敗"
-    exit 1
-fi
+sudo -u $USER npm install
 
-# 建立生產版本
-echo "🏗️  建立前端生產版本..."
-
-# 清理舊的構建文件以確保使用新的環境變數
-if [ -d "dist" ]; then
-    echo "🧹 清理舊的構建文件..."
+echo "🏗️ 建立前端生產版本..."
+if [ -d dist ]; then
     rm -rf dist
 fi
+sudo -u $USER npm run build
 
-if ! sudo -u www-data npm run build; then
-    echo "❌ 前端構建失敗"
-    exit 1
-fi
+echo "🔧 調整權限..."
+sudo chown -R www-data:www-data "$PROJECT_DIR"
+find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
+find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
 
-# 驗證前端環境變數是否正確應用
-echo "📋 驗證前端構建結果..."
-if [ -f "dist/index.html" ]; then
-    echo "✅ 前端構建成功"
-    # 檢查構建結果中是否包含正確的 API URL
-    if grep -q "$DOMAIN" dist/assets/*.js 2>/dev/null; then
-        echo "✅ 前端已使用正確的服務器地址: $DOMAIN"
-    else
-        echo "⚠️  前端可能仍使用舊的 URL，檢查構建文件中的 URL..."
-        echo "   正在搜索 localhost 引用..."
-        if grep -l "localhost" dist/assets/*.js 2>/dev/null; then
-            echo "❌ 發現 localhost 引用，需要檢查 .env 設定"
-        fi
-    fi
-else
-    echo "❌ 前端構建失敗"
-    exit 1
-fi
+sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+sudo chmod -R g+s "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
 
-# 優化權限管理
-echo "🔐 設定檔案權限..."
-sudo chown -R www-data:www-data $PROJECT_DIR
-sudo chmod -R 755 $PROJECT_DIR
-sudo chmod -R 775 $PROJECT_DIR/backend/storage $PROJECT_DIR/backend/bootstrap/cache
-sudo chmod -R g+s $PROJECT_DIR/backend/storage $PROJECT_DIR/backend/bootstrap/cache
+echo "🖥️ 設定 Apache 虛擬主機..."
 
-# 創建 Apache 虛擬主機設定
-echo "🌐 創建 Apache 虛擬主機設定..."
-sudo tee /etc/apache2/sites-available/line-reservation.conf > /dev/null <<EOF
+APACHE_CONF="/etc/apache2/sites-available/line-reservation.conf"
+sudo tee "$APACHE_CONF" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $DOMAIN
     DocumentRoot $PROJECT_DIR/frontend/dist
-    
-    # 保護敏感文件
-    <Files ".env*">
-        Require all denied
-    </Files>
-    
-    <Files "*.log">
-        Require all denied
-    </Files>
-    
-    # 前端 SPA 路由處理
-    <Directory "$PROJECT_DIR/frontend/dist">
-        Options Indexes FollowSymLinks
+
+    # 前端靜態檔案服務
+    <Directory $PROJECT_DIR/frontend/dist>
         AllowOverride All
         Require all granted
+        Options FollowSymLinks
         
-        # Vue.js Router History Mode 支援 - 保護後端路由
+        # Vue Router 歷史模式支援
         RewriteEngine On
-        RewriteRule ^(api|storage|public|webhook)/ - [L]
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
         RewriteRule . /index.html [L]
     </Directory>
 
-    # Laravel API 路由處理
+    # API 路由代理到後端
     Alias /api $PROJECT_DIR/backend/public
-    <Directory "$PROJECT_DIR/backend/public">
-        Options Indexes FollowSymLinks
+    <Directory $PROJECT_DIR/backend/public>
         AllowOverride All
         Require all granted
-        
-        # 自動偵測的 PHP-FPM 處理
+
         <FilesMatch "\.php$">
             SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
+        
+        # 重寫 API 路由
+        RewriteEngine On
+        RewriteBase /api
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^(.*)$ /api/index.php [L]
     </Directory>
 
-    # LINE Webhook 路由處理
-    Alias /webhook $PROJECT_DIR/backend/public
-    <Directory "$PROJECT_DIR/backend/public">
-        Options Indexes FollowSymLinks
-        AllowOverride All
+    # 後端存儲檔案
+    Alias /storage $PROJECT_DIR/backend/storage/app/public
+    <Directory $PROJECT_DIR/backend/storage/app/public>
+        AllowOverride None
         Require all granted
     </Directory>
 
-    # 彈性 CORS 標頭設定
-    SetEnvIf Origin "^(https?://(.*\.)?$DOMAIN(:[0-9]+)?|http://localhost(:[0-9]+)?)$" CORS_ALLOW_ORIGIN=\$0
-    Header always set Access-Control-Allow-Origin "%{CORS_ALLOW_ORIGIN}e" env=CORS_ALLOW_ORIGIN
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN"
-    Header always set Access-Control-Allow-Credentials "true"
-
-    # 處理 CORS 預檢請求
-    RewriteEngine On
-    RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule .* - [R=200,L]
-
-    # 靜態資源快取設定
-    <LocationMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">
-        ExpiresActive On
-        ExpiresDefault "access plus 1 year"
-        Header append Cache-Control "public, immutable"
-    </LocationMatch>
-
-    # 錯誤和存取日誌
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
     CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 </VirtualHost>
 EOF
 
-# 啟用網站
-echo "🔄 啟用網站..."
-if ! sudo a2dissite 000-default; then
-    echo "⚠️  無法停用預設網站，繼續..."
-fi
+echo "🔐 啟用站台..."
+sudo a2ensite line-reservation.conf
+sudo a2dissite 000-default.conf || true
 
-if ! sudo a2ensite line-reservation; then
-    echo "❌ 網站啟用失敗"
-    exit 1
-fi
+echo "🔧 重啟 Apache..."
+sudo systemctl reload apache2
 
-# 檢查設定檔語法
-echo "✅ 檢查 Apache 設定..."
-if sudo apache2ctl configtest; then
-    echo "✅ Apache 設定檔語法正確"
-else
-    echo "❌ Apache 設定檔有誤，請檢查"
-    exit 1
-fi
+echo "🔥 設定 UFW 防火牆..."
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
 
-# 重啟服務
-echo "🔄 重啟服務..."
+echo "✅ 部署完成！"
+echo "網站應該已可透過 http://$DOMAIN 訪問。"
+echo "MySQL 資料庫憑證已存於 $CRED_FILE"
+echo "請確保 DNS 已指向此伺服器 IP 或直接使用 IP 訪問。"
 
-# 確保 PHP-FPM 服務啟動
-echo "🔄 啟動 PHP-FPM 服務: php${PHP_FPM_VERSION}-fpm"
-if ! sudo systemctl start php${PHP_FPM_VERSION}-fpm; then
-    echo "❌ PHP-FPM 啟動失敗"
-    exit 1
-fi
-sudo systemctl enable php${PHP_FPM_VERSION}-fpm
-
-# 檢查 PHP-FPM 狀態
-if sudo systemctl is-active --quiet php${PHP_FPM_VERSION}-fpm; then
-    echo "✅ PHP-FPM 服務運行中"
-else
-    echo "❌ PHP-FPM 服務啟動失敗"
-    sudo systemctl status php${PHP_FPM_VERSION}-fpm
-    exit 1
-fi
-
-# 重啟 Apache
-if ! sudo systemctl restart apache2; then
-    echo "❌ Apache 重啟失敗"
-    exit 1
-fi
-sudo systemctl enable apache2
-
-# 檢查 Apache 狀態
-if sudo systemctl is-active --quiet apache2; then
-    echo "✅ Apache 服務運行中"
-else
-    echo "❌ Apache 服務啟動失敗"
-    sudo systemctl status apache2
-    exit 1
-fi
-
-# 防火牆設定
-echo "🔒 防火牆設定..."
-read -p "是否要自動設定防火牆規則？(y/N): " setup_firewall
-if [[ $setup_firewall =~ ^[Yy]$ ]]; then
-    echo "設定防火牆規則..."
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    sudo ufw allow 22/tcp  # 保留 SSH 存取
-    
-    read -p "是否要啟用防火牆？(y/N): " enable_firewall
-    if [[ $enable_firewall =~ ^[Yy]$ ]]; then
-        sudo ufw --force enable
-        echo "✅ 防火牆已啟用"
-    else
-        echo "⚠️  防火牆規則已設定但未啟用，稍後可使用 'sudo ufw enable' 啟用"
-    fi
-else
-    echo "⚠️  請手動設定防火牆規則："
-    echo "   sudo ufw allow 80"
-    echo "   sudo ufw allow 443"
-    echo "   sudo ufw enable"
-fi
-
-# SSL 自動化設定
-echo "🔒 設定 SSL 憑證..."
-if ! sudo apt install certbot python3-certbot-apache -y; then
-    echo "⚠️  Certbot 安裝失敗，跳過 SSL 設定"
-else
-    read -p "是否要自動設定 SSL 憑證？(y/N): " setup_ssl
-    if [[ $setup_ssl =~ ^[Yy]$ ]]; then
-        if sudo certbot --apache -d $DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN; then
-            # 設定自動續期
-            echo "0 3 * * * root certbot renew --quiet" | sudo tee /etc/cron.d/certbot-renew
-            echo "✅ SSL 憑證已設定，並啟用自動續期"
-        else
-            echo "❌ SSL 憑證設定失敗"
-        fi
-    else
-        echo "⚠️  您可以稍後手動設定 SSL："
-        echo "   sudo certbot --apache -d $DOMAIN"
-    fi
-fi
-
-# 測試服務狀態
-echo "🧪 最終服務狀態檢查..."
-if sudo systemctl is-active --quiet apache2; then
-    echo "✅ Apache 運行中"
-else
-    echo "❌ Apache 未運行"
-fi
-
-if sudo systemctl is-active --quiet php${PHP_FPM_VERSION}-fpm; then
-    echo "✅ PHP-FPM (${PHP_FPM_VERSION}) 運行中"
-else
-    echo "❌ PHP-FPM (${PHP_FPM_VERSION}) 未運行"
-fi
-
-if sudo systemctl is-active --quiet mysql; then
-    echo "✅ MySQL 運行中"
-else
-    echo "❌ MySQL 未運行"
-fi
-
-echo ""
-echo "🎉 部署完成！"
-echo ""
-echo "📝 後續步驟："
-echo "1. 編輯 $PROJECT_DIR/backend/.env 設定："
-echo "   - LINE Bot 金鑰"
-echo "   - 其他應用程式特定設定"
-echo "2. 檢查 Laravel Webhook 路由："
-echo "   - 確保 routes/api.php 有 /line/webhook 路由"
-echo "3. 資料庫憑證已保存到："
-echo "   - 主要位置: /home/$USER/.line-reservation-credentials"
-echo "   - 備份位置: $PROJECT_DIR/db_credentials.txt"
-echo ""
-echo "🌐 網站應該可以在以下地址訪問："
-echo "   http://$DOMAIN"
-echo "   https://$DOMAIN (如果設定了 SSL)"
-echo ""
-echo "📊 查看日誌指令："
-echo "   sudo tail -f /var/log/apache2/line-reservation_error.log"
-# 動態偵測 Laravel 日誌路徑
-LARAVEL_LOG_PATH="$PROJECT_DIR/backend/storage/logs"
-if [ -d "$LARAVEL_LOG_PATH" ]; then
-    echo "   sudo tail -f $LARAVEL_LOG_PATH/laravel.log"
-else
-    echo "   sudo tail -f /var/log/laravel.log"
-fi
-echo ""
-echo "🔐 安全提醒："
-echo "   - 確保 .env 檔案權限正確 (600)"
-echo "   - 定期更新系統和套件"
-echo "   - 監控應用程式日誌"
-echo "   - 備份資料庫和應用程式文件"
+exit 0
