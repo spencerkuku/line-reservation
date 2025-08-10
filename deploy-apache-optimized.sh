@@ -48,35 +48,62 @@ sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif expires
 
 # 自動偵測 PHP-FPM Socket
 echo "🔍 偵測 PHP-FPM 配置..."
-PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
-SOCK_FILE="/var/run/php/php${PHP_VERSION}-fpm.sock"
 
-echo "📋 PHP 版本: $PHP_VERSION"
-echo "🔍 檢查 Socket: $SOCK_FILE"
+# 檢測實際安裝的 PHP-FPM 版本
+INSTALLED_PHP_VERSIONS=$(systemctl list-units --type=service | grep -o 'php[0-9]\+\.[0-9]\+-fpm' | sed 's/-fpm//' | sed 's/php//')
+CLI_PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
 
-if [ -S "$SOCK_FILE" ]; then
-    echo "✅ 找到 PHP-FPM socket: $SOCK_FILE"
-    PHP_FPM_HANDLER="proxy:unix:${SOCK_FILE}|fcgi://localhost"
-else
-    echo "⚠️  找不到 PHP-FPM socket，檢查替代路徑..."
-    # 檢查其他可能的 socket 路徑
-    for sock in "/run/php/php${PHP_VERSION}-fpm.sock" "/var/run/php-fpm/php-fpm.sock"; do
-        if [ -S "$sock" ]; then
-            echo "✅ 找到替代 PHP-FPM socket: $sock"
-            PHP_FPM_HANDLER="proxy:unix:${sock}|fcgi://localhost"
-            SOCK_FILE="$sock"
-            break
-        fi
-    done
-    
-    # 如果仍然找不到，使用 TCP 連接
-    if [ -z "$PHP_FPM_HANDLER" ]; then
-        echo "⚠️  找不到 PHP-FPM socket，改用 TCP: 127.0.0.1:9000"
-        PHP_FPM_HANDLER="proxy:fcgi://127.0.0.1:9000"
+echo "📋 CLI PHP 版本: $CLI_PHP_VERSION"
+echo "� 已安裝的 PHP-FPM 版本: $INSTALLED_PHP_VERSIONS"
+
+# 優先使用已安裝的 PHP-FPM 服務
+PHP_FPM_VERSION=""
+for version in $INSTALLED_PHP_VERSIONS; do
+    if systemctl is-active --quiet php${version}-fpm; then
+        PHP_FPM_VERSION=$version
+        echo "✅ 找到運行中的 PHP-FPM: php${version}-fpm"
+        break
     fi
+done
+
+# 如果沒有運行中的，使用第一個安裝的版本
+if [ -z "$PHP_FPM_VERSION" ] && [ -n "$INSTALLED_PHP_VERSIONS" ]; then
+    PHP_FPM_VERSION=$(echo $INSTALLED_PHP_VERSIONS | head -n1 | awk '{print $1}')
+    echo "⚠️  使用第一個可用的 PHP-FPM 版本: $PHP_FPM_VERSION"
+fi
+
+# 如果仍然沒有，使用 CLI 版本
+if [ -z "$PHP_FPM_VERSION" ]; then
+    PHP_FPM_VERSION=$CLI_PHP_VERSION
+    echo "⚠️  使用 CLI PHP 版本: $PHP_FPM_VERSION"
+fi
+
+# 檢查 socket 文件
+POSSIBLE_SOCKETS=(
+    "/run/php/php${PHP_FPM_VERSION}-fpm.sock"
+    "/var/run/php/php${PHP_FPM_VERSION}-fpm.sock"
+    "/var/run/php-fpm/php-fpm.sock"
+)
+
+PHP_FPM_HANDLER=""
+for sock in "${POSSIBLE_SOCKETS[@]}"; do
+    echo "🔍 檢查 Socket: $sock"
+    if [ -S "$sock" ]; then
+        echo "✅ 找到 PHP-FPM socket: $sock"
+        PHP_FPM_HANDLER="proxy:unix:${sock}|fcgi://localhost"
+        SOCK_FILE="$sock"
+        break
+    fi
+done
+
+# 如果仍然找不到 socket，使用 TCP 連接
+if [ -z "$PHP_FPM_HANDLER" ]; then
+    echo "⚠️  找不到 PHP-FPM socket，改用 TCP: 127.0.0.1:9000"
+    PHP_FPM_HANDLER="proxy:fcgi://127.0.0.1:9000"
 fi
 
 echo "🔧 使用 PHP-FPM 處理器: $PHP_FPM_HANDLER"
+echo "📋 使用 PHP-FPM 版本: $PHP_FPM_VERSION"
 
 # 設定資料庫（如果不存在）
 echo "🗄️ 設定資料庫..."
@@ -298,6 +325,13 @@ npm install
 
 # 建立生產版本
 echo "🏗️  建立前端生產版本..."
+
+# 清理舊的構建文件以確保使用新的環境變數
+if [ -d "dist" ]; then
+    echo "🧹 清理舊的構建文件..."
+    rm -rf dist
+fi
+
 npm run build
 
 # 驗證前端環境變數是否正確應用
@@ -306,12 +340,17 @@ if [ -f "dist/index.html" ]; then
     echo "✅ 前端構建成功"
     # 檢查構建結果中是否包含正確的 API URL
     if grep -q "$DOMAIN" dist/assets/*.js 2>/dev/null; then
-        echo "✅ 前端已使用正確的服務器地址"
+        echo "✅ 前端已使用正確的服務器地址: $DOMAIN"
     else
-        echo "⚠️  前端可能仍使用舊的 URL，請檢查 .env 設定"
+        echo "⚠️  前端可能仍使用舊的 URL，檢查構建文件中的 URL..."
+        echo "   正在搜索 localhost 引用..."
+        if grep -l "localhost" dist/assets/*.js 2>/dev/null; then
+            echo "❌ 發現 localhost 引用，需要檢查 .env 設定"
+        fi
     fi
 else
     echo "❌ 前端構建失敗"
+    exit 1
 fi
 
 # 建立生產版本
@@ -401,10 +440,31 @@ fi
 
 # 重啟服務
 echo "🔄 重啟服務..."
-sudo systemctl restart php${PHP_VERSION}-fpm
+
+# 確保 PHP-FPM 服務啟動
+echo "🔄 啟動 PHP-FPM 服務: php${PHP_FPM_VERSION}-fpm"
+sudo systemctl start php${PHP_FPM_VERSION}-fpm
+sudo systemctl enable php${PHP_FPM_VERSION}-fpm
+
+# 檢查 PHP-FPM 狀態
+if sudo systemctl is-active --quiet php${PHP_FPM_VERSION}-fpm; then
+    echo "✅ PHP-FPM 服務運行中"
+else
+    echo "❌ PHP-FPM 服務啟動失敗"
+    sudo systemctl status php${PHP_FPM_VERSION}-fpm
+fi
+
+# 重啟 Apache
 sudo systemctl restart apache2
 sudo systemctl enable apache2
-sudo systemctl enable php${PHP_VERSION}-fpm
+
+# 檢查 Apache 狀態
+if sudo systemctl is-active --quiet apache2; then
+    echo "✅ Apache 服務運行中"
+else
+    echo "❌ Apache 服務啟動失敗"
+    sudo systemctl status apache2
+fi
 
 # SSL 自動化設定
 echo "🔒 設定 SSL 憑證..."
@@ -423,21 +483,24 @@ else
 fi
 
 # 測試服務狀態
-echo "🧪 測試服務狀態..."
+echo "🧪 最終服務狀態檢查..."
 if sudo systemctl is-active --quiet apache2; then
     echo "✅ Apache 運行中"
 else
     echo "❌ Apache 未運行"
 fi
 
-if sudo systemctl is-active --quiet php${PHP_VERSION}-fpm; then
-    echo "✅ PHP-FPM 運行中"
+if sudo systemctl is-active --quiet php${PHP_FPM_VERSION}-fpm; then
+    echo "✅ PHP-FPM (${PHP_FPM_VERSION}) 運行中"
 else
-    echo "❌ PHP-FPM 未運行"
+    echo "❌ PHP-FPM (${PHP_FPM_VERSION}) 未運行"
 fi
 
 if sudo systemctl is-active --quiet mysql; then
     echo "✅ MySQL 運行中"
+else
+    echo "❌ MySQL 未運行"
+fi
 else
     echo "❌ MySQL 未運行"
 fi
