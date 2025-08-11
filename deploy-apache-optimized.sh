@@ -14,12 +14,39 @@ fi
 PROJECT_DIR="/var/www/line-reservation"
 USER_HOME=$(eval echo "~$USER")
 
-# 自動偵測 IP 或使用參數
+# 自動偵測 IP
 SERVER_IP=$(hostname -I | awk '{print $1}')
-DOMAIN=${1:-$SERVER_IP}
+
+# 讓用戶選擇使用 IP 或 domain
+echo "🌐 請選擇訪問方式："
+echo "1) 使用 IP 地址 ($SERVER_IP) - 不使用 SSL"
+echo "2) 使用自定義域名 - 使用 SSL"
+echo ""
+read -p "請輸入選擇 (1 或 2): " CHOICE
+
+USE_SSL=false
+if [ "$CHOICE" = "2" ]; then
+    read -p "請輸入您的域名: " DOMAIN
+    if [ -z "$DOMAIN" ]; then
+        echo "❌ 域名不能為空！"
+        exit 1
+    fi
+    USE_SSL=true
+    PROTOCOL="https"
+    echo "🔒 將使用 SSL 配置域名: $DOMAIN"
+elif [ "$CHOICE" = "1" ]; then
+    DOMAIN=$SERVER_IP
+    USE_SSL=false
+    PROTOCOL="http"
+    echo "🌐 將使用 IP 地址: $DOMAIN"
+else
+    echo "❌ 無效的選擇！"
+    exit 1
+fi
 
 echo "📁 專案目錄: $PROJECT_DIR"
 echo "🌐 域名/IP: $DOMAIN"
+echo "🔒 使用 SSL: $USE_SSL"
 echo "🔍 偵測到伺服器 IP: $SERVER_IP"
 
 echo "📦 更新系統套件..."
@@ -30,7 +57,11 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
 echo "🔧 安裝必要套件..."
-sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath mysql-server git curl unzip
+if [ "$USE_SSL" = true ]; then
+    sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath mysql-server git curl unzip certbot python3-certbot-apache
+else
+    sudo apt install -y apache2 php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-mbstring php8.3-zip php8.3-gd php8.3-bcmath mysql-server git curl unzip
+fi
 
 echo "📥 安裝 Composer (如未安裝)..."
 if ! command -v composer &>/dev/null; then
@@ -157,8 +188,8 @@ update_env_var() {
 
 update_env_var "APP_ENV" "production"
 update_env_var "APP_DEBUG" "false"
-update_env_var "APP_URL" "http://$DOMAIN"
-update_env_var "FRONTEND_URL" "http://$DOMAIN"
+update_env_var "APP_URL" "${PROTOCOL}://$DOMAIN"
+update_env_var "FRONTEND_URL" "${PROTOCOL}://$DOMAIN"
 update_env_var "DB_CONNECTION" "mysql"
 update_env_var "DB_HOST" "127.0.0.1"
 update_env_var "DB_PORT" "3306"
@@ -211,10 +242,10 @@ update_frontend_env_var() {
     fi
 }
 
-update_frontend_env_var "VITE_API_BASE_URL" "http://$DOMAIN/api"
-update_frontend_env_var "VITE_APP_BASE_URL" "http://$DOMAIN"
-update_frontend_env_var "VITE_APP_URL" "http://$DOMAIN"
-update_frontend_env_var "VITE_BACKEND_URL" "http://$DOMAIN/api"
+update_frontend_env_var "VITE_API_BASE_URL" "${PROTOCOL}://$DOMAIN/api"
+update_frontend_env_var "VITE_APP_BASE_URL" "${PROTOCOL}://$DOMAIN"
+update_frontend_env_var "VITE_APP_URL" "${PROTOCOL}://$DOMAIN"
+update_frontend_env_var "VITE_BACKEND_URL" "${PROTOCOL}://$DOMAIN/api"
 
 if [ -d node_modules ]; then
     echo "🧹 清理舊的 node_modules..."
@@ -242,7 +273,81 @@ sudo chmod -R 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" "$PRO
 echo "🖥️ 設定 Apache 虛擬主機..."
 
 APACHE_CONF="/etc/apache2/sites-available/line-reservation.conf"
-sudo tee "$APACHE_CONF" > /dev/null <<EOF
+
+if [ "$USE_SSL" = true ]; then
+    # SSL 配置 (HTTPS)
+    sudo tee "$APACHE_CONF" > /dev/null <<EOF
+<VirtualHost *:80>
+    ServerName $DOMAIN
+    DocumentRoot $PROJECT_DIR/frontend/dist
+    
+    # 重定向所有 HTTP 流量到 HTTPS
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName $DOMAIN
+    DocumentRoot $PROJECT_DIR/frontend/dist
+
+    # SSL 配置
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
+    
+    # 安全標頭
+    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    Header always set X-Frame-Options DENY
+    Header always set X-Content-Type-Options nosniff
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # 前端靜態檔案服務
+    <Directory $PROJECT_DIR/frontend/dist>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+        
+        # Vue Router 歷史模式支援
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    # API 路由代理到後端
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+
+    <Directory $PROJECT_DIR/backend/public>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+
+        <FilesMatch "\.php$">
+            SetHandler "$PHP_FPM_HANDLER"
+        </FilesMatch>
+    </Directory>
+
+    # 後端存儲檔案
+    Alias /storage $PROJECT_DIR/backend/storage/app/public
+    <Directory $PROJECT_DIR/backend/storage/app/public>
+        AllowOverride None
+        Require all granted
+        Options FollowSymLinks
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
+</VirtualHost>
+EOF
+else
+    # 非 SSL 配置 (HTTP)
+    sudo tee "$APACHE_CONF" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $DOMAIN
     DocumentRoot $PROJECT_DIR/frontend/dist
@@ -290,10 +395,32 @@ sudo tee "$APACHE_CONF" > /dev/null <<EOF
     CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 </VirtualHost>
 EOF
+fi
 
 echo "🔐 啟用站台..."
 sudo a2ensite line-reservation.conf
 sudo a2dissite 000-default.conf || true
+
+# 如果使用 SSL，設置 Let's Encrypt 憑證
+if [ "$USE_SSL" = true ]; then
+    echo "🔒 設定 SSL 憑證..."
+    
+    # 首先重啟 Apache 以確保配置生效
+    sudo systemctl reload apache2
+    
+    # 獲取 SSL 憑證
+    echo "📜 正在獲取 SSL 憑證..."
+    if sudo certbot --apache -d "$DOMAIN" --non-interactive --agree-tos --email "admin@$DOMAIN" --redirect; then
+        echo "✅ SSL 憑證設置成功！"
+    else
+        echo "⚠️ SSL 憑證設置失敗，但網站仍可通過 HTTP 訪問"
+        echo "您可以稍後手動執行: sudo certbot --apache -d $DOMAIN"
+    fi
+    
+    # 設置自動更新憑證
+    echo "🔄 設定憑證自動更新..."
+    (crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet") | crontab -
+fi
 
 echo "🔧 重啟 Apache..."
 sudo systemctl reload apache2
@@ -304,8 +431,14 @@ sudo ufw allow 443/tcp
 sudo ufw --force enable
 
 echo "✅ 部署完成！"
-echo "網站應該已可透過 http://$DOMAIN 訪問。"
+echo "網站應該已可透過 ${PROTOCOL}://$DOMAIN 訪問。"
 echo "MySQL 資料庫憑證已存於 $CRED_FILE"
+if [ "$USE_SSL" = true ]; then
+    echo "🔒 SSL 已啟用，網站使用 HTTPS 加密連線"
+    echo "HTTP 流量將自動重定向到 HTTPS"
+else
+    echo "🌐 使用 IP 訪問，未啟用 SSL"
+fi
 echo "請確保 DNS 已指向此伺服器 IP 或直接使用 IP 訪問。"
 
 exit 0
