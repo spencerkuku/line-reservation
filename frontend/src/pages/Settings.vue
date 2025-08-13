@@ -156,7 +156,7 @@
                 <span class="text-xs font-semibold text-blue-600">1</span>
               </div>
               <div>
-                <h4 class="text-sm font-medium text-gray-900">前往 LINE Developers</h4>
+                <h4 class="text-sm font-medium text-gray-900">登入 LINE Developers Console</h4>
                 <p class="text-sm text-gray-600 mt-1">
                   訪問 <a href="https://developers.line.biz/" target="_blank" class="text-blue-600 hover:text-blue-700 underline">LINE Developers Console</a> 並登入您的帳號
                 </p>
@@ -168,9 +168,9 @@
                 <span class="text-xs font-semibold text-blue-600">2</span>
               </div>
               <div>
-                <h4 class="text-sm font-medium text-gray-900">建立 Provider 和 Channel</h4>
+                <h4 class="text-sm font-medium text-gray-900">取得 Channel Secret</h4>
                 <p class="text-sm text-gray-600 mt-1">
-                  建立新的 Provider 或選擇現有 Provider，然後建立 Messaging API Channel
+                  選擇您的 Channel → 點選「Basic settings」→ 複製「Channel secret」
                 </p>
               </div>
             </div>
@@ -180,9 +180,34 @@
                 <span class="text-xs font-semibold text-blue-600">3</span>
               </div>
               <div>
-                <h4 class="text-sm font-medium text-gray-900">取得 API 憑證</h4>
+                <h4 class="text-sm font-medium text-gray-900">設定 Webhook URL</h4>
                 <p class="text-sm text-gray-600 mt-1">
-                  在 Channel 設定頁面中，找到「Channel access token」和「Channel secret」並複製到上方表單
+                  點選「Messaging API」→ 在 Webhook URL 欄位填入：<br>
+                  <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">http://(您的IP或網域)/api/line/webhook</code>
+                </p>
+              </div>
+            </div>
+            
+            <div class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
+                <span class="text-xs font-semibold text-blue-600">4</span>
+              </div>
+              <div>
+                <h4 class="text-sm font-medium text-gray-900">取得 Channel Access Token</h4>
+                <p class="text-sm text-gray-600 mt-1">
+                  在同一個「Messaging API」頁面，滑到最下面找到「Channel access token」並複製
+                </p>
+              </div>
+            </div>
+            
+            <div class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
+                <span class="text-xs font-semibold text-blue-600">5</span>
+              </div>
+              <div>
+                <h4 class="text-sm font-medium text-gray-900">完成設定</h4>
+                <p class="text-sm text-gray-600 mt-1">
+                  將取得的 Channel Secret 和 Channel Access Token 貼到上方表單中並儲存
                 </p>
               </div>
             </div>
