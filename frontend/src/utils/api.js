@@ -26,13 +26,9 @@ async function getCsrfCookie() {
             }
         });
         
-        if (!response.ok) {
-            console.warn(`CSRF cookie request failed: ${response.status} ${response.statusText}`);
-        }
-        
         return response.ok;
     } catch (error) {
-        console.warn('無法獲取 CSRF cookie:', error);
+        // Failed to get CSRF cookie silently
         return false;
     }
 }
@@ -52,18 +48,17 @@ function getCsrfTokenFromCookie() {
 // 統一的 HTTP 請求函數
 async function apiRequest(url, options = {}) {
     const startTime = performance.now();
-    const requestId = logger.generateRequestId();
     const method = options.method || 'GET';
     
     // 記錄 API 請求開始
-    logger.logApiRequest(method, url, options.body ? JSON.parse(options.body) : null, requestId);
+    logger.apiRequest(method, url, options.body ? JSON.parse(options.body) : null);
 
     const token = localStorage.getItem('token')
     
     // 驗證URL安全性
     if (!url.startsWith('/')) {
         const error = new Error('Invalid API endpoint');
-        logger.logError('Invalid API endpoint', error, { url, method }, 'api_security');
+        logger.error('Invalid API endpoint', error, { url, method });
         throw error;
     }
     
@@ -72,7 +67,7 @@ async function apiRequest(url, options = {}) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         const error = new Error('Invalid token format');
-        logger.logError('Invalid token format', error, { url, method }, 'api_auth');
+        logger.error('Invalid token format', error, { url, method });
         throw error;
     }
     
@@ -88,9 +83,7 @@ async function apiRequest(url, options = {}) {
             csrfToken = getCsrfTokenFromCookie();
         }
         
-        if (!csrfToken) {
-            console.warn('無法獲取 CSRF token，可能影響請求安全性');
-        }
+        // Silent CSRF token check
     }
     
     // 預設設定
@@ -131,14 +124,11 @@ async function apiRequest(url, options = {}) {
         
         // 檢查 401 或 403 錯誤
         if (response.status === 401 || response.status === 403) {
-            logger.logError('Authentication failed', null, {
+            logger.error('Authentication failed', null, {
                 url,
                 method,
-                status: response.status,
-                request_id: requestId
-            }, 'api_auth');
-            
-            console.warn('Token 驗證失敗或權限不足，重定向到登入頁面')
+                status: response.status
+            });
             
             // 清除本地存儲
             localStorage.removeItem('token')
@@ -152,41 +142,40 @@ async function apiRequest(url, options = {}) {
             // 拋出錯誤
             const errorData = await response.json().catch(() => ({}))
             const error = new Error(errorData.message || '認證失敗，請重新登入');
-            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            logger.apiResponse(method, url, response.status, errorData);
             throw error;
         }
         
         // 檢查速率限制
         if (response.status === 429) {
             const errorData = await response.json().catch(() => ({}))
-            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            logger.apiResponse(method, url, response.status, errorData);
             const error = new Error(errorData.message || '請求過於頻繁，請稍後再試');
-            logger.logError('Rate limit exceeded', error, { url, method, request_id: requestId }, 'api_rate_limit');
+            logger.error('Rate limit exceeded', error, { url, method });
             throw error;
         }
         
         // 檢查其他錯誤
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            logger.logApiResponse(method, url, response.status, errorData, requestId, duration);
+            logger.apiResponse(method, url, response.status, errorData);
             const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-            logger.logError('API request failed', error, { url, method, request_id: requestId }, 'api_error');
+            logger.error('API request failed', error, { url, method });
             throw error;
         }
 
         // 記錄成功響應
         const responseData = await response.clone().json().catch(() => null);
-        logger.logApiResponse(method, url, response.status, responseData, requestId, duration);
+        logger.apiResponse(method, url, response.status, responseData);
         
         return response
     } catch (error) {
         const duration = performance.now() - startTime;
         
         // 記錄網絡錯誤
-        logger.logError('API request failed', error, {
+        logger.error('API request failed', error, {
             url,
             method,
-            request_id: requestId,
             duration_ms: duration
         }, 'api_network');
         
@@ -296,7 +285,6 @@ export async function validateToken() {
         
         return true
     } catch (error) {
-        console.warn('Token 驗證失敗:', error.message)
         return false
     }
 }

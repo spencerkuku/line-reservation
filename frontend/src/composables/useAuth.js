@@ -18,7 +18,6 @@ export function useAuth() {
       try {
         user.value = JSON.parse(userData)
       } catch (e) {
-        console.error('解析用戶資料失敗:', e)
         // 只清除無效數據，不強制登出
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -119,13 +118,11 @@ export async function apiRequest(url, options = {}) {
     // 檢查是否有其他錯誤
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('API Error:', response.status, errorText)
       throw new Error(`API請求失敗: ${response.status}`)
     }
 
     return response
   } catch (error) {
-    console.error('API請求錯誤:', error)
     throw error
   }
 }

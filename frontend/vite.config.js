@@ -19,14 +19,14 @@ export default defineConfig({
         secure: false,
         ws: true,
         configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.error('proxy error', err);
+          proxy.on('error', (err) => {
+            // Silent error handling - removed debug console
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to Target:', req.method, req.url);
+          proxy.on('proxyReq', (req) => {
+            // Silent proxy request - removed debug console
           });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from Target:', proxyRes.statusCode, req.url);
+          proxy.on('proxyRes', (proxyRes, req) => {
+            // Silent proxy response - removed debug console
           });
         },
       },

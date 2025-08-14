@@ -32,7 +32,9 @@ export class SecureStorage {
             const data = encrypt ? this.encrypt(JSON.stringify(value)) : JSON.stringify(value);
             localStorage.setItem(key, data);
         } catch (error) {
-            console.error('Failed to save to localStorage:', error);
+            if (import.meta.env.DEV) {
+                console.error('Failed to save to localStorage:', error);
+            }
         }
     }
 
@@ -44,7 +46,9 @@ export class SecureStorage {
             const parsed = decrypt ? this.decrypt(data) : data;
             return JSON.parse(parsed);
         } catch (error) {
-            console.error('Failed to read from localStorage:', error);
+            if (import.meta.env.DEV) {
+                console.error('Failed to read from localStorage:', error);
+            }
             this.removeItem(key); // 清除損壞的數據
             return null;
         }
@@ -155,7 +159,9 @@ export class SecureEventListener {
                     handler(e);
                 }
             } catch (error) {
-                console.error('Event handler error:', error);
+                if (import.meta.env.DEV) {
+                    console.error('Event handler error:', error);
+                }
             }
         };
 

@@ -470,11 +470,9 @@ function startAutoRefresh() {
     clearInterval(autoRefreshInterval.value)
   }
   
-  console.log('[自動刷新] 啟動自動刷新，每5秒刷新一次')
   
   autoRefreshInterval.value = setInterval(() => {
     if (autoRefreshEnabled.value && !loading.value) {
-      console.log('[自動刷新] 執行定時刷新...')
       fetchReservations()
     }
   }, 5000) // 每5秒刷新一次，確保即時更新
@@ -485,14 +483,12 @@ function stopAutoRefresh() {
   if (autoRefreshInterval.value) {
     clearInterval(autoRefreshInterval.value)
     autoRefreshInterval.value = null
-    console.log('[自動刷新] 已停止自動刷新')
   }
 }
 
 // 切換自動刷新
 function toggleAutoRefresh() {
   autoRefreshEnabled.value = !autoRefreshEnabled.value
-  console.log('[自動刷新] 切換狀態:', autoRefreshEnabled.value ? '開啟' : '關閉')
   
   if (autoRefreshEnabled.value) {
     startAutoRefresh()
@@ -584,35 +580,18 @@ async function fetchReservations() {
   loading.value = true
   error.value = ''
   
-  console.log('[刷新] 開始獲取預約資料...', new Date().toLocaleString())
-  
   try {
     // 添加時間戳參數防止快取
     const timestamp = Date.now()
     const data = await apiGet(`/reservations?_t=${timestamp}`)
     
     const newData = data.data || data
-    console.log('[刷新] 成功獲取預約資料:', {
-      總數: newData.length,
-      新資料: newData,
-      時間: new Date().toLocaleString()
-    })
-    
     records.value = newData
-    
-    // 檢查是否有第9筆資料
-    if (newData.length >= 9) {
-      console.log('[刷新] ✅ 第9筆預約已顯示:', newData[8])
-    } else {
-      console.log('[刷新] ⚠️ 目前只有', newData.length, '筆預約')
-    }
     
   } catch (err) {
     error.value = err.message || '載入預約資料失敗'
-    console.error('[刷新] ❌ 獲取預約資料失敗:', err)
   } finally {
     loading.value = false
-    console.log('[刷新] 完成')
   }
 }
 

@@ -12,30 +12,30 @@ export function useLogger() {
     
     // 自動記錄組件生命週期
     onMounted(() => {
-        logger.logComponentLifecycle(componentName, 'mounted')
+        logger.lifecycle(componentName, 'mounted')
     })
     
     onUnmounted(() => {
-        logger.logComponentLifecycle(componentName, 'unmounted')
+        logger.lifecycle(componentName, 'unmounted')
     })
     
     return {
         // 基本日誌方法
         logInfo: (message, data = {}) => {
-            logger.logInfo(message, { ...data, component: componentName })
+            logger.info(message, { ...data, component: componentName })
         },
         
         logWarning: (message, data = {}) => {
-            logger.logWarning(message, { ...data, component: componentName })
+            logger.warn(message, { ...data, component: componentName })
         },
         
         logError: (message, error = null, data = {}) => {
-            logger.logError(message, error, { ...data, component: componentName })
+            logger.error(message, error, { ...data, component: componentName })
         },
         
         // 用戶操作記錄
         logUserAction: (action, data = {}) => {
-            logger.logUserAction(action, { 
+            logger.userAction(action, { 
                 ...data, 
                 component: componentName,
                 timestamp: new Date().toISOString()
@@ -44,7 +44,7 @@ export function useLogger() {
         
         // 性能記錄
         logPerformance: (operation, startTime, data = {}) => {
-            logger.logPerformance(operation, startTime, { 
+            logger.performance(operation, startTime, { 
                 ...data, 
                 component: componentName 
             })
@@ -52,7 +52,7 @@ export function useLogger() {
         
         // 表單提交記錄
         logFormSubmit: (formName, data = {}) => {
-            logger.logUserAction('form_submit', {
+            logger.userAction('form_submit', {
                 form_name: formName,
                 ...data,
                 component: componentName
@@ -61,7 +61,7 @@ export function useLogger() {
         
         // 按鈕點擊記錄
         logButtonClick: (buttonName, data = {}) => {
-            logger.logUserAction('button_click', {
+            logger.userAction('button_click', {
                 button_name: buttonName,
                 ...data,
                 component: componentName
@@ -70,7 +70,7 @@ export function useLogger() {
         
         // 頁面互動記錄
         logInteraction: (interactionType, target, data = {}) => {
-            logger.logUserAction('user_interaction', {
+            logger.userAction('user_interaction', {
                 interaction_type: interactionType,
                 target,
                 ...data,
@@ -81,7 +81,7 @@ export function useLogger() {
         // 數據載入記錄
         logDataLoad: (dataType, success = true, data = {}) => {
             const message = success ? `Data loaded: ${dataType}` : `Data load failed: ${dataType}`;
-            const method = success ? 'logInfo' : 'logError';
+            const method = success ? 'info' : 'error';
             
             logger[method](message, {
                 data_type: dataType,
@@ -95,7 +95,7 @@ export function useLogger() {
         logApiCall: (method, endpoint, requestData = null, success = true, responseData = null) => {
             const message = `${componentName} API call: ${method} ${endpoint}`;
             
-            logger.logInfo(message, {
+            logger.info(message, {
                 method,
                 endpoint,
                 request_data: requestData,
@@ -107,10 +107,10 @@ export function useLogger() {
         
         // 錯誤邊界記錄
         logComponentError: (error, errorInfo = {}) => {
-            logger.logError(`Component error in ${componentName}`, error, {
+            logger.error(`Component error in ${componentName}`, error, {
                 error_info: errorInfo,
                 component: componentName
-            }, 'component_error')
+            })
         },
         
         // 直接存取 logger 實例
@@ -173,11 +173,11 @@ export function useUserTracking() {
     const { logUserAction } = useLogger()
     
     const trackPageView = (pageName, additionalData = {}) => {
-        logger.logPageView(pageName, additionalData)
+        logger.userAction('page_view', { page_name: pageName, ...additionalData })
     }
     
     const trackClick = (elementType, elementId, additionalData = {}) => {
-        logUserAction('click', {
+        logger.userAction('click', {
             element_type: elementType,
             element_id: elementId,
             ...additionalData
@@ -185,7 +185,7 @@ export function useUserTracking() {
     }
     
     const trackFormInteraction = (formId, action, field = null, additionalData = {}) => {
-        logUserAction('form_interaction', {
+        logger.userAction('form_interaction', {
             form_id: formId,
             action, // 'focus', 'blur', 'change', 'submit', etc.
             field,
@@ -194,7 +194,7 @@ export function useUserTracking() {
     }
     
     const trackSearch = (query, filters = {}, results = null) => {
-        logUserAction('search', {
+        logger.userAction('search', {
             query,
             filters,
             results_count: results?.length || null
@@ -202,7 +202,7 @@ export function useUserTracking() {
     }
     
     const trackDownload = (fileName, fileType, fileSize = null) => {
-        logUserAction('download', {
+        logger.userAction('download', {
             file_name: fileName,
             file_type: fileType,
             file_size: fileSize

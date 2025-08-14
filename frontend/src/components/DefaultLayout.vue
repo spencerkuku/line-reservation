@@ -223,7 +223,6 @@ onMounted(async () => {
       user.value.role = parsedUser.role || 'user'
       user.value.avatar = parsedUser.avatar || null
     } catch (e) {
-      console.error('Failed to parse user data:', e)
       // 如果用戶數據解析失敗，嘗試重新驗證 token
       const isValid = await validateToken()
       if (!isValid) {
@@ -253,13 +252,11 @@ watch(route, async (to, from) => {
   try {
     const isValid = await validateToken()
     if (!isValid) {
-      console.warn('Token 驗證失敗，重定向到登入頁面')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       router.push({ name: 'Login' })
     }
   } catch (error) {
-    console.error('Token 驗證過程中發生錯誤:', error)
     // 如果驗證過程出錯，為了安全起見，清除認證信息
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -275,7 +272,7 @@ async function logout() {
       await apiPost('/auth/logout')
     }
   } catch (error) {
-    console.error('Logout API call failed:', error)
+    // Logout API call failed silently
   } finally {
     // 無論 API 呼叫是否成功，都清除本地儲存
     localStorage.removeItem('token')

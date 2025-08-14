@@ -41,19 +41,15 @@ async function handleLogin() {
     // 使用性能監控包裝登入流程
     await measureAsync('user_login', async () => {
       // 先確保獲取 CSRF cookie
-      console.log('正在獲取 CSRF cookie...')
       logInfo('Getting CSRF cookie')
       
       const csrfSuccess = await getCsrfCookie()
-      console.log('CSRF cookie 獲取結果:', csrfSuccess)
       logInfo('CSRF cookie result', { success: csrfSuccess })
       
       // 檢查是否有 CSRF token
       const csrfToken = document.cookie.includes('XSRF-TOKEN')
-      console.log('CSRF token 是否存在:', csrfToken)
       logInfo('CSRF token check', { exists: csrfToken })
       
-      console.log('正在嘗試登入...')
       logInfo('Attempting login API call')
       
       const data = await apiPost('/auth/login', {

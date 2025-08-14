@@ -58,7 +58,6 @@ router.beforeEach(async (to, from, next) => {
         try {
             user = JSON.parse(userStr)
         } catch (e) {
-            console.error('Failed to parse user data:', e)
             // 如果用戶數據解析失敗，清除相關數據
             localStorage.removeItem('user')
             localStorage.removeItem('token')
@@ -94,14 +93,12 @@ router.beforeEach(async (to, from, next) => {
             const isValid = await validateToken()
             
             if (!isValid) {
-                console.warn('Token 已失效，重定向到登入頁面')
                 localStorage.removeItem('token')
                 localStorage.removeItem('user')
                 next({ name: 'Login' })
                 return
             }
         } catch (error) {
-            console.warn('Token 驗證失敗:', error.message)
             localStorage.removeItem('token')
             localStorage.removeItem('user')
             next({ name: 'Login' })

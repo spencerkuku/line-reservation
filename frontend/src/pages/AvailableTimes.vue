@@ -40,7 +40,6 @@ async function fetchAvailableTimes() {
   isLoading.value = true
   try {
     const data = await apiGet('/available-times')
-    console.log('Fetched data:', data) // Debug log
     
     // 檢查返回的數據結構
     let timeData = data.data || data
@@ -52,14 +51,10 @@ async function fetchAvailableTimes() {
     
     // 確保是數組
     if (!Array.isArray(timeData)) {
-      console.error('API 返回的數據不是數組:', timeData)
       timeData = []
     }
     
-    console.log('Processing timeData:', timeData) // Debug log
-    
     const events = timeData.map(item => {
-      console.log('Processing item:', item) // Debug log for each item
       
       const event = {
         id: item.id,
@@ -72,14 +67,11 @@ async function fetchAvailableTimes() {
         }
       }
       
-      console.log('Created event:', event) // Debug log for the final event
       return event
     })
     
-    console.log('Final events:', events) // Debug log
     calendarEvents.value = events
   } catch (err) {
-    console.error('Fetch error:', err)
     showToast('error', '載入失敗')
   } finally {
     isLoading.value = false
@@ -93,7 +85,7 @@ async function createSlot(slotData) {
     const startTime = new Date(slotData.start)
     const endTime = new Date(slotData.end)
     
-    console.log('Creating slot with data:', {
+    await apiPost('/available-times', {
       title: slotData.title,
       description: slotData.description || '',
       start_time: formatBackendDateTime(startTime),
@@ -101,19 +93,9 @@ async function createSlot(slotData) {
       max_capacity: 10
     })
     
-    const response = await apiPost('/available-times', {
-      title: slotData.title,
-      description: slotData.description || '',
-      start_time: formatBackendDateTime(startTime),
-      end_time: formatBackendDateTime(endTime),
-      max_capacity: 10
-    })
-    
-    console.log('Create response:', response)
     await fetchAvailableTimes()
     showToast('success', '時段已建立')
   } catch (err) {
-    console.error('Create slot error:', err)
     const errorMessage = err.message || '建立失敗'
     showToast('error', errorMessage)
   }
@@ -134,7 +116,6 @@ async function updateSlot(id, slotData) {
     await fetchAvailableTimes()
     showToast('success', '時段已更新')
   } catch (err) {
-    console.error('Update slot error:', err)
     const errorMessage = err.message || '更新失敗'
     showToast('error', errorMessage)
   }

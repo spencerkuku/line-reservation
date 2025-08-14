@@ -34,8 +34,10 @@ class LineWebhookController extends Controller
         // 處理 webhook 事件
         $events = $request->input('events', []);
         
-        // 記錄接收到的事件
-        Log::info('LINE webhook received events: ' . json_encode($events));
+        // 記錄接收到的事件 (only in debug mode)
+        if (config('app.debug')) {
+            Log::info('LINE webhook received events: ' . json_encode($events));
+        }
         
         try {
             $this->lineBotService->handleWebhook($events);

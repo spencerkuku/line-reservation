@@ -1,405 +1,319 @@
 /**
- * 前端日誌服務
- * 提供統一的日誌記錄、錯誤追蹤和性能監控功能
+ * 智能日誌系統 - 僅在調試模式下顯示詳細日誌
+ * Smart Logging System - Only show detailed logs in debug mode
  */
-
-const isDev = import.meta.env.DEV
-const isProd = import.meta.env.PROD
 
 class LoggingService {
     constructor() {
-        this.apiUrl = '/api/logs'; // 後端日誌接收端點
-        this.enabled = isDev || this.isDebugMode();
-        this.sessionId = this.generateSessionId();
-        this.userId = null;
-        this.buffer = [];
-        this.bufferSize = 10; // 批量發送的緩衝區大小
-        this.flushInterval = 30000; // 30秒自動刷新緩衝區
+        this.debugMode = this.isDebugMode();
+        this.logHistory = [];
+        this.maxHistorySize = 100;
         
-        this.init();
+        // 綁定方法
+        this.log = this.log.bind(this);
+        this.info = this.info.bind(this);
+        this.warn = this.warn.bind(this);
+        this.error = this.error.bind(this);
+        this.debug = this.debug.bind(this);
+        this.trace = this.trace.bind(this);
+        
+        // 在控制台輸出當前環境信息（始終顯示）
+        const envInfo = {
+            debugMode: this.debugMode,
+            NODE_ENV: import.meta.env?.NODE_ENV,
+            VITE_NODE_ENV: import.meta.env?.VITE_NODE_ENV,
+            DEV: import.meta.env?.DEV,
+            PROD: import.meta.env?.PROD,
+            VITE_DEBUG: import.meta.env?.VITE_DEBUG
+        };
+        console.log('[Logger] Environment Info:', envInfo);
     }
 
-    init() {
-        // 設置定時刷新緩衝區
-        setInterval(() => {
-            this.flush();
-        }, this.flushInterval);
-
-        // 頁面卸載時發送剩餘日誌
-        window.addEventListener('beforeunload', () => {
-            this.flush(true);
-        });
-
-        // 監聽未處理的錯誤
-        window.addEventListener('error', (event) => {
-            this.logError('javascript_error', event.error, {
-                filename: event.filename,
-                lineno: event.lineno,
-                colno: event.colno,
-                message: event.message
-            });
-        });
-
-        // 監聽未處理的 Promise 拒絕
-        window.addEventListener('unhandledrejection', (event) => {
-            this.logError('unhandled_promise_rejection', event.reason, {
-                promise: event.promise
-            });
-        });
-
-        console.log('LoggingService initialized', { sessionId: this.sessionId });
-    }
-
-    generateSessionId() {
-        return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    generateRequestId() {
-        return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-
+    /**
+     * 檢查是否為調試模式
+     */
     isDebugMode() {
-        return localStorage.getItem('debug_mode') === 'true' || 
-               new URLSearchParams(window.location.search).get('debug') === 'true';
-    }
-
-    setUserId(userId) {
-        this.userId = userId;
-    }
-
-    /**
-     * 記錄一般信息
-     */
-    logInfo(message, data = {}, category = 'general') {
-        this.log('info', message, data, category);
-    }
-
-    /**
-     * 記錄警告
-     */
-    logWarning(message, data = {}, category = 'general') {
-        this.log('warning', message, data, category);
-        if (isDev) console.warn(`[${category}] ${message}`, data);
-    }
-
-    /**
-     * 記錄錯誤
-     */
-    logError(message, error = null, data = {}, category = 'error') {
-        const errorData = {
-            ...data,
-            error_message: error?.message || error || 'Unknown error',
-            error_stack: error?.stack || null,
-            error_name: error?.name || null
-        };
-        
-        this.log('error', message, errorData, category);
-        console.error(`[${category}] ${message}`, error, data);
-    }
-
-    /**
-     * 記錄用戶操作
-     */
-    logUserAction(action, data = {}) {
-        this.log('info', `User Action: ${action}`, {
-            action,
-            ...data,
-            page: window.location.pathname,
-            referrer: document.referrer
-        }, 'user_action');
-    }
-
-    /**
-     * 記錄頁面訪問
-     */
-    logPageView(pageName, data = {}) {
-        this.log('info', `Page View: ${pageName}`, {
-            page_name: pageName,
-            url: window.location.href,
-            referrer: document.referrer,
-            user_agent: navigator.userAgent,
-            screen_resolution: `${screen.width}x${screen.height}`,
-            viewport_size: `${window.innerWidth}x${window.innerHeight}`,
-            ...data
-        }, 'page_view');
-    }
-
-    /**
-     * 記錄 API 請求
-     */
-    logApiRequest(method, url, requestData = null, requestId = null) {
-        this.log('info', `API Request: ${method} ${url}`, {
-            method,
-            url,
-            request_data: this.sanitizeData(requestData),
-            request_id: requestId || this.generateRequestId(),
-            timestamp: new Date().toISOString()
-        }, 'api_request');
-    }
-
-    /**
-     * 記錄 API 響應
-     */
-    logApiResponse(method, url, statusCode, responseData = null, requestId = null, duration = null) {
-        const level = statusCode >= 400 ? 'error' : 'info';
-        this.log(level, `API Response: ${method} ${url} (${statusCode})`, {
-            method,
-            url,
-            status_code: statusCode,
-            response_data: statusCode >= 400 ? responseData : this.sanitizeData(responseData),
-            request_id: requestId,
-            duration_ms: duration,
-            timestamp: new Date().toISOString()
-        }, 'api_response');
-    }
-
-    /**
-     * 記錄性能數據
-     */
-    logPerformance(operation, startTime, data = {}) {
-        const duration = performance.now() - startTime;
-        this.log('info', `Performance: ${operation}`, {
-            operation,
-            duration_ms: Math.round(duration),
-            memory_used: performance.memory ? performance.memory.usedJSHeapSize : null,
-            ...data
-        }, 'performance');
-    }
-
-    /**
-     * 記錄組件生命週期
-     */
-    logComponentLifecycle(componentName, lifecycle, data = {}) {
-        this.log('info', `Component ${lifecycle}: ${componentName}`, {
-            component_name: componentName,
-            lifecycle,
-            ...data
-        }, 'component');
-    }
-
-    /**
-     * 基礎日誌方法
-     */
-    log(level, message, data = {}, category = 'general') {
-        const logEntry = {
-            level,
-            message,
-            category,
-            data: this.sanitizeData(data),
-            session_id: this.sessionId,
-            user_id: this.userId,
-            timestamp: new Date().toISOString(),
-            url: window.location.href,
-            user_agent: navigator.userAgent,
-            memory_usage: performance.memory ? performance.memory.usedJSHeapSize : null
-        };
-
-        // 開發模式下同時輸出到控制台
-        if (this.enabled) {
-            const consoleMethod = level === 'error' ? 'error' : level === 'warning' ? 'warn' : 'log';
-            console[consoleMethod](`[${category}] ${message}`, data);
-        }
-
-        // 添加到緩衝區
-        this.buffer.push(logEntry);
-
-        // 如果是錯誤或緩衝區滿了，立即發送
-        if (level === 'error' || this.buffer.length >= this.bufferSize) {
-            this.flush();
-        }
-    }
-
-    /**
-     * 發送日誌到後端
-     */
-    async flush(isBeforeUnload = false) {
-        if (this.buffer.length === 0) {
-            return;
-        }
-
-        const logsToSend = [...this.buffer];
-        this.buffer = [];
-
         try {
-            const requestOptions = {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    logs: logsToSend,
-                    session_id: this.sessionId
-                })
-            };
-
-            if (isBeforeUnload && navigator.sendBeacon) {
-                // 使用 sendBeacon 確保頁面卸載時日誌能發送
-                navigator.sendBeacon(
-                    this.apiUrl,
-                    new Blob([requestOptions.body], { type: 'application/json' })
-                );
-            } else {
-                const response = await fetch(this.apiUrl, requestOptions);
-                if (!response.ok) {
-                    console.warn('Failed to send logs to server:', response.status);
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to send logs:', error);
-            // 如果發送失敗，將日誌放回緩衝區（除非是頁面卸載）
-            if (!isBeforeUnload) {
-                this.buffer.unshift(...logsToSend);
-            }
-        }
-    }
-
-    /**
-     * 清理敏感數據
-     */
-    sanitizeData(data) {
-        if (!data || typeof data !== 'object') {
-            return data;
-        }
-
-        const sensitiveKeys = ['password', 'token', 'api_key', 'secret', 'authorization'];
-        const sanitized = {};
-
-        for (const [key, value] of Object.entries(data)) {
-            if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
-                sanitized[key] = '[REDACTED]';
-            } else if (typeof value === 'object' && value !== null) {
-                sanitized[key] = this.sanitizeData(value);
-            } else {
-                sanitized[key] = value;
-            }
-        }
-
-        return sanitized;
-    }
-
-    /**
-     * 開啟調試模式
-     */
-    enableDebug() {
-        localStorage.setItem('debug_mode', 'true');
-        this.enabled = true;
-        console.log('Debug mode enabled');
-    }
-
-    /**
-     * 關閉調試模式
-     */
-    disableDebug() {
-        localStorage.removeItem('debug_mode');
-        this.enabled = isDev;
-        console.log('Debug mode disabled');
-    }
-
-    // 向後兼容的靜態方法
-    static log(...args) {
-        if (isDev) {
-            console.log(...args)
-        }
-    }
-
-    static warn(...args) {
-        if (isDev) {
-            console.warn(...args)
-        }
-    }
-
-    static error(...args) {
-        console.error(...args)
-    }
-
-    static info(...args) {
-        if (isDev) {
-            console.info(...args)
-        }
-    }
-
-    static debug(...args) {
-        if (isDev) {
-            console.debug(...args)
-        }
-    }
-
-    static table(data) {
-        if (isDev && console.table) {
-            console.table(data)
-        }
-    }
-
-    static group(label) {
-        if (isDev && console.group) {
-            console.group(label)
-        }
-    }
-
-    static groupEnd() {
-        if (isDev && console.groupEnd) {
-            console.groupEnd()
-        }
-    }
-
-    static time(label) {
-        if (isDev && console.time) {
-            console.time(label)
-        }
-    }
-
-    static timeEnd(label) {
-        if (isDev && console.timeEnd) {
-            console.timeEnd(label)
-        }
-    }
-
-    static trackError(error, context = {}) {
-        if (isProd) {
-            const errorData = {
-                message: error.message,
-                stack: error.stack,
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent,
-                url: window.location.href,
-                context
+            // 首先檢查明確的生產環境設置 - 優先級最高
+            if (import.meta.env?.VITE_NODE_ENV === 'production') return false;
+            if (import.meta.env?.NODE_ENV === 'production') return false;
+            if (import.meta.env?.PROD === true) return false;
+            
+            // 檢查明確的調試禁用設置
+            if (import.meta.env?.VITE_DEBUG === 'false') return false;
+            
+            // 檢查 localStorage 中的調試標誌
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const debugFlag = localStorage.getItem('debug_mode');
+                if (debugFlag === 'true') return true;
+                if (debugFlag === 'false') return false;
             }
             
-            console.error('Production Error:', errorData)
-        } else {
-            console.error('Dev Error:', error, context)
-        }
-    }
-
-    static apiRequest(method, url, data = null) {
-        if (isDev) {
-            console.group(`🔄 API ${method.toUpperCase()} ${url}`)
-            if (data) {
-                console.log('Request Data:', data)
+            // 檢查 URL 參數
+            if (typeof window !== 'undefined' && window.location) {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('debug') === 'true') return true;
+                if (urlParams.get('debug') === 'false') return false;
             }
-            console.groupEnd()
+            
+            // 檢查環境變數中的調試設置
+            if (import.meta.env?.VITE_DEBUG === 'true') return true;
+            
+            // 檢查是否為開發環境 - 優先級較低
+            if (import.meta.env?.VITE_NODE_ENV === 'development') return true;
+            if (import.meta.env?.NODE_ENV === 'development') return true;
+            if (import.meta.env?.DEV === true) return true;
+            
+            // 默認返回 false (生產模式)
+            return false;
+        } catch (e) {
+            return false;
         }
     }
 
-    static apiResponse(method, url, response, duration = null) {
-        if (isDev) {
-            const status = response.status || response.success ? '✅' : '❌'
-            console.group(`${status} API ${method.toUpperCase()} ${url}${duration ? ` (${duration}ms)` : ''}`)
-            console.log('Response:', response)
-            console.groupEnd()
-        }
-    }
-
-    static apiError(method, url, error) {
-        if (isDev) {
-            console.group(`❌ API ${method.toUpperCase()} ${url} - ERROR`)
-            console.error('Error:', error)
-            console.groupEnd()
-        }
+    /**
+     * 格式化日誌訊息
+     */
+    formatMessage(level, message, ...args) {
+        const timestamp = new Date().toLocaleTimeString();
+        const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
         
-        if (isProd) {
-            this.trackError(error, { method, url, type: 'API_ERROR' })
+        if (args.length > 0) {
+            return { prefix, message, args };
+        }
+        return { prefix, message: String(message), args: [] };
+    }
+
+    /**
+     * 添加到歷史記錄
+     */
+    addToHistory(level, message, ...args) {
+        const logEntry = {
+            timestamp: new Date(),
+            level,
+            message,
+            args
+        };
+        
+        this.logHistory.push(logEntry);
+        
+        // 限制歷史記錄大小
+        if (this.logHistory.length > this.maxHistorySize) {
+            this.logHistory.shift();
+        }
+    }
+
+    /**
+     * 一般日誌 - 僅在調試模式顯示
+     */
+    log(message, ...args) {
+        this.addToHistory('log', message, ...args);
+        
+        if (this.debugMode) {
+            const formatted = this.formatMessage('log', message, ...args);
+            console.log(formatted.prefix, formatted.message, ...formatted.args);
+        }
+    }
+
+    /**
+     * 資訊日誌 - 僅在調試模式顯示
+     */
+    info(message, ...args) {
+        this.addToHistory('info', message, ...args);
+        
+        if (this.debugMode) {
+            const formatted = this.formatMessage('info', message, ...args);
+            console.info(formatted.prefix, formatted.message, ...formatted.args);
+        }
+    }
+
+    /**
+     * 警告日誌 - 始終顯示
+     */
+    warn(message, ...args) {
+        this.addToHistory('warn', message, ...args);
+        
+        const formatted = this.formatMessage('warn', message, ...args);
+        console.warn(formatted.prefix, formatted.message, ...formatted.args);
+    }
+
+    /**
+     * 錯誤日誌 - 始終顯示
+     */
+    error(message, ...args) {
+        this.addToHistory('error', message, ...args);
+        
+        const formatted = this.formatMessage('error', message, ...args);
+        console.error(formatted.prefix, formatted.message, ...formatted.args);
+    }
+
+    /**
+     * 調試日誌 - 僅在調試模式顯示
+     */
+    debug(message, ...args) {
+        this.addToHistory('debug', message, ...args);
+        
+        if (this.debugMode) {
+            const formatted = this.formatMessage('debug', message, ...args);
+            console.debug(formatted.prefix, formatted.message, ...formatted.args);
+        }
+    }
+
+    /**
+     * 追蹤日誌 - 僅在調試模式顯示
+     */
+    trace(message, ...args) {
+        this.addToHistory('trace', message, ...args);
+        
+        if (this.debugMode) {
+            const formatted = this.formatMessage('trace', message, ...args);
+            console.trace(formatted.prefix, formatted.message, ...formatted.args);
+        }
+    }
+
+    /**
+     * 組日誌開始 - 僅在調試模式顯示
+     */
+    group(label) {
+        if (this.debugMode) {
+            console.group(label);
+        }
+    }
+
+    /**
+     * 組日誌結束 - 僅在調試模式顯示
+     */
+    groupEnd() {
+        if (this.debugMode) {
+            console.groupEnd();
+        }
+    }
+
+    /**
+     * 表格日誌 - 僅在調試模式顯示
+     */
+    table(data) {
+        if (this.debugMode) {
+            console.table(data);
+        }
+    }
+
+    /**
+     * 計時開始 - 僅在調試模式顯示
+     */
+    time(label) {
+        if (this.debugMode) {
+            console.time(label);
+        }
+    }
+
+    /**
+     * 計時結束 - 僅在調試模式顯示
+     */
+    timeEnd(label) {
+        if (this.debugMode) {
+            console.timeEnd(label);
+        }
+    }
+
+    /**
+     * 清空控制台 - 僅在調試模式執行
+     */
+    clear() {
+        if (this.debugMode) {
+            console.clear();
+        }
+    }
+
+    /**
+     * 獲取日誌歷史
+     */
+    getHistory() {
+        return [...this.logHistory];
+    }
+
+    /**
+     * 清空日誌歷史
+     */
+    clearHistory() {
+        this.logHistory = [];
+    }
+
+    /**
+     * 設置調試模式
+     */
+    setDebugMode(enabled) {
+        this.debugMode = enabled;
+        if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('debug_mode', enabled ? 'true' : 'false');
+        }
+    }
+
+    /**
+     * 獲取當前調試模式狀態
+     */
+    getDebugMode() {
+        return this.debugMode;
+    }
+
+    /**
+     * API 請求日誌
+     */
+    apiRequest(method, url, data = null) {
+        const message = `API ${method.toUpperCase()}: ${url}`;
+        this.debug(message, data);
+    }
+
+    /**
+     * API 響應日誌
+     */
+    apiResponse(method, url, status, data = null) {
+        const message = `API ${method.toUpperCase()} ${status}: ${url}`;
+        if (status >= 400) {
+            this.error(message, data);
+        } else {
+            this.debug(message, data);
+        }
+    }
+
+    /**
+     * 用戶操作日誌
+     */
+    userAction(action, details = null) {
+        const message = `User Action: ${action}`;
+        this.info(message, details);
+    }
+
+    /**
+     * 路由變更日誌
+     */
+    routeChange(from, to) {
+        const message = `Route: ${from} -> ${to}`;
+        this.debug(message);
+    }
+
+    /**
+     * 組件生命週期日誌
+     */
+    lifecycle(component, stage, data = null) {
+        const message = `${component} ${stage}`;
+        this.debug(message, data);
+    }
+
+    /**
+     * 錯誤邊界日誌
+     */
+    errorBoundary(error, errorInfo) {
+        this.error('Error Boundary Caught:', error, errorInfo);
+    }
+
+    /**
+     * 性能標記
+     */
+    performance(label, startTime) {
+        if (this.debugMode) {
+            const duration = performance.now() - startTime;
+            this.debug(`Performance: ${label} took ${duration.toFixed(2)}ms`);
         }
     }
 }
@@ -407,6 +321,17 @@ class LoggingService {
 // 創建全局實例
 const logger = new LoggingService();
 
-// 導出類和實例
+// 導出實例和類
 export default logger;
 export { LoggingService };
+
+// 如果在瀏覽器環境中，將 logger 掛載到 window 對象上以便調試
+if (typeof window !== 'undefined') {
+    window.logger = logger;
+    
+    // 提供便利的調試命令
+    window.enableDebug = () => logger.setDebugMode(true);
+    window.disableDebug = () => logger.setDebugMode(false);
+    window.getLogHistory = () => logger.getHistory();
+    window.clearLogHistory = () => logger.clearHistory();
+}

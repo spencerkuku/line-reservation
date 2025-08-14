@@ -38,12 +38,6 @@ class AvailableTimeController extends Controller
         // 管理員頁面 - 顯示所有曾經建立的時段（不限制時間範圍）
         // 移除時間過濾，讓管理員可以看到所有歷史時段
         
-        // 添加調試信息
-        Log::info('Admin page - showing all time slots:', [
-            'current_time' => now()->toDateTimeString(),
-            'no_time_filter' => 'showing all historical slots',
-        ]);
-
         $perPage = $request->get('per_page', 50);
         $availableTimes = $query->orderBy('start_time')
             ->with(['reservations' => function($q) {
@@ -53,12 +47,6 @@ class AvailableTimeController extends Controller
             ->paginate($perPage);
 
         // 添加調試信息
-        Log::info('Query results:', [
-            'total_found' => $availableTimes->total(),
-            'items_count' => count($availableTimes->items()),
-            'first_few_items' => $availableTimes->items()
-        ]);
-
         return response()->json([
             'success' => true,
             'data' => $availableTimes->items(),
@@ -119,17 +107,6 @@ class AvailableTimeController extends Controller
         $duration = $startTime->diffInMinutes($endTime);
 
         // 添加 debug 信息
-        Log::info('AvailableTime store validation:', [
-            'original_start_time' => $request->start_time,
-            'original_end_time' => $request->end_time,
-            'parsed_start' => $startTime->toISOString(),
-            'parsed_end' => $endTime->toISOString(),
-            'duration_minutes' => $duration,
-            'start_timestamp' => $startTime->timestamp,
-            'end_timestamp' => $endTime->timestamp,
-            'app_timezone' => config('app.timezone')
-        ]);
-
         if ($duration < 30) {
             return response()->json([
                 'success' => false,
@@ -157,12 +134,6 @@ class AvailableTimeController extends Controller
                          ->where('end_time', '>', $startTime->toDateTimeString());
             });
         })->exists();
-
-        Log::info('Conflict check:', [
-            'new_start' => $startTime->toDateTimeString(),
-            'new_end' => $endTime->toDateTimeString(),
-            'conflict_exists' => $conflictExists
-        ]);
 
         if ($conflictExists) {
             return response()->json([
