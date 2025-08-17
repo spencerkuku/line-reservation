@@ -275,7 +275,24 @@ const calendarOptions = computed(() => ({
       statusIcon = '🟢' // 可預約
     }
     
-    // 顯示標題與內容（描述），圖示改為註解不顯示
+    // 格式化時間顯示（上午9點到~下午3點）
+    function formatEventTime(start, end) {
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+      
+      const formatTime = (date) => {
+        const hours = date.getHours()
+        const minutes = date.getMinutes()
+        const period = hours < 12 ? '上午' : '下午'
+        const displayHours = hours === 0 ? 12 : (hours > 12 ? hours - 12 : hours)
+        const minuteStr = minutes > 0 ? `${minutes}分` : ''
+        return `${period}${displayHours}點${minuteStr}`
+      }
+      
+      return `${formatTime(startDate)}到~${formatTime(endDate)}`
+    }
+    
+    // 顯示時間、標題與內容（描述），圖示改為註解不顯示
     const container = document.createElement('div')
     container.className = 'event-content'
 
@@ -285,14 +302,22 @@ const calendarOptions = computed(() => ({
     // iconEl.textContent = statusIcon
     // container.appendChild(iconEl)
 
-    const titleEl = document.createElement('span')
+    // 時間顯示
+    const timeEl = document.createElement('div')
+    timeEl.className = 'event-time'
+    timeEl.textContent = formatEventTime(arg.event.start, arg.event.end)
+    container.appendChild(timeEl)
+
+    // 標題顯示
+    const titleEl = document.createElement('div')
     titleEl.className = 'event-title'
     titleEl.textContent = arg.event.title || ''
     container.appendChild(titleEl)
 
+    // 描述顯示
     const desc = props.description || ''
     if (desc) {
-      const descEl = document.createElement('span')
+      const descEl = document.createElement('div')
       descEl.className = 'event-desc'
       descEl.textContent = desc
       container.appendChild(descEl)
@@ -834,37 +859,59 @@ onMounted(() => {
   background-color: #f9fafb;
 }
 
-/* 可預約時段樣式 - 無法用 Tailwind 替代的樣式 */
+/* 可預約時段樣式 - 優化 UI/UX */
 :deep(.available-slot) {
   border: none !important;
   border-radius: 6px !important;
   color: #ffffff !important;
   font-size: 12px !important;
   font-weight: 500 !important;
-  padding: 4px 8px !important;
+  padding: 6px 8px !important;
   cursor: pointer !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
   transition: all 0.2s ease !important;
+  min-height: 44px !important;
+  display: flex !important;
+  align-items: flex-start !important;
 }
 
-/* 事件內容樣式 */
+/* 事件內容樣式 - 優化 UI/UX */
 :deep(.event-content) {
   display: flex !important;
-  align-items: center !important;
-  gap: 4px !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 1px !important;
   white-space: nowrap !important;
   overflow: hidden !important;
+  padding: 3px 6px !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
+:deep(.event-time) {
+  font-size: 10px !important;
+  opacity: 0.85 !important;
+  font-weight: 500 !important;
+  line-height: 1.3 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  letter-spacing: 0.02em !important;
 }
 
 :deep(.event-icon) {
-  font-size: 10px !important;
+  font-size: 12px !important;
   line-height: 1 !important;
 }
 
 :deep(.event-title) {
-  flex: 1 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  width: 100% !important;
+  color: rgba(255, 255, 255, 1) !important;
+  letter-spacing: 0.01em !important;
+  margin-top: 1px !important;
 }
 
 :deep(.event-booking) {
@@ -873,14 +920,19 @@ onMounted(() => {
   font-weight: 600 !important;
 }
 
-/* 新增：事件描述樣式（簡潔、次要文字） */
+/* 事件描述樣式 - 優化可讀性 */
 :deep(.event-desc) {
-  margin-left: 6px !important;
   font-size: 10px !important;
-  opacity: 0.85 !important;
+  opacity: 0.75 !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  width: 100% !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-style: italic !important;
+  margin-top: 1px !important;
 }
 
 /* 完全可預約（無預約） */
@@ -932,15 +984,29 @@ onMounted(() => {
   border-radius: 6px !important;
 }
 
-/* 響應式設計 - 使用 Tailwind 無法完全處理的複雜響應式邏輯 */
+/* 響應式設計 - 優化移動端字體 */
 @media (max-width: 768px) {
   :deep(.fc-timegrid-slot-label) {
-    font-size: 10px;
+    font-size: 11px;
+    font-weight: 500;
   }
 
   :deep(.available-slot) {
+    font-size: 11px !important;
+    padding: 4px 6px !important;
+    min-height: 36px !important;
+  }
+  
+  :deep(.event-time) {
+    font-size: 9px !important;
+  }
+  
+  :deep(.event-title) {
     font-size: 10px !important;
-    padding: 2px 4px !important;
+  }
+  
+  :deep(.event-desc) {
+    font-size: 9px !important;
   }
 }
 </style>
