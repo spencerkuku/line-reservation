@@ -107,6 +107,11 @@ async function apiRequest(url, options = {}) {
             ...options.headers
         }
     }
+
+    // 對 GET 類請求禁用瀏覽器快取（不增加自訂標頭以避免 CORS 預檢問題）
+    if (method.toUpperCase() === 'GET') {
+        mergedOptions.cache = 'no-store'
+    }
     
     // 如果有body且是JSON，先進行過濾
     if (mergedOptions.body && mergedOptions.headers['Content-Type'] === 'application/json') {

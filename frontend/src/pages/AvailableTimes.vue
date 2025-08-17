@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onUnmounted, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted, onMounted, toRaw } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -25,7 +25,10 @@ const editForm = ref({
   title: '',
   description: '',
   start: null,
-  end: null
+  end: null,
+  current_bookings: 0,
+  max_capacity: 1,
+  reservations: []
 })
 
 // Toast 通知
@@ -35,11 +38,22 @@ const toast = ref({ show: false, type: 'success', message: '' })
 const currentView = ref('timeGridWeek')
 const currentDate = ref(new Date())
 
+// 強制更新 FullCalendar 的事件來源（完全受控刷新）
+function refreshCalendarSource() {
+  const cal = calendarRef.value?.getApi()
+  if (!cal) return
+  // 先清空，再以最新資料重建事件
+  cal.removeAllEvents()
+  const eventsCopy = JSON.parse(JSON.stringify(toRaw(calendarEvents.value) || []))
+  cal.addEventSource(eventsCopy)
+}
+
 // 獲取可預約時段
 async function fetchAvailableTimes() {
   isLoading.value = true
   try {
-    const data = await apiGet('/available-times')
+  // 加上快取破壞參數，避免任何中間層/瀏覽器快取導致舊資料
+  const data = await apiGet('/available-times', { _: Date.now() })
     
     // 檢查返回的數據結構
     let timeData = data.data || data
@@ -55,22 +69,43 @@ async function fetchAvailableTimes() {
     }
     
     const events = timeData.map(item => {
+      // 檢查預約狀態
+      const reservations = item.reservations || []
+      const confirmedReservations = reservations.filter(r => r.status === 'confirmed' || r.status === 'pending')
+      const isFullyBooked = item.current_bookings >= item.max_capacity
+      const hasReservations = confirmedReservations.length > 0
       
       const event = {
-        id: item.id,
+        id: String(item.id), // 確保 ID 為字串類型
         title: item.title || '可預約時段',
         start: item.start_time || item.start,
         end: item.end_time || item.end,
         description: item.description || '',
         extendedProps: {
-          description: item.description || ''
+          description: item.description || '',
+          current_bookings: item.current_bookings || 0,
+          max_capacity: item.max_capacity || 1,
+          reservations: reservations,
+          isFullyBooked: isFullyBooked,
+          hasReservations: hasReservations
         }
+      }
+      
+      // 根據預約狀態設定事件類別
+      if (isFullyBooked) {
+        event.classNames = ['available-slot', 'fully-booked']
+      } else if (hasReservations) {
+        event.classNames = ['available-slot', 'partially-booked']
+      } else {
+        event.classNames = ['available-slot', 'available']
       }
       
       return event
     })
     
-    calendarEvents.value = events
+  calendarEvents.value = events
+  // 同步刷新日曆事件來源
+  nextTick(refreshCalendarSource)
   } catch (err) {
     showToast('error', '載入失敗')
   } finally {
@@ -85,7 +120,7 @@ async function createSlot(slotData) {
     const startTime = new Date(slotData.start)
     const endTime = new Date(slotData.end)
     
-    await apiPost('/available-times', {
+    const response = await apiPost('/available-times', {
       title: slotData.title,
       description: slotData.description || '',
       start_time: formatBackendDateTime(startTime),
@@ -93,7 +128,10 @@ async function createSlot(slotData) {
       max_capacity: 10
     })
     
-    await fetchAvailableTimes()
+  // 重新獲取最新數據以確保同步
+  await fetchAvailableTimes()
+  nextTick(refreshCalendarSource)
+    
     showToast('success', '時段已建立')
   } catch (err) {
     const errorMessage = err.message || '建立失敗'
@@ -113,7 +151,11 @@ async function updateSlot(id, slotData) {
       end_time: formatBackendDateTime(endTime),
       max_capacity: 10
     })
-    await fetchAvailableTimes()
+    
+  // 重新獲取最新數據以確保同步
+  await fetchAvailableTimes()
+  nextTick(refreshCalendarSource)
+    
     showToast('success', '時段已更新')
   } catch (err) {
     const errorMessage = err.message || '更新失敗'
@@ -123,11 +165,48 @@ async function updateSlot(id, slotData) {
 
 async function deleteSlot(id) {
   try {
-    await apiDelete(`/available-times/${id}`)
-    await fetchAvailableTimes()
-    showToast('success', '時段已刪除')
+  // 先立即從前端移除，提供即時回饋
+    const originalEvents = [...calendarEvents.value]
+    calendarEvents.value = calendarEvents.value.filter(event => String(event.id) !== String(id))
+
+    // 同步移除 FullCalendar 畫面上的事件（確保立即消失）
+    const cal = calendarRef.value?.getApi()
+    if (cal) {
+      const ev = cal.getEventById(String(id))
+      if (ev) ev.remove()
+    }
+  // 若上面沒有拿到事件，保險起見重建來源
+  nextTick(refreshCalendarSource)
+    
+    try {
+      // 執行後端刪除
+      await apiDelete(`/available-times/${id}`)
+      
+  // 重新獲取最新數據，確保與後端同步
+  await fetchAvailableTimes()
+  nextTick(refreshCalendarSource)
+      showToast('success', '時段已刪除')
+    } catch (backendError) {
+      // 如果後端刪除失敗，恢復前端狀態
+      calendarEvents.value = originalEvents
+      
+      // 檢查是否是 404 錯誤（已經被刪除）
+      if (backendError.status === 404) {
+        // 404 表示資源已經不存在，重新獲取資料同步狀態
+  await fetchAvailableTimes()
+  nextTick(refreshCalendarSource)
+        showToast('success', '時段已刪除')
+      } else {
+        const errorMessage = backendError.message || '刪除失敗'
+        showToast('error', errorMessage)
+      }
+    }
+    
   } catch (err) {
-    showToast('error', '刪除失敗')
+    // 發生其他錯誤，重新獲取數據確保同步
+    await fetchAvailableTimes()
+    const errorMessage = err.message || '刪除失敗'
+    showToast('error', errorMessage)
   }
 }
 
@@ -169,10 +248,60 @@ const calendarOptions = computed(() => ({
   
   // 事件樣式
   eventDisplay: 'block',
-  eventClassNames: 'available-slot',
+  eventClassNames: function(arg) {
+    // 動態設定事件類名
+    const props = arg.event.extendedProps
+    if (props.isFullyBooked) {
+      return ['available-slot', 'fully-booked']
+    } else if (props.hasReservations) {
+      return ['available-slot', 'partially-booked']
+    } else {
+      return ['available-slot', 'available']
+    }
+  },
   
-  // 事件資料 - 使用響應式數據
-  events: calendarEvents.value,
+  // 自定義事件內容
+  eventContent: function(arg) {
+    const props = arg.event.extendedProps
+    const current = props.current_bookings || 0
+    const max = props.max_capacity || 1
+    
+    let statusIcon = ''
+    if (props.isFullyBooked) {
+      statusIcon = '🔴' // 已滿
+    } else if (props.hasReservations) {
+      statusIcon = '🟡' // 部分預約
+    } else {
+      statusIcon = '🟢' // 可預約
+    }
+    
+    // 顯示標題與內容（描述），圖示改為註解不顯示
+    const container = document.createElement('div')
+    container.className = 'event-content'
+
+    // 註解：如需顯示圖示可改為取消註解
+    // const iconEl = document.createElement('span')
+    // iconEl.className = 'event-icon'
+    // iconEl.textContent = statusIcon
+    // container.appendChild(iconEl)
+
+    const titleEl = document.createElement('span')
+    titleEl.className = 'event-title'
+    titleEl.textContent = arg.event.title || ''
+    container.appendChild(titleEl)
+
+    const desc = props.description || ''
+    if (desc) {
+      const descEl = document.createElement('span')
+      descEl.className = 'event-desc'
+      descEl.textContent = desc
+      container.appendChild(descEl)
+    }
+
+    return { domNodes: [container] }
+  },
+  
+  // 事件資料來源改由 refreshCalendarSource 主動注入，避免閉包或快取問題
   
   // 事件處理
   select: handleTimeSelect,
@@ -182,7 +311,7 @@ const calendarOptions = computed(() => ({
   eventResize: handleSlotResize
 }))
 
-// FullCalendar 配置現在是 computed，會自動響應 calendarEvents 的變化
+// 不再使用 watcher 觸發全量刷新，改由 refreshCalendarSource 在資料變動後主動控制
 
 // 快速建立時段 - Google 風格
 function handleTimeSelect(info) {
@@ -214,12 +343,17 @@ function handleTimeSelect(info) {
 // 編輯時段
 function handleSlotEdit(info) {
   const event = info.event
+  const props = event.extendedProps
+  
   editForm.value = {
     id: event.id,
     title: event.title,
-    description: event.extendedProps.description || '',
+    description: props.description || '',
     start: event.start,
-    end: event.end
+    end: event.end,
+    current_bookings: props.current_bookings || 0,
+    max_capacity: props.max_capacity || 1,
+    reservations: props.reservations || []
   }
   showEditModal.value = true
 }
@@ -336,7 +470,10 @@ function closeEditModal() {
     title: '',
     description: '',
     start: null,
-    end: null
+    end: null,
+    current_bookings: 0,
+    max_capacity: 1,
+    reservations: []
   }
 }
 
@@ -480,10 +617,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-gray-50 p-6">
     <!-- 頁面標題和工具列 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">設定可預約時段</h1>
-      <p class="text-gray-600 mt-2">管理您的營業時間與可預約時段，拖拽即可調整時間</p>
-    </div>
+
 
     <!-- Google 風格的工具列 -->
     <div class="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 bg-white rounded-t-xl mb-6">
@@ -593,6 +727,8 @@ onMounted(() => {
             </div>
           </div>
           
+          <!-- 預約狀態顯示（移除） -->
+          
           <div class="mb-5">
             <label class="block text-sm font-medium text-gray-900 mb-2">備註 <span class="font-normal text-gray-500">(選填)</span></label>
             <textarea 
@@ -700,7 +836,6 @@ onMounted(() => {
 
 /* 可預約時段樣式 - 無法用 Tailwind 替代的樣式 */
 :deep(.available-slot) {
-  background-color: #3b82f6 !important;
   border: none !important;
   border-radius: 6px !important;
   color: #ffffff !important;
@@ -709,12 +844,78 @@ onMounted(() => {
   padding: 4px 8px !important;
   cursor: pointer !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.2s ease !important;
 }
 
-:deep(.available-slot:hover) {
+/* 事件內容樣式 */
+:deep(.event-content) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+:deep(.event-icon) {
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+:deep(.event-title) {
+  flex: 1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+:deep(.event-booking) {
+  font-size: 10px !important;
+  opacity: 0.8 !important;
+  font-weight: 600 !important;
+}
+
+/* 新增：事件描述樣式（簡潔、次要文字） */
+:deep(.event-desc) {
+  margin-left: 6px !important;
+  font-size: 10px !important;
+  opacity: 0.85 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* 完全可預約（無預約） */
+:deep(.available-slot.available) {
+  background-color: #3b82f6 !important;
+}
+
+:deep(.available-slot.available:hover) {
   background-color: #2563eb !important;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
   transform: translateY(-1px) !important;
+}
+
+/* 部分已預約 */
+:deep(.available-slot.partially-booked) {
+  background-color: #f59e0b !important;
+}
+
+:deep(.available-slot.partially-booked:hover) {
+  background-color: #d97706 !important;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* 完全預約滿 */
+:deep(.available-slot.fully-booked) {
+  background-color: #ef4444 !important;
+  opacity: 0.8 !important;
+  cursor: not-allowed !important;
+}
+
+:deep(.available-slot.fully-booked:hover) {
+  background-color: #dc2626 !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+  transform: none !important;
 }
 
 :deep(.fc-event-dragging) {
