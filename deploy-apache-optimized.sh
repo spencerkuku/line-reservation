@@ -560,7 +560,8 @@ perform_backup() {
         --events \
         --hex-blob \
         --add-drop-database \
-        --databases "$DB_NAME" > "$backup_filepath"; then
+        --no-tablespaces \
+        --databases "$DB_NAME" > "$backup_filepath" 2>/dev/null; then
         error_exit "資料庫備份失敗"
     fi
     
