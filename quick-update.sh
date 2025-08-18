@@ -258,7 +258,7 @@ restore_git_and_update() {
         read -p "是否要重新初始化 Git? (y/N): " REINIT_GIT
         if [[ "$REINIT_GIT" =~ ^[Yy]$ ]]; then
             echo "�️ 移除現有 Git..."
-            rm -rf .git
+            sudo rm -rf .git
         else
             echo "�📥 使用現有 Git 拉取更新..."
             git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
