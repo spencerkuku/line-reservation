@@ -811,6 +811,15 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw --force enable
 
+echo "🗑️ 清理 Git 資料..."
+cd "$PROJECT_DIR"
+if [ -d ".git" ]; then
+    sudo rm -rf .git
+    echo "✅ Git 資料已清理完成"
+else
+    echo "ℹ️ 未找到 .git 目錄"
+fi
+
 echo "✅ 部署完成！"
 echo "網站應該已可透過 ${PROTOCOL}://$DOMAIN 訪問。"
 echo "MySQL 資料庫憑證已存於 $CRED_FILE"

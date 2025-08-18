@@ -42,6 +42,7 @@ show_menu() {
     echo "7) 重啟 Apache 服務"
     echo "8) 檢查服務狀態"
     echo "9) 查看日誌"
+    echo "10) 恢復 Git 並更新代碼"
     echo "0) 退出"
     echo "=================================="
 }
@@ -244,9 +245,101 @@ full_rebuild() {
     echo "✅ 完整重建完成"
 }
 
-# 更新代碼並重建
+# 恢復 Git 並更新代碼
+restore_git_and_update() {
+    echo "� 恢復 Git 並更新代碼..."
+    
+    # 確保權限
+    sudo chown -R $USER:$USER "$PROJECT_DIR"
+    
+    # 檢查是否已有 Git
+    if [ -d ".git" ]; then
+        echo "✅ Git 目錄已存在"
+        read -p "是否要重新初始化 Git? (y/N): " REINIT_GIT
+        if [[ "$REINIT_GIT" =~ ^[Yy]$ ]]; then
+            echo "�️ 移除現有 Git..."
+            rm -rf .git
+        else
+            echo "�📥 使用現有 Git 拉取更新..."
+            git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
+            cleanup_git_and_rebuild
+            return
+        fi
+    fi
+    
+    echo "🔧 設定 Git..."
+    git config --global --add safe.directory "$PROJECT_DIR"
+    
+    echo "� 初始化 Git 倉庫..."
+    git init
+    
+    echo "🔗 添加遠端倉庫..."
+    read -p "請輸入 Git 倉庫 URL (預設: https://github.com/spencerkuku/line-reservation.git): " REPO_URL
+    if [ -z "$REPO_URL" ]; then
+        REPO_URL="https://github.com/spencerkuku/line-reservation.git"
+    fi
+    
+    git remote add origin "$REPO_URL"
+    
+    echo "📥 拉取最新代碼..."
+    git fetch origin
+    
+    echo "🌿 選擇分支..."
+    read -p "請輸入要使用的分支名稱 (預設: main): " BRANCH_NAME
+    if [ -z "$BRANCH_NAME" ]; then
+        BRANCH_NAME="main"
+    fi
+    
+    echo "🔄 切換到分支: $BRANCH_NAME"
+    git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" || git checkout "$BRANCH_NAME" || {
+        echo "❌ 無法切換到分支 $BRANCH_NAME"
+        echo "📋 可用的遠端分支:"
+        git branch -r
+        return 1
+    }
+    
+    echo "�🔄 執行完整重建..."
+    full_rebuild
+    
+    echo "🗑️ 清理 Git 資料..."
+    cleanup_git_files
+    
+    echo "✅ Git 恢復和代碼更新完成"
+}
+
+# 清理 Git 檔案
+cleanup_git_files() {
+    echo "🗑️ 清理 Git 相關檔案..."
+    
+    if [ -d ".git" ]; then
+        rm -rf .git
+        echo "✅ .git 目錄已刪除"
+    fi
+    
+    if [ -f ".gitignore" ]; then
+        rm -f .gitignore
+        echo "✅ .gitignore 檔案已刪除"
+    fi
+    
+    if [ -f ".gitattributes" ]; then
+        rm -f .gitattributes
+        echo "✅ .gitattributes 檔案已刪除"
+    fi
+    
+    # 清理可能的 Git 相關檔案
+    find . -name ".git*" -type f -delete 2>/dev/null || true
+    
+    echo "✅ Git 相關檔案清理完成"
+}
+
+# 更新代碼並重建 (原版，不使用 Git)
 update_and_rebuild() {
     echo "📥 更新代碼並重建..."
+    
+    if [ ! -d ".git" ]; then
+        echo "❌ 沒有 Git 倉庫，請選擇選項 10 來恢復 Git"
+        return
+    fi
     
     # 確保權限
     sudo chown -R $USER:$USER "$PROJECT_DIR"
@@ -254,10 +347,26 @@ update_and_rebuild() {
     echo "📥 拉取最新代碼..."
     git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
     
-    echo "🔄 執行完整重建..."
-    full_rebuild
+    echo "🔄 執行完整重建和清理..."
+    cleanup_git_and_rebuild
     
     echo "✅ 代碼更新並重建完成"
+}
+cleanup_git_and_rebuild() {
+    echo "🔄 執行完整重建..."
+    clear_backend_cache
+    rebuild_frontend
+    
+    echo "🔧 最終權限設定..."
+    sudo chown -R www-data:www-data "$PROJECT_DIR"
+    find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
+    find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
+    sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    
+    echo "🗑️ 清理 Git 資料..."
+    cleanup_git_files
+    
+    echo "✅ 完整重建和清理完成"
 }
 
 # 重啟服務
@@ -337,7 +446,7 @@ main() {
         show_menu
         read_current_settings
         echo ""
-        read -p "請選擇操作 (0-9): " CHOICE
+        read -p "請選擇操作 (0-10): " CHOICE
         
         case $CHOICE in
             1)
@@ -366,6 +475,9 @@ main() {
                 ;;
             9)
                 view_logs
+                ;;
+            10)
+                restore_git_and_update
                 ;;
             0)
                 echo "👋 再見！"
