@@ -19,29 +19,48 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # 讓用戶選擇使用 IP 或 domain
 echo "🌐 請選擇訪問方式："
-echo "1) 使用 IP 地址 ($SERVER_IP) - 不使用 SSL"
-echo "2) 使用自定義域名 - 使用 SSL"
+echo "1) 使用自動偵測的 IP 地址 ($SERVER_IP)"
+echo "2) 使用自定義 IP/域名"
 echo ""
 read -p "請輸入選擇 (1 或 2): " CHOICE
 
-USE_SSL=false
 if [ "$CHOICE" = "2" ]; then
-    read -p "請輸入您的域名: " DOMAIN
+    read -p "請輸入您的自定義 IP 地址或域名: " DOMAIN
     if [ -z "$DOMAIN" ]; then
-        echo "❌ 域名不能為空！"
+        echo "❌ IP/域名不能為空！"
         exit 1
     fi
-    USE_SSL=true
-    PROTOCOL="https"
-    echo "🔒 將使用 SSL 配置域名: $DOMAIN"
+    echo "🌐 將使用自定義 IP/域名: $DOMAIN"
 elif [ "$CHOICE" = "1" ]; then
     DOMAIN=$SERVER_IP
-    USE_SSL=false
-    PROTOCOL="http"
-    echo "🌐 將使用 IP 地址: $DOMAIN"
+    echo "🌐 將使用自動偵測的 IP 地址: $DOMAIN"
 else
     echo "❌ 無效的選擇！"
     exit 1
+fi
+
+# 詢問是否使用 SSL
+echo ""
+echo "🔒 是否要設定 SSL 憑證？"
+echo "注意：SSL 需要有效的域名，不適用於 IP 地址"
+read -p "是否使用 SSL? (y/N): " SSL_CHOICE
+
+USE_SSL=false
+if [[ "$SSL_CHOICE" =~ ^[Yy]$ ]]; then
+    # 檢查是否為 IP 地址
+    if [[ $DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "⚠️ 警告：IP 地址無法使用 SSL 憑證，將使用 HTTP"
+        USE_SSL=false
+        PROTOCOL="http"
+    else
+        USE_SSL=true
+        PROTOCOL="https"
+        echo "🔒 將設定 SSL 憑證"
+    fi
+else
+    USE_SSL=false
+    PROTOCOL="http"
+    echo "🌐 將使用 HTTP（不使用 SSL）"
 fi
 
 echo "📁 專案目錄: $PROJECT_DIR"
