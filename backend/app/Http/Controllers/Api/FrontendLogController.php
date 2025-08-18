@@ -11,6 +11,11 @@ class FrontendLogController extends Controller
 {
     public function store(Request $request)
     {
+        // 只在開發環境允許前端日誌記錄
+        if (!config('app.debug') || config('app.env') === 'production') {
+            return response()->json(['success' => false, 'message' => 'Log endpoint disabled in production'], 403);
+        }
+        
         try {
             $logs = $request->input('logs', []);
             $sessionId = $request->input('session_id');

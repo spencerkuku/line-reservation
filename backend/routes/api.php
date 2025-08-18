@@ -20,8 +20,11 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
     // ->middleware('verify.line.signature'); // 暫時註解
 
-Route::post('/logs', [FrontendLogController::class, 'store'])
-    ->middleware('throttle:100,1'); // 限制日誌提交頻率
+// 前端日誌路由 - 只在開發環境可用
+if (config('app.debug') && config('app.env') !== 'production') {
+    Route::post('/logs', [FrontendLogController::class, 'store'])
+        ->middleware('throttle:100,1'); // 限制日誌提交頻率
+}
 
 // 公開的可預約時段查詢（允許前端查看可用時段） - 添加 Rate Limiting
 Route::get('/available-times', [AvailableTimeController::class, 'index'])
