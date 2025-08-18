@@ -248,7 +248,9 @@ async function fetchSettings() {
       LineChannelSecret.value = data.channel_secret
     }
   } catch (err) {
-    console.error('Error fetching settings:', err)
+    if (import.meta.env.DEV) {
+      console.error('Error fetching settings:', err)
+    }
   } finally {
     loading.value = false
   }

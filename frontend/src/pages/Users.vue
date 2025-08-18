@@ -432,7 +432,9 @@ async function fetchUsers() {
     users.value = data.data || data
   } catch (err) {
     error.value = err.message
-    console.error('Error fetching users:', err)
+    if (import.meta.env.DEV) {
+      console.error('Error fetching users:', err)
+    }
   } finally {
     loading.value = false
   }

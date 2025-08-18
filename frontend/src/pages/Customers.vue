@@ -699,7 +699,9 @@ async function fetchStatistics() {
     const data = await apiGet('/customers/statistics')
     statistics.value = data.data
   } catch (err) {
-    console.error('獲取統計資料失敗:', err)
+    if (import.meta.env.DEV) {
+      console.error('獲取統計資料失敗:', err)
+    }
   }
 }
 

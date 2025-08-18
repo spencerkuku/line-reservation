@@ -24,7 +24,9 @@ async function fetchServices() {
     services.value = data.data || data
   } catch (err) {
     error.value = err.message
-    console.error('Error fetching services:', err)
+    if (import.meta.env.DEV) {
+      console.error('Error fetching services:', err)
+    }
   } finally {
     loading.value = false
   }
@@ -72,7 +74,9 @@ async function deleteService(service) {
       }
     } catch (checkErr) {
       // 如果檢查失敗，繼續刪除流程
-      console.warn('檢查預約記錄失敗:', checkErr.message)
+      if (import.meta.env.DEV) {
+        console.warn('檢查預約記錄失敗:', checkErr.message)
+      }
     }
 
     await apiDelete(`/services/${service.id}`)

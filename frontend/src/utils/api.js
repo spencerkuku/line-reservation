@@ -50,8 +50,10 @@ async function apiRequest(url, options = {}) {
     const startTime = performance.now();
     const method = options.method || 'GET';
     
-    // 記錄 API 請求開始
-    logger.apiRequest(method, url, options.body ? JSON.parse(options.body) : null);
+    // 僅在開發模式記錄 API 請求（避免洩露敏感資訊）
+    if (import.meta.env.DEV) {
+        logger.apiRequest(method, url, null); // 不記錄請求數據
+    }
 
     const token = localStorage.getItem('token')
     
@@ -129,11 +131,13 @@ async function apiRequest(url, options = {}) {
         
         // 檢查 401 或 403 錯誤
         if (response.status === 401 || response.status === 403) {
-            logger.error('Authentication failed', null, {
-                url,
-                method,
-                status: response.status
-            });
+            if (import.meta.env.DEV) {
+                logger.error('Authentication failed', null, {
+                    url,
+                    method,
+                    status: response.status
+                });
+            }
             
             // 清除本地存儲
             localStorage.removeItem('token')
@@ -147,42 +151,55 @@ async function apiRequest(url, options = {}) {
             // 拋出錯誤
             const errorData = await response.json().catch(() => ({}))
             const error = new Error(errorData.message || '認證失敗，請重新登入');
-            logger.apiResponse(method, url, response.status, errorData);
+            if (import.meta.env.DEV) {
+                logger.apiResponse(method, url, response.status, null); // 不記錄錯誤響應數據
+            }
             throw error;
         }
         
         // 檢查速率限制
         if (response.status === 429) {
             const errorData = await response.json().catch(() => ({}))
-            logger.apiResponse(method, url, response.status, errorData);
+            if (import.meta.env.DEV) {
+                logger.apiResponse(method, url, response.status, null);
+            }
             const error = new Error(errorData.message || '請求過於頻繁，請稍後再試');
-            logger.error('Rate limit exceeded', error, { url, method });
+            if (import.meta.env.DEV) {
+                logger.error('Rate limit exceeded', error, { url, method });
+            }
             throw error;
         }
         
         // 檢查其他錯誤
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            logger.apiResponse(method, url, response.status, errorData);
+            if (import.meta.env.DEV) {
+                logger.apiResponse(method, url, response.status, null);
+            }
             const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-            logger.error('API request failed', error, { url, method });
+            if (import.meta.env.DEV) {
+                logger.error('API request failed', error, { url, method });
+            }
             throw error;
         }
 
-        // 記錄成功響應
-        const responseData = await response.clone().json().catch(() => null);
-        logger.apiResponse(method, url, response.status, responseData);
+        // 記錄成功響應（僅在開發模式，且不記錄響應數據）
+        if (import.meta.env.DEV) {
+            logger.apiResponse(method, url, response.status, null);
+        }
         
         return response
     } catch (error) {
         const duration = performance.now() - startTime;
         
-        // 記錄網絡錯誤
-        logger.error('API request failed', error, {
-            url,
-            method,
-            duration_ms: duration
-        }, 'api_network');
+        // 記錄網絡錯誤（僅在開發模式）
+        if (import.meta.env.DEV) {
+            logger.error('API request failed', error, {
+                url,
+                method,
+                duration_ms: duration
+            }, 'api_network');
+        }
         
         // 網絡錯誤或其他錯誤
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
