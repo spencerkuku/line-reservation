@@ -235,6 +235,7 @@ const calendarOptions = computed(() => ({
   slotDuration: '00:30:00',
   slotLabelInterval: '01:00:00',
   height: 'auto',
+  aspectRatio: window.innerWidth <= 768 ? 0.8 : 1.35,
   
   // 簡化功能
   weekNumbers: false,
@@ -285,11 +286,11 @@ const calendarOptions = computed(() => ({
         const minutes = date.getMinutes()
         const period = hours < 12 ? '上午' : '下午'
         const displayHours = hours === 0 ? 12 : (hours > 12 ? hours - 12 : hours)
-        const minuteStr = minutes > 0 ? `${minutes}分` : ''
-        return `${period}${displayHours}點${minuteStr}`
+        const minuteStr = minutes > 0 ? `:${minutes.toString().padStart(2, '0')}` : ':00'
+        return `${period}${displayHours}${minuteStr}`
       }
       
-      return `${formatTime(startDate)}到~${formatTime(endDate)}`
+      return `${formatTime(startDate)}-${formatTime(endDate)}`
     }
     
     // 顯示時間、標題與內容（描述），圖示改為註解不顯示
@@ -640,26 +641,28 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
+  <div class="min-h-screen bg-gray-50 p-2 md:p-6 overflow-hidden">
     <!-- 頁面標題和工具列 -->
 
 
-    <!-- Google 風格的工具列 -->
-    <div class="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 bg-white rounded-t-xl mb-6">
-      <!-- 日曆導航 -->
-      <div class="flex items-center gap-2">
-        <button @click="goToToday" class="px-4 py-2 text-sm font-medium text-gray-700 bg-transparent border-0 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900">今天</button>
-        <button @click="navigatePrev" class="flex items-center justify-center w-9 h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-sm hover:bg-gray-100">‹</button>
-        <button @click="navigateNext" class="flex items-center justify-center w-9 h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-sm hover:bg-gray-100">›</button>
-        <h2 class="text-lg font-semibold text-gray-900 mx-2 md:mx-4">{{ currentPeriod }}</h2>
+    <!-- 手機優化的工具列 -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between p-2 md:p-6 border-b border-gray-200 bg-white rounded-t-xl mb-2 md:mb-6 gap-3 md:gap-0">
+      <!-- 日曆導航 - 手機版優化 -->
+      <div class="flex items-center justify-between md:justify-start gap-1 md:gap-2">
+        <div class="flex items-center gap-1 md:gap-2">
+          <button @click="goToToday" class="px-2 py-2 md:px-4 md:py-2 text-xs md:text-sm font-medium text-gray-700 bg-transparent border-0 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900 min-h-[40px] md:min-h-auto">今天</button>
+          <button @click="navigatePrev" class="flex items-center justify-center w-9 h-9 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-lg md:text-sm hover:bg-gray-100">‹</button>
+          <button @click="navigateNext" class="flex items-center justify-center w-9 h-9 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-lg md:text-sm hover:bg-gray-100">›</button>
+        </div>
+        <h2 class="text-sm md:text-lg font-semibold text-gray-900 mx-1 md:mx-4">{{ currentPeriod }}</h2>
       </div>
       
-      <!-- 檢視切換 -->
-      <div class="flex border border-gray-300 rounded-lg overflow-hidden">
+      <!-- 檢視切換 - 手機版優化 -->
+      <div class="flex border border-gray-300 rounded-lg overflow-hidden w-full md:w-auto">
         <button 
           @click="changeView('timeGridWeek')"
           :class="[
-            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
             currentView === 'timeGridWeek' 
               ? 'bg-blue-500 text-white' 
               : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
@@ -670,7 +673,7 @@ onMounted(() => {
         <button 
           @click="changeView('timeGridDay')"
           :class="[
-            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
             currentView === 'timeGridDay' 
               ? 'bg-blue-500 text-white' 
               : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
@@ -681,7 +684,7 @@ onMounted(() => {
         <button 
           @click="changeView('dayGridMonth')"
           :class="[
-            'px-4 py-2 border-0 text-sm font-medium cursor-pointer transition-all duration-200',
+            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
             currentView === 'dayGridMonth' 
               ? 'bg-blue-500 text-white' 
               : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
@@ -692,7 +695,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 主要日曆區域 -->
+    <!-- 主要日曆區域 - 修復手機版顯示 -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
       <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10">
         <div class="w-8 h-8 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
@@ -702,89 +705,87 @@ onMounted(() => {
       <FullCalendar 
         ref="calendarRef"
         :options="calendarOptions" 
-        class="p-4 md:p-6"
+        class="p-2 md:p-6"
       />
     </div>
 
-    <!-- 快速建立氣泡 -->
-    <div v-if="showQuickCreate" class="fixed bg-white border border-gray-300 rounded-xl shadow-lg p-5 min-w-80 z-[1000] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 max-md:left-4 max-md:right-4 max-md:transform-none max-md:top-1/2 max-md:-mt-24 max-md:min-w-0">
+    <!-- 手機優化的快速建立氣泡 -->
+    <div v-if="showQuickCreate" class="fixed bg-white border border-gray-300 rounded-xl shadow-lg p-4 md:p-5 w-[calc(100vw-2rem)] md:min-w-80 md:w-auto z-[1000] top-4 left-4 right-4 md:top-1/2 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 md:-translate-y-1/2 max-h-[calc(100vh-2rem)] overflow-y-auto">
       <input 
         ref="quickInput"
         v-model="quickSlotTitle"
         placeholder="可預約時段"
         @keyup.enter="createQuickSlot"
         @keyup.escape="cancelQuickCreate"
-        class="w-full border-0 outline-none text-base font-medium text-gray-900 mb-2 bg-transparent placeholder-gray-400"
+        class="w-full border border-gray-200 rounded-lg outline-none text-base font-medium text-gray-900 mb-4 bg-white placeholder-gray-400 px-4 py-3 md:py-2 md:border-0 md:bg-transparent focus:border-blue-500 md:focus:border-0"
       />
-      <div class="text-gray-500 text-sm mb-4 font-medium">
+      <div class="text-gray-600 text-sm mb-6 md:mb-4 font-medium p-3 bg-gray-50 rounded-lg md:p-0 md:bg-transparent">
         {{ formatTimeRange(selectedTime) }}
       </div>
-      <div class="flex justify-end gap-2">
-        <button @click="createQuickSlot" class="bg-blue-500 text-white border-0 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40">儲存</button>
-        <button @click="showDetailModal" class="bg-transparent text-blue-500 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:border-blue-500">更多選項</button>
+      <div class="flex flex-col md:flex-row justify-end gap-3 md:gap-2">
+        <button @click="createQuickSlot" class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40 order-2 md:order-1">儲存</button>
+        <button @click="showDetailModal" class="w-full md:w-auto bg-transparent text-blue-500 border border-blue-200 md:border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-50 md:hover:bg-gray-50 hover:border-blue-500 order-1 md:order-2">更多選項</button>
       </div>
     </div>
 
-    <!-- 編輯 Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000] p-4">
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-        <!-- 簡潔的標題列 -->
-        <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200">
-          <h3 class="text-lg font-semibold text-gray-900 m-0">{{ editForm.id ? '編輯' : '新增' }}可預約時段</h3>
-          <button @click="closeEditModal" class="w-8 h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
+    <!-- 手機優化的編輯 Modal -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-start md:items-center justify-center z-[1000] p-0 md:p-4">
+      <div class="bg-white rounded-t-xl md:rounded-xl shadow-2xl w-full md:w-full md:max-w-lg max-h-screen md:max-h-[90vh] overflow-hidden mt-auto md:mt-0">
+        <!-- 手機優化的標題列 -->
+        <div class="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h3 class="text-lg md:text-lg font-semibold text-gray-900 m-0">{{ editForm.id ? '編輯' : '新增' }}可預約時段</h3>
+          <button @click="closeEditModal" class="w-10 h-10 md:w-8 md:h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
         </div>
         
-        <!-- 最少必要欄位 -->
-        <div class="p-6">
-          <div class="mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-2">時段名稱</label>
+        <!-- 手機優化的表單內容 -->
+        <div class="p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-8rem)] md:max-h-none">
+          <div class="mb-6 md:mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">時段名稱</label>
             <input 
               v-model="editForm.title" 
               placeholder="例如：諮詢服務"
-              class="w-full border border-gray-300 rounded-md p-3 text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
+              class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
             />
           </div>
           
-          <div class="mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-2">時間</label>
-            <div class="p-3 bg-gray-50 rounded-md text-gray-500 text-sm font-medium border border-gray-200">
+          <div class="mb-6 md:mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">時間</label>
+            <div class="p-4 md:p-3 bg-gray-50 rounded-lg md:rounded-md text-gray-600 md:text-gray-500 text-base md:text-sm font-medium border border-gray-200 min-h-[48px] md:min-h-auto flex items-center">
               {{ formatDateTime(editForm.start) }} - {{ formatDateTime(editForm.end) }}
             </div>
           </div>
           
-          <!-- 預約狀態顯示（移除） -->
-          
-          <div class="mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-2">備註 <span class="font-normal text-gray-500">(選填)</span></label>
+          <div class="mb-6 md:mb-5">
+            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">備註 <span class="font-normal text-gray-500">(選填)</span></label>
             <textarea 
               v-model="editForm.description"
-              rows="2"
+              rows="3"
               placeholder="額外說明..."
-              class="w-full border border-gray-300 rounded-md p-3 text-sm text-gray-900 transition-all duration-200 bg-white resize-y min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
+              class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white resize-y min-h-[80px] md:min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
             ></textarea>
           </div>
         </div>
         
-        <!-- 簡單的操作按鈕 -->
-        <div class="flex items-center justify-between px-6 pb-6 pt-4 border-t border-gray-200">
+        <!-- 手機優化的操作按鈕 -->
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 pb-4 md:pb-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white gap-3 md:gap-0">
           <button 
             v-if="editForm.id" 
             @click="deleteCurrentSlot" 
-            class="bg-transparent text-red-600 border border-red-200 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600"
+            class="w-full md:w-auto bg-transparent text-red-600 border border-red-200 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600 order-3 md:order-1"
           >
-            刪除
+            刪除時段
           </button>
-          <div class="flex gap-3 ml-auto">
-            <button @click="closeEditModal" class="bg-transparent text-gray-500 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400">取消</button>
-            <button @click="saveSlot" class="bg-blue-500 text-white border-0 rounded-md px-4 py-2 text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40">儲存</button>
+          <div class="flex flex-col md:flex-row gap-3 md:gap-3 md:ml-auto w-full md:w-auto">
+            <button @click="closeEditModal" class="w-full md:w-auto bg-transparent text-gray-500 border border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400 order-2">取消</button>
+            <button @click="saveSlot" class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40 order-1">{{ editForm.id ? '儲存更改' : '建立時段' }}</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 簡單的 Toast 通知 -->
+    <!-- 手機優化的 Toast 通知 -->
     <div v-if="toast.show" :class="[
-      'fixed top-6 right-6 px-4 py-3 rounded-lg text-sm font-medium shadow-lg z-[1100] animate-slide-in',
+      'fixed top-4 left-4 right-4 md:top-6 md:right-6 md:left-auto px-4 py-4 md:py-3 rounded-lg text-base md:text-sm font-medium shadow-lg z-[1100] animate-slide-in',
       toast.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
     ]">
       {{ toast.message }}
@@ -873,6 +874,8 @@ onMounted(() => {
   min-height: 44px !important;
   display: flex !important;
   align-items: flex-start !important;
+  overflow: visible !important;
+  word-wrap: break-word !important;
 }
 
 /* 事件內容樣式 - 優化 UI/UX */
@@ -881,11 +884,13 @@ onMounted(() => {
   flex-direction: column !important;
   align-items: flex-start !important;
   gap: 1px !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
+  white-space: normal !important;
+  overflow: visible !important;
   padding: 3px 6px !important;
   height: 100% !important;
   box-sizing: border-box !important;
+  justify-content: flex-start !important;
+  word-wrap: break-word !important;
 }
 
 :deep(.event-time) {
@@ -895,6 +900,9 @@ onMounted(() => {
   line-height: 1.3 !important;
   color: rgba(255, 255, 255, 0.9) !important;
   letter-spacing: 0.02em !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  width: 100% !important;
 }
 
 :deep(.event-icon) {
@@ -906,12 +914,15 @@ onMounted(() => {
   font-size: 12px !important;
   font-weight: 600 !important;
   line-height: 1.3 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
   width: 100% !important;
   color: rgba(255, 255, 255, 1) !important;
   letter-spacing: 0.01em !important;
   margin-top: 1px !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
 }
 
 :deep(.event-booking) {
@@ -926,13 +937,15 @@ onMounted(() => {
   opacity: 0.75 !important;
   font-weight: 400 !important;
   line-height: 1.2 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
   width: 100% !important;
   color: rgba(255, 255, 255, 0.8) !important;
   font-style: italic !important;
   margin-top: 1px !important;
+  word-wrap: break-word !important;
+  word-break: break-word !important;
 }
 
 /* 完全可預約（無預約） */
@@ -984,17 +997,138 @@ onMounted(() => {
   border-radius: 6px !important;
 }
 
-/* 響應式設計 - 優化移動端字體 */
+/* 響應式設計 - 修復手機版顯示問題 */
 @media (max-width: 768px) {
+  :deep(.fc) {
+    min-height: 500px !important;
+    height: auto !important;
+  }
+
   :deep(.fc-timegrid-slot-label) {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
+    padding: 4px 2px;
+    width: 45px !important;
+  }
+
+  :deep(.available-slot) {
+    font-size: 12px !important;
+    padding: 6px 4px !important;
+    min-height: 60px !important;
+    border-radius: 6px !important;
+    line-height: 1.2 !important;
+  }
+  
+  :deep(.event-time) {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    opacity: 1 !important;
+    margin-bottom: 1px !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+  }
+  
+  :deep(.event-title) {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    margin-top: 1px !important;
+    margin-bottom: 0px !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+  }
+  
+  :deep(.event-desc) {
+    font-size: 9px !important;
+    opacity: 0.9 !important;
+    margin-top: 1px !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+  }
+
+  /* 手機版日曆格子優化 */
+  :deep(.fc-timegrid-slot) {
+    height: 60px !important;
+    border-color: #e5e7eb;
+  }
+
+  :deep(.fc-col-header-cell) {
+    padding: 8px 4px !important;
+    font-size: 11px !important;
+  }
+
+  :deep(.fc-scrollgrid) {
+    border-radius: 8px !important;
+  }
+
+  /* 手機版事件內容優化 */
+  :deep(.event-content) {
+    padding: 4px 6px !important;
+    gap: 1px !important;
+    justify-content: flex-start !important;
+    min-height: 56px !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+  }
+
+  /* 手機版選擇區域優化 */
+  :deep(.fc-highlight) {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    border-radius: 6px !important;
+  }
+
+  :deep(.fc-select-mirror) {
+    background-color: rgba(59, 130, 246, 0.4) !important;
+    border-radius: 6px !important;
+    border: 2px solid #3b82f6 !important;
+  }
+
+  /* 手機版時間軸優化 */
+  :deep(.fc-timegrid-axis) {
+    width: 45px !important;
+  }
+
+  /* 確保手機版正常顯示 */
+  :deep(.fc-view-harness) {
+    height: auto !important;
+    min-height: 500px !important;
+  }
+
+  :deep(.fc-scroller-harness) {
+    overflow: visible !important;
+  }
+
+  /* 確保事件文字不截斷 */
+  :deep(.fc-event-title) {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+  }
+  
+  :deep(.fc-event) {
+    overflow: visible !important;
+  }
+  
+  :deep(.fc-event-main) {
+    overflow: visible !important;
+  }
+}
+
+/* 極小螢幕特別優化 (320-390px) */
+@media (max-width: 390px) {
+  :deep(.fc-timegrid-slot-label) {
+    font-size: 9px;
+    width: 40px !important;
+    padding: 2px 1px;
   }
 
   :deep(.available-slot) {
     font-size: 11px !important;
-    padding: 4px 6px !important;
-    min-height: 36px !important;
+    padding: 4px 3px !important;
+    min-height: 50px !important;
   }
   
   :deep(.event-time) {
@@ -1004,9 +1138,21 @@ onMounted(() => {
   :deep(.event-title) {
     font-size: 10px !important;
   }
-  
-  :deep(.event-desc) {
-    font-size: 9px !important;
+
+  :deep(.fc-timegrid-slot) {
+    height: 50px !important;
+  }
+
+  :deep(.fc-timegrid-axis) {
+    width: 40px !important;
+  }
+
+  :deep(.event-content) {
+    padding: 3px 4px !important;
+    min-height: 46px !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
   }
 }
 </style>
