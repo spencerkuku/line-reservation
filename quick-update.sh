@@ -372,38 +372,71 @@ restore_database_backup() {
         return 1
     fi
     
-    DB_HOST=$(grep "^DB_HOST=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
-    DB_PORT=$(grep "^DB_PORT=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
-    DB_DATABASE=$(grep "^DB_DATABASE=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
-    DB_USERNAME=$(grep "^DB_USERNAME=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
-    DB_PASSWORD=$(grep "^DB_PASSWORD=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    # 更安全的配置讀取方式，處理引號和特殊字符
+    DB_HOST=$(grep "^DB_HOST=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
+    DB_PORT=$(grep "^DB_PORT=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
+    DB_DATABASE=$(grep "^DB_DATABASE=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
+    DB_USERNAME=$(grep "^DB_USERNAME=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
+    DB_PASSWORD=$(grep "^DB_PASSWORD=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
     
     # 預設值
     DB_HOST=${DB_HOST:-localhost}
     DB_PORT=${DB_PORT:-3306}
     
-    if [ -z "$DB_DATABASE" ] || [ -z "$DB_USERNAME" ]; then
-        echo "❌ 無法讀取資料庫配置"
+    # 除錯信息（僅顯示非敏感信息）
+    echo "🔍 資料庫配置檢查:"
+    echo "  主機: $DB_HOST"
+    echo "  端口: $DB_PORT"
+    echo "  資料庫: $DB_DATABASE"
+    echo "  用戶: $DB_USERNAME"
+    echo "  密碼: $([ -n "$DB_PASSWORD" ] && echo "已設定" || echo "未設定")"
+    
+    if [ -z "$DB_DATABASE" ] || [ -z "$DB_USERNAME" ] || [ -z "$DB_PASSWORD" ]; then
+        echo "❌ 無法讀取完整的資料庫配置"
+        echo "請檢查 .env 檔案中的資料庫設定"
         return 1
     fi
     
     echo "🗄️ 正在恢復資料庫: $DB_DATABASE"
     
-    # 檢查備份檔案是否壓縮
+    # 檢查備份檔案是否壓縮，使用臨時檔案方式避免管道操作問題
     if [[ "$selected_backup" == *.gz ]]; then
-        # 解壓縮並恢復
-        MYSQL_PWD="$DB_PASSWORD" gunzip -c "$selected_backup" | mysql \
+        # 壓縮檔案：解壓縮到臨時檔案再恢復
+        echo "📦 解壓縮備份檔案到臨時位置..."
+        local temp_sql_file="/tmp/database_restore_$$.sql"
+        
+        if ! gunzip -c "$selected_backup" > "$temp_sql_file"; then
+            echo "❌ 解壓縮失敗"
+            rm -f "$temp_sql_file"
+            return 1
+        fi
+        
+        echo "🔄 從臨時檔案恢復資料庫..."
+        MYSQL_PWD="$DB_PASSWORD" mysql \
             -h "$DB_HOST" \
             -P "$DB_PORT" \
             -u "$DB_USERNAME" \
-            "$DB_DATABASE"
+            "$DB_DATABASE" < "$temp_sql_file"
+        
+        local restore_result=$?
+        rm -f "$temp_sql_file"
+        
+        if [ $restore_result -ne 0 ]; then
+            echo "❌ 資料庫恢復失敗"
+            return 1
+        fi
     else
-        # 直接恢復
+        # 未壓縮檔案：直接恢復
         MYSQL_PWD="$DB_PASSWORD" mysql \
             -h "$DB_HOST" \
             -P "$DB_PORT" \
             -u "$DB_USERNAME" \
             "$DB_DATABASE" < "$selected_backup"
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ 資料庫恢復失敗"
+            return 1
+        fi
     fi
     
     if [ $? -eq 0 ]; then
