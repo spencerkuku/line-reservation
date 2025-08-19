@@ -198,20 +198,30 @@ echo "📄 資料庫憑證已保存於 $CRED_FILE"
 if [ -d "$PROJECT_DIR" ]; then
     echo "📥 更新專案代碼..."
     sudo chown -R $USER:$USER "$PROJECT_DIR"   # 確保目錄權限
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR" || { echo "❌ 無法進入專案目錄"; exit 1; }
     git config --global --add safe.directory "$PROJECT_DIR"
-    if ! git pull origin main; then
-        echo "⚠️ Git 更新失敗，請手動檢查"
+    if ! git pull origin main 2>/dev/null; then
+        echo "⚠️ Git 更新失敗，將嘗試重新下載..."
+        cd /var/www
+        sudo rm -rf line-reservation
+        if ! sudo git clone https://github.com/spencerkuku/line-reservation.git; then
+            echo "❌ Git 下載失敗，請檢查網路連線"
+            exit 1
+        fi
+        sudo chown -R $USER:$USER line-reservation
     fi
 else
     echo "📥 下載專案代碼..."
-    cd /var/www
-    sudo git clone https://github.com/spencerkuku/line-reservation.git
+    cd /var/www || { echo "❌ 無法進入 /var/www 目錄"; exit 1; }
+    if ! sudo git clone https://github.com/spencerkuku/line-reservation.git; then
+        echo "❌ Git 下載失敗，請檢查網路連線和倉庫權限"
+        exit 1
+    fi
     sudo chown -R $USER:$USER line-reservation
-    git config --global --add safe.directory "$PROJECT_DIR"
 fi
 
-cd "$PROJECT_DIR"
+git config --global --add safe.directory "$PROJECT_DIR"
+cd "$PROJECT_DIR" || { echo "❌ 無法進入專案目錄"; exit 1; }
 
 # 備份資料庫憑證
 cp "$CRED_FILE" "$PROJECT_DIR/db_credentials.txt"
@@ -219,10 +229,13 @@ chmod 600 "$PROJECT_DIR/db_credentials.txt"
 echo "📄 資料庫憑證備份已建立於 $PROJECT_DIR/db_credentials.txt"
 
 # 後端安裝
-cd backend
+cd backend || { echo "❌ 無法進入後端目錄"; exit 1; }
 
 echo "📦 安裝 PHP 依賴..."
-sudo -u $USER composer install --optimize-autoloader --no-dev
+if ! sudo -u $USER composer install --optimize-autoloader --no-dev; then
+    echo "❌ Composer 安裝失敗"
+    exit 1
+fi
 
 # 環境檔案
 if [ ! -f .env ]; then
@@ -233,10 +246,26 @@ update_env_var() {
     local key="$1"
     local val="$2"
     local file=".env"
-    if grep -q "^${key}=" "$file"; then
-        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+    
+    if [ ! -f "$file" ]; then
+        echo "❌ 環境檔案不存在: $file"
+        return 1
+    fi
+    
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        if sed -i "s|^${key}=.*|${key}=${val}|" "$file"; then
+            echo "✅ 已更新 $key"
+        else
+            echo "❌ 更新失敗: $key"
+            return 1
+        fi
     else
-        echo "${key}=${val}" >> "$file"
+        if echo "${key}=${val}" >> "$file"; then
+            echo "✅ 已添加 $key"
+        else
+            echo "❌ 添加失敗: $key"
+            return 1
+        fi
     fi
 }
 
@@ -244,6 +273,7 @@ update_env_var "APP_ENV" "production"
 update_env_var "APP_DEBUG" "false"
 update_env_var "APP_URL" "${PROTOCOL}://$DOMAIN"
 update_env_var "FRONTEND_URL" "${PROTOCOL}://$DOMAIN"
+update_env_var "CORS_ALLOWED_ORIGINS" "${PROTOCOL}://$DOMAIN"
 update_env_var "DB_CONNECTION" "mysql"
 update_env_var "DB_HOST" "127.0.0.1"
 update_env_var "DB_PORT" "3306"
@@ -255,10 +285,12 @@ update_env_var "SESSION_DRIVER" "file"
 update_env_var "SESSION_LIFETIME" "120"
 update_env_var "SESSION_DOMAIN" "$DOMAIN"
 update_env_var "SESSION_SAME_SITE" "lax"
+update_env_var "SESSION_SECURE_COOKIE" "$USE_SSL"
 update_env_var "CACHE_DRIVER" "file"
 update_env_var "QUEUE_CONNECTION" "sync"
 update_env_var "LOG_CHANNEL" "stack"
 update_env_var "LOG_LEVEL" "info"
+update_env_var "APP_TIMEZONE" "Asia/Taipei"
 
 echo "🔄 Laravel 清除並重建配置快取..."
 sudo -u $USER php artisan config:clear
@@ -281,7 +313,7 @@ if ! sudo -u $USER php artisan storage:link 2>/dev/null; then
 fi
 
 # 前端安裝
-cd ../frontend
+cd ../frontend || { echo "❌ 無法進入前端目錄"; exit 1; }
 
 if [ ! -f .env ]; then
     cp .env.example .env
@@ -291,10 +323,26 @@ update_frontend_env_var() {
     local key="$1"
     local val="$2"
     local file=".env"
-    if grep -q "^${key}=" "$file"; then
-        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+    
+    if [ ! -f "$file" ]; then
+        echo "❌ 前端環境檔案不存在: $file"
+        return 1
+    fi
+    
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        if sed -i "s|^${key}=.*|${key}=${val}|" "$file"; then
+            echo "✅ 已更新前端 $key"
+        else
+            echo "❌ 前端更新失敗: $key"
+            return 1
+        fi
     else
-        echo "${key}=${val}" >> "$file"
+        if echo "${key}=${val}" >> "$file"; then
+            echo "✅ 已添加前端 $key"
+        else
+            echo "❌ 前端添加失敗: $key"
+            return 1
+        fi
     fi
 }
 
@@ -309,18 +357,39 @@ if [ -d node_modules ]; then
 fi
 
 echo "📦 安裝前端依賴..."
-sudo -u $USER npm install
+if ! sudo -u $USER npm install; then
+    echo "❌ npm install 失敗"
+    exit 1
+fi
 
 echo "🏗️ 建立前端生產版本..."
 if [ -d dist ]; then
     rm -rf dist
 fi
-sudo -u $USER npm run build
+if ! sudo -u $USER npm run build; then
+    echo "❌ npm run build 失敗"
+    exit 1
+fi
 
 echo "🔧 調整權限..."
 set_secure_permissions
 
-echo "🖥️ 設定 Apache 虛擬主機..."
+echo "� 設定 Apache 安全配置..."
+# 隱藏 Apache 版本信息
+sudo tee -a /etc/apache2/apache2.conf > /dev/null <<EOF
+
+# 安全設定 - 隱藏版本信息
+ServerTokens Prod
+ServerSignature Off
+
+# 安全標頭設定
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set X-XSS-Protection "1; mode=block"
+EOF
+
+echo "�🖥️ 設定 Apache 虛擬主機..."
 
 APACHE_CONF="/etc/apache2/sites-available/line-reservation.conf"
 
@@ -484,8 +553,8 @@ SCRIPTS_DIR="$BACKUP_BASE_DIR/scripts"
 echo "📁 建立備份目錄結構..."
 mkdir -p "$DB_BACKUP_DIR" "$LOG_DIR" "$SCRIPTS_DIR"
 # 設置嚴格的備份目錄權限 (僅擁有者可存取)
-chown -R $USER:$USER "$BACKUP_BASE_DIR"
-chmod -R 700 "$BACKUP_BASE_DIR"  # 700 而非 755，更安全
+sudo chown -R $USER:$USER "$BACKUP_BASE_DIR"
+sudo chmod -R 700 "$BACKUP_BASE_DIR"  # 700 而非 755，更安全
 
 # 建立備份配置文件
 BACKUP_CONFIG="$SCRIPTS_DIR/backup.conf"
@@ -511,12 +580,12 @@ PROJECT_BACKUP_DIR="$BACKUP_BASE_DIR/project-backups"
 PROJECT_BACKUP_RETENTION_DAYS=14
 EOF
 
-chown $USER:$USER "$BACKUP_CONFIG"
-chmod 600 "$BACKUP_CONFIG"  # 嚴格保護備份配置檔案
+sudo chown $USER:$USER "$BACKUP_CONFIG"
+sudo chmod 600 "$BACKUP_CONFIG"  # 嚴格保護備份配置檔案
 
 # 建立專案備份目錄
 mkdir -p "$BACKUP_BASE_DIR/project-backups"
-chmod 700 "$BACKUP_BASE_DIR/project-backups"
+sudo chmod 700 "$BACKUP_BASE_DIR/project-backups"
 
 # 建立主要備份腳本
 BACKUP_SCRIPT="$SCRIPTS_DIR/database_backup.sh"
@@ -721,8 +790,8 @@ main "$@"
 BACKUP_SCRIPT_EOF
 
 # 設定腳本權限 (僅擁有者可執行)
-chmod 700 "$BACKUP_SCRIPT"  # 700 而非 755，更安全
-chown $USER:$USER "$BACKUP_SCRIPT"
+sudo chmod 700 "$BACKUP_SCRIPT"  # 700 而非 755，更安全
+sudo chown $USER:$USER "$BACKUP_SCRIPT"
 
 # 建立手動備份腳本
 MANUAL_BACKUP_SCRIPT="$SCRIPTS_DIR/manual_backup.sh"
@@ -748,8 +817,8 @@ else
 fi
 MANUAL_SCRIPT_EOF
 
-chmod 700 "$MANUAL_BACKUP_SCRIPT"  # 700 而非 755，更安全
-chown $USER:$USER "$MANUAL_BACKUP_SCRIPT"
+sudo chmod 700 "$MANUAL_BACKUP_SCRIPT"  # 700 而非 755，更安全
+sudo chown $USER:$USER "$MANUAL_BACKUP_SCRIPT"
 
 # 建立備份狀態檢查腳本
 STATUS_SCRIPT="$SCRIPTS_DIR/backup_status.sh"
@@ -806,8 +875,8 @@ fi
 echo "============================================"
 STATUS_SCRIPT_EOF
 
-chmod 700 "$STATUS_SCRIPT"  # 700 而非 755，更安全
-chown $USER:$USER "$STATUS_SCRIPT"
+sudo chmod 700 "$STATUS_SCRIPT"  # 700 而非 755，更安全
+sudo chown $USER:$USER "$STATUS_SCRIPT"
 
 # 建立專案備份腳本
 PROJECT_BACKUP_SCRIPT="$SCRIPTS_DIR/project_backup.sh"
@@ -931,8 +1000,8 @@ case "${1:-help}" in
 esac
 PROJECT_BACKUP_SCRIPT_EOF
 
-chmod 700 "$PROJECT_BACKUP_SCRIPT"
-chown $USER:$USER "$PROJECT_BACKUP_SCRIPT"
+sudo chmod 700 "$PROJECT_BACKUP_SCRIPT"
+sudo chown $USER:$USER "$PROJECT_BACKUP_SCRIPT"
 
 # 設定自動備份排程
 echo "⏰ 設定自動備份排程..."
@@ -974,7 +1043,7 @@ fi
 echo "💾 創建初始環境配置備份..."
 INITIAL_BACKUP_DIR="$BACKUP_BASE_DIR/project-backups/initial_env_backup_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$INITIAL_BACKUP_DIR"
-chmod 700 "$INITIAL_BACKUP_DIR"
+sudo chmod 700 "$INITIAL_BACKUP_DIR"
 
 # 備份環境檔案
 cp "$PROJECT_DIR/frontend/.env" "$INITIAL_BACKUP_DIR/frontend.env" 2>/dev/null || true
@@ -982,8 +1051,8 @@ cp "$PROJECT_DIR/backend/.env" "$INITIAL_BACKUP_DIR/backend.env" 2>/dev/null || 
 cp "$PROJECT_DIR/db_credentials.txt" "$INITIAL_BACKUP_DIR/db_credentials.txt" 2>/dev/null || true
 
 # 設置備份檔案權限
-chmod 600 "$INITIAL_BACKUP_DIR"/* 2>/dev/null || true
-chown -R $USER:$USER "$INITIAL_BACKUP_DIR"
+sudo chmod 600 "$INITIAL_BACKUP_DIR"/* 2>/dev/null || true
+sudo chown -R $USER:$USER "$INITIAL_BACKUP_DIR"
 
 echo "✅ 初始環境配置備份已創建: $INITIAL_BACKUP_DIR"
 
