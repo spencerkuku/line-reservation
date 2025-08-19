@@ -614,11 +614,14 @@ if [ ! -d "$PROJECT_DIR" ]; then
     exit 1
 fi
 
-# 確保目錄權限
-echo "🔧 檢查並修正目錄權限..."
-sudo chown -R $USER:$USER "$PROJECT_DIR"
+# 確保當前用戶可以存取專案目錄（但不改變 www-data 的擁有權）
+echo "🔧 檢查目錄存取權限..."
+if [ ! -r "$PROJECT_DIR" ]; then
+    echo "❌ 無法讀取專案目錄，請檢查權限"
+    exit 1
+fi
 
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || { echo "❌ 無法進入專案目錄"; exit 1; }
 
 # 選單系統
 show_menu() {
@@ -662,15 +665,20 @@ read_current_settings() {
     CURRENT_SSL=""
     CURRENT_PROTOCOL=""
     
-    if [ -f "backend/.env" ]; then
-        CURRENT_DOMAIN=$(grep "^APP_URL=" backend/.env | cut -d'=' -f2 | sed 's|https\?://||')
-        if grep -q "^APP_URL=https://" backend/.env; then
+    if [ -f "$PROJECT_DIR/backend/.env" ]; then
+        CURRENT_DOMAIN=$(grep "^APP_URL=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2 | sed 's|https\?://||' 2>/dev/null || echo "")
+        if grep -q "^APP_URL=https://" "$PROJECT_DIR/backend/.env" 2>/dev/null; then
             CURRENT_SSL="true"
             CURRENT_PROTOCOL="https"
         else
             CURRENT_SSL="false"
             CURRENT_PROTOCOL="http"
         fi
+    else
+        echo "⚠️ 警告：找不到後端 .env 檔案"
+        CURRENT_DOMAIN="未設定"
+        CURRENT_SSL="未知"
+        CURRENT_PROTOCOL="http"
     fi
     
     echo "📋 當前設定:"
@@ -684,11 +692,27 @@ update_env_var() {
     local key="$1"
     local val="$2"
     local file="$3"
-    if grep -q "^${key}=" "$file"; then
-        sed -i "s|^${key}=.*|${key}=${val}|" "$file"
-    else
-        echo "${key}=${val}" >> "$file"
+    
+    if [ ! -f "$file" ]; then
+        echo "⚠️ 警告：檔案不存在 $file"
+        return 1
     fi
+    
+    # 確保當前用戶可以寫入檔案
+    if [ ! -w "$file" ]; then
+        sudo chown $USER:$USER "$file" || { echo "❌ 無法取得檔案寫入權限: $file"; return 1; }
+    fi
+    
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$file" || { echo "❌ 更新環境變數失敗: $key"; return 1; }
+        echo "✅ 已更新 $key=$val"
+    else
+        echo "${key}=${val}" >> "$file" || { echo "❌ 添加環境變數失敗: $key"; return 1; }
+        echo "✅ 已添加 $key=$val"
+    fi
+    
+    # 恢復適當的檔案權限
+    sudo chmod 600 "$file" 2>/dev/null || true
 }
 
 # 更新域名/IP
@@ -709,21 +733,34 @@ update_domain() {
     fi
     
     echo "🔄 更新後端設定..."
-    cd backend
+    cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
     update_env_var "APP_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN" ".env"
     update_env_var "FRONTEND_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN" ".env"
     update_env_var "SANCTUM_STATEFUL_DOMAINS" "$NEW_DOMAIN" ".env"
     update_env_var "SESSION_DOMAIN" "$NEW_DOMAIN" ".env"
+    update_env_var "CORS_ALLOWED_ORIGINS" "${CURRENT_PROTOCOL}://$NEW_DOMAIN" ".env"
     
     echo "🔄 更新前端設定..."
-    cd ../frontend
+    cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
     update_env_var "VITE_API_BASE_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN/api" ".env"
     update_env_var "VITE_APP_BASE_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN" ".env"
     update_env_var "VITE_APP_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN" ".env"
     update_env_var "VITE_BACKEND_URL" "${CURRENT_PROTOCOL}://$NEW_DOMAIN/api" ".env"
     
-    cd ..
+    cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
     echo "✅ 域名/IP 已更新為: $NEW_DOMAIN"
+    
+    echo "🔍 檢查配置更新結果..."
+    if [ -f "$PROJECT_DIR/backend/.env" ]; then
+        echo "後端配置檢查:"
+        grep "^APP_URL=" "$PROJECT_DIR/backend/.env" || echo "⚠️ APP_URL 未找到"
+        grep "^CORS_ALLOWED_ORIGINS=" "$PROJECT_DIR/backend/.env" || echo "⚠️ CORS_ALLOWED_ORIGINS 未找到"
+    fi
+    
+    if [ -f "$PROJECT_DIR/frontend/.env" ]; then
+        echo "前端配置檢查:"
+        grep "^VITE_API_BASE_URL=" "$PROJECT_DIR/frontend/.env" || echo "⚠️ VITE_API_BASE_URL 未找到"
+    fi
 }
 
 # 切換 SSL
@@ -765,18 +802,19 @@ toggle_ssl() {
     
     # 更新設定檔
     echo "🔄 更新後端設定..."
-    cd backend
+    cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
     update_env_var "APP_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN" ".env"
     update_env_var "FRONTEND_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN" ".env"
+    update_env_var "CORS_ALLOWED_ORIGINS" "${NEW_PROTOCOL}://$CURRENT_DOMAIN" ".env"
     
     echo "🔄 更新前端設定..."
-    cd ../frontend
+    cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
     update_env_var "VITE_API_BASE_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN/api" ".env"
     update_env_var "VITE_APP_BASE_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN" ".env"
     update_env_var "VITE_APP_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN" ".env"
     update_env_var "VITE_BACKEND_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN/api" ".env"
     
-    cd ..
+    cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
     echo "✅ SSL 設定已更新為: $NEW_PROTOCOL"
     
     if [ "$NEW_PROTOCOL" = "https" ]; then
@@ -788,7 +826,7 @@ toggle_ssl() {
 # 重建前端
 rebuild_frontend() {
     echo "🏗️ 【前端建置】執行 Frontend 重新建置..."
-    cd frontend
+    cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
     
     # 確保權限正確
     sudo chown -R $USER:$USER .
@@ -803,53 +841,69 @@ rebuild_frontend() {
     fi
     
     echo "📦 安裝依賴..."
-    npm install
+    if ! npm install; then
+        echo "❌ npm install 失敗"
+        cd "$PROJECT_DIR" || return 1
+        return 1
+    fi
     
     echo "🏗️ 建立生產版本..."
-    npm run build
+    if ! npm run build; then
+        echo "❌ npm run build 失敗"
+        cd "$PROJECT_DIR" || return 1
+        return 1
+    fi
     
     echo "🔧 設定權限..."
-    # 設置基本擁有者權限
-    sudo chown -R www-data:www-data dist
+    # 設置基本擁有者權限 - 整個 frontend 目錄
+    sudo chown -R www-data:www-data .
     
     # 移除不必要的執行權限，僅保留讀取權限
-    find dist -type f -exec sudo chmod 644 {} \;
-    find dist -type d -exec sudo chmod 755 {} \;
+    find dist -type f -exec sudo chmod 644 {} \; 2>/dev/null || true
+    find dist -type d -exec sudo chmod 755 {} \; 2>/dev/null || true
     
-    cd ..
+    cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+    
+    echo "🔧 執行完整權限設置..."
+    set_secure_permissions
+    
     echo "✅ 前端重建完成"
 }
 
 # 清除後端快取
 clear_backend_cache() {
     echo "🧹 【後端維護】清理 Laravel 快取系統..."
-    cd backend
+    cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
     
     # 確保權限正確
     sudo chown -R $USER:$USER .
     
     echo "清除配置快取..."
-    php artisan config:clear
-    php artisan config:cache
+    php artisan config:clear || echo "⚠️ config:clear 可能失敗"
+    php artisan config:cache || echo "⚠️ config:cache 可能失敗"
     
     echo "清除路由快取..."
-    php artisan route:clear
-    php artisan route:cache
+    php artisan route:clear || echo "⚠️ route:clear 可能失敗"
+    php artisan route:cache || echo "⚠️ route:cache 可能失敗"
     
     echo "清除視圖快取..."
-    php artisan view:clear
+    php artisan view:clear || echo "⚠️ view:clear 可能失敗"
     
     echo "清除應用快取..."
-    php artisan cache:clear
+    php artisan cache:clear || echo "⚠️ cache:clear 可能失敗"
     
     echo "🔧 設定權限..."
-    # 設置基本擁有者權限
-    sudo chown -R www-data:www-data storage bootstrap/cache
+    # 設置基本擁有者權限 - 整個 backend 目錄
+    sudo chown -R www-data:www-data .
     
     # 設置寫入權限但限制為 755，不使用 775
-    sudo chmod -R 755 storage bootstrap/cache
+    sudo chmod -R 755 storage bootstrap/cache 2>/dev/null || true
     
-    cd ..
+    cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+    
+    echo "🔧 執行完整權限設置..."
+    set_secure_permissions
+    
     echo "✅ 後端快取清除完成"
 }
 
@@ -888,10 +942,15 @@ restore_git_and_update() {
     fi
     
     echo "🔧 設定 Git..."
-    git config --global --add safe.directory "$PROJECT_DIR"
+    if ! git config --global --add safe.directory "$PROJECT_DIR"; then
+        echo "⚠️ Git 安全設定可能失敗"
+    fi
     
-    echo "� 初始化 Git 倉庫..."
-    git init
+    echo "🔄 初始化 Git 倉庫..."
+    if ! git init; then
+        echo "❌ Git 初始化失敗"
+        return 1
+    fi
     
     echo "🔗 添加遠端倉庫..."
     read -p "請輸入 Git 倉庫 URL (預設: https://github.com/spencerkuku/line-reservation.git): " REPO_URL
@@ -899,10 +958,16 @@ restore_git_and_update() {
         REPO_URL="https://github.com/spencerkuku/line-reservation.git"
     fi
     
-    git remote add origin "$REPO_URL"
+    if ! git remote add origin "$REPO_URL"; then
+        echo "❌ 添加遠端倉庫失敗"
+        return 1
+    fi
     
     echo "📥 拉取最新代碼..."
-    git fetch origin
+    if ! git fetch origin; then
+        echo "❌ 拉取代碼失敗，請檢查網路連線和倉庫URL"
+        return 1
+    fi
     
     echo "🌿 選擇分支..."
     read -p "請輸入要使用的分支名稱 (預設: main): " BRANCH_NAME
@@ -911,10 +976,10 @@ restore_git_and_update() {
     fi
     
     echo "🔄 切換到分支: $BRANCH_NAME"
-    git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" || git checkout "$BRANCH_NAME" || {
+    if ! git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" 2>/dev/null && ! git checkout "$BRANCH_NAME" 2>/dev/null; then
         echo "❌ 無法切換到分支 $BRANCH_NAME"
         echo "📋 可用的遠端分支:"
-        git branch -r
+        git branch -r 2>/dev/null || echo "無法列出遠端分支"
         return 1
     }
     
@@ -937,15 +1002,18 @@ update_and_rebuild() {
     echo "📥 【代碼更新】拉取最新代碼並執行重建..."
     
     if [ ! -d ".git" ]; then
-        echo "❌ 沒有 Git 倉庫，請選擇選項 10 來恢復 Git"
-        return
+        echo "❌ 沒有 Git 倉庫，請選擇選項 7 來恢復 Git"
+        return 1
     fi
     
     # 確保權限
-    sudo chown -R $USER:$USER "$PROJECT_DIR"
+    sudo chown -R $USER:$USER "$PROJECT_DIR" || { echo "❌ 無法設定權限"; return 1; }
     
     echo "📥 拉取最新代碼..."
-    git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
+    if ! git pull origin main; then
+        echo "❌ Git 更新失敗，請檢查網路連線或手動處理衝突"
+        return 1
+    fi
     
     echo "🔄 執行完整重建和清理..."
     cleanup_git_and_rebuild
