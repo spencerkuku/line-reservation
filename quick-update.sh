@@ -59,7 +59,7 @@ create_backup() {
     
     case $backup_type in
         "env")
-            echo "📄 備份環境配置檔案..."
+            echo "📄 【環境備份】備份系統環境配置檔案..."
             mkdir -p "$backup_path"
             
             # 備份前端 .env
@@ -84,7 +84,7 @@ create_backup() {
             ;;
             
         "project")
-            echo "📁 備份整個專案..."
+            echo "📁 【專案備份】備份專案檔案（排除資料庫）..."
             
             # 排除不必要的目錄和檔案
             tar --exclude="$PROJECT_DIR/backend/vendor" \
@@ -101,6 +101,62 @@ create_backup() {
                 
             echo "✅ 專案備份已保存到: $backup_path.tar.gz"
             ;;
+            
+        "full")
+            echo "🗄️ 【完整備份】執行系統完整備份（專案+資料庫）..."
+            
+            # 1. 先備份專案檔案
+            echo "�️ 完整備份（專案 + 資料庫）..."
+            
+            # 1. 先備份專案檔案
+            echo "📁 備份專案檔案..."
+            tar --exclude="$PROJECT_DIR/backend/vendor" \
+                --exclude="$PROJECT_DIR/backend/storage/logs/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/cache/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/sessions/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/views/*" \
+                --exclude="$PROJECT_DIR/frontend/node_modules" \
+                --exclude="$PROJECT_DIR/frontend/dist" \
+                --exclude="$PROJECT_DIR/.git" \
+                -czf "$backup_path-project.tar.gz" \
+                -C "$(dirname "$PROJECT_DIR")" \
+                "$(basename "$PROJECT_DIR")" 2>/dev/null
+            
+            # 2. 執行資料庫備份（使用部署腳本的資料庫備份功能）
+            echo "🗄️ 執行資料庫備份..."
+            local db_backup_script="$USER_HOME/line-reservation-backups/scripts/database_backup.sh"
+            if [ -f "$db_backup_script" ]; then
+                if "$db_backup_script"; then
+                    echo "✅ 資料庫備份完成"
+                else
+                    echo "⚠️ 資料庫備份失敗"
+                fi
+            else
+                echo "⚠️ 找不到資料庫備份腳本: $db_backup_script"
+                echo "請先執行完整部署腳本以設置資料庫備份系統"
+            fi
+            
+            echo "✅ 完整備份完成"
+            echo "📁 專案檔案: $backup_path-project.tar.gz"
+            ;;
+            
+        "db")
+            echo "🗄️ 【資料庫備份】執行資料庫專項備份..."
+            local db_backup_script="$USER_HOME/line-reservation-backups/scripts/database_backup.sh"
+            if [ -f "$db_backup_script" ]; then
+                if "$db_backup_script"; then
+                    echo "✅ 資料庫備份完成"
+                    # 回傳資料庫備份路徑
+                    local db_backup_dir="$USER_HOME/line-reservation-backups/database"
+                    echo "📍 資料庫備份位置: $db_backup_dir"
+                else
+                    echo "❌ 資料庫備份失敗"
+                fi
+            else
+                echo "❌ 找不到資料庫備份腳本: $db_backup_script"
+                echo "請先執行完整部署腳本以設置資料庫備份系統"
+            fi
+            ;;
     esac
     
     chmod 600 "$backup_path"* 2>/dev/null || true
@@ -116,22 +172,55 @@ create_backup() {
 # 恢復備份函數
 restore_backup() {
     local backup_dir="$USER_HOME/line-reservation-backups/project-backups"
+    local db_backup_dir="$USER_HOME/line-reservation-backups/database"
+    
+    echo "📋 【備份恢復控制台】選擇備份類型:"
+    echo "1) 環境配置備份"
+    echo "2) 專案檔案備份"
+    echo "3) 資料庫備份"
+    echo "4) 查看所有備份狀態"
+    echo ""
+    read -p "請選擇 (1-4): " backup_type_choice
+    
+    case $backup_type_choice in
+        1)
+            restore_env_backup
+            ;;
+        2)
+            restore_project_backup
+            ;;
+        3)
+            restore_database_backup
+            ;;
+        4)
+            show_backup_status
+            ;;
+        *)
+            echo "❌ 無效的選擇"
+            return 1
+            ;;
+    esac
+}
+
+# 恢復環境配置備份
+restore_env_backup() {
+    local backup_dir="$USER_HOME/line-reservation-backups/project-backups"
     
     if [ ! -d "$backup_dir" ]; then
         echo "❌ 找不到備份目錄: $backup_dir"
         return 1
     fi
     
-    echo "📋 可用的備份:"
-    local backups=($(find "$backup_dir" -name "*_backup_*" -type f -o -type d | sort -r))
+    echo "📋 可用的環境配置備份:"
+    local env_backups=($(find "$backup_dir" -name "env_backup_*" -type d | sort -r))
     
-    if [ ${#backups[@]} -eq 0 ]; then
-        echo "❌ 找不到任何備份檔案"
+    if [ ${#env_backups[@]} -eq 0 ]; then
+        echo "❌ 找不到環境配置備份"
         return 1
     fi
     
     local i=1
-    for backup in "${backups[@]}"; do
+    for backup in "${env_backups[@]}"; do
         local backup_name=$(basename "$backup")
         local backup_date=$(echo "$backup_name" | grep -o '[0-9]\{8\}_[0-9]\{6\}' || echo "未知")
         echo "$i) $backup_name (建立於: $backup_date)"
@@ -139,56 +228,281 @@ restore_backup() {
     done
     
     echo ""
-    read -p "請選擇要恢復的備份 (1-${#backups[@]}): " backup_choice
+    read -p "請選擇要恢復的備份 (1-${#env_backups[@]}): " backup_choice
     
-    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#backups[@]} ]; then
+    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#env_backups[@]} ]; then
         echo "❌ 無效的選擇"
         return 1
     fi
     
-    local selected_backup="${backups[$((backup_choice-1))]}"
-    echo "📥 恢復備份: $(basename "$selected_backup")"
+    local selected_backup="${env_backups[$((backup_choice-1))]}"
+    echo "📥 恢復環境備份: $(basename "$selected_backup")"
     
-    if [[ "$selected_backup" == *"env_backup"* ]]; then
-        # 恢復環境檔案
-        if [ -f "$selected_backup/frontend.env" ]; then
-            cp "$selected_backup/frontend.env" "$PROJECT_DIR/frontend/.env"
-            chmod 600 "$PROJECT_DIR/frontend/.env"
-            echo "✅ 前端 .env 已恢復"
-        fi
-        
-        if [ -f "$selected_backup/backend.env" ]; then
-            cp "$selected_backup/backend.env" "$PROJECT_DIR/backend/.env"
-            chmod 600 "$PROJECT_DIR/backend/.env"
-            echo "✅ 後端 .env 已恢復"
-        fi
-        
-        if [ -f "$selected_backup/db_credentials.txt" ]; then
-            cp "$selected_backup/db_credentials.txt" "$PROJECT_DIR/db_credentials.txt"
-            chmod 600 "$PROJECT_DIR/db_credentials.txt"
-            echo "✅ 資料庫憑證已恢復"
-        fi
-    elif [[ "$selected_backup" == *".tar.gz" ]]; then
-        # 恢復整個專案
-        echo "⚠️ 警告：這將覆蓋整個專案目錄！"
-        read -p "確定要繼續嗎? (y/N): " confirm
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            # 先備份當前狀態
-            create_backup "project"
-            
-            # 解壓縮備份
-            tar -xzf "$selected_backup" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null
-            echo "✅ 專案已從備份恢復"
-            
-            # 重新設置權限
-            set_secure_permissions
-        else
-            echo "❌ 取消恢復操作"
-            return 1
-        fi
+    # 恢復環境檔案
+    if [ -f "$selected_backup/frontend.env" ]; then
+        cp "$selected_backup/frontend.env" "$PROJECT_DIR/frontend/.env"
+        chmod 600 "$PROJECT_DIR/frontend/.env"
+        echo "✅ 前端 .env 已恢復"
     fi
     
-    echo "✅ 備份恢復完成"
+    if [ -f "$selected_backup/backend.env" ]; then
+        cp "$selected_backup/backend.env" "$PROJECT_DIR/backend/.env"
+        chmod 600 "$PROJECT_DIR/backend/.env"
+        echo "✅ 後端 .env 已恢復"
+    fi
+    
+    if [ -f "$selected_backup/db_credentials.txt" ]; then
+        cp "$selected_backup/db_credentials.txt" "$PROJECT_DIR/db_credentials.txt"
+        chmod 600 "$PROJECT_DIR/db_credentials.txt"
+        echo "✅ 資料庫憑證已恢復"
+    fi
+    
+    echo "✅ 環境配置恢復完成"
+}
+
+# 恢復專案備份
+restore_project_backup() {
+    local backup_dir="$USER_HOME/line-reservation-backups/project-backups"
+    
+    if [ ! -d "$backup_dir" ]; then
+        echo "❌ 找不到備份目錄: $backup_dir"
+        return 1
+    fi
+    
+    echo "📋 可用的專案備份:"
+    local project_backups=($(find "$backup_dir" -name "project_backup_*.tar.gz" -o -name "*-project.tar.gz" | sort -r))
+    
+    if [ ${#project_backups[@]} -eq 0 ]; then
+        echo "❌ 找不到專案備份檔案"
+        return 1
+    fi
+    
+    local i=1
+    for backup in "${project_backups[@]}"; do
+        local backup_name=$(basename "$backup")
+        local backup_date=$(echo "$backup_name" | grep -o '[0-9]\{8\}_[0-9]\{6\}' || echo "未知")
+        local backup_size=$(du -h "$backup" | cut -f1)
+        echo "$i) $backup_name (建立於: $backup_date, 大小: $backup_size)"
+        ((i++))
+    done
+    
+    echo ""
+    read -p "請選擇要恢復的備份 (1-${#project_backups[@]}): " backup_choice
+    
+    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#project_backups[@]} ]; then
+        echo "❌ 無效的選擇"
+        return 1
+    fi
+    
+    local selected_backup="${project_backups[$((backup_choice-1))]}"
+    echo "📥 恢復專案備份: $(basename "$selected_backup")"
+    
+    echo "⚠️ 警告：這將覆蓋整個專案目錄！"
+    read -p "確定要繼續嗎? (y/N): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        # 先備份當前狀態
+        create_backup "project"
+        
+        # 解壓縮備份
+        tar -xzf "$selected_backup" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null
+        echo "✅ 專案已從備份恢復"
+        
+        # 重新設置權限
+        set_secure_permissions
+    else
+        echo "❌ 取消恢復操作"
+        return 1
+    fi
+    
+    echo "✅ 專案恢復完成"
+}
+
+# 恢復資料庫備份
+restore_database_backup() {
+    local db_backup_dir="$USER_HOME/line-reservation-backups/database"
+    
+    if [ ! -d "$db_backup_dir" ]; then
+        echo "❌ 找不到資料庫備份目錄: $db_backup_dir"
+        echo "請先執行完整部署腳本以設置資料庫備份系統"
+        return 1
+    fi
+    
+    echo "📋 可用的資料庫備份:"
+    local db_backups=($(find "$db_backup_dir" -name "line_reservation_backup_*.sql*" | sort -r))
+    
+    if [ ${#db_backups[@]} -eq 0 ]; then
+        echo "❌ 找不到資料庫備份檔案"
+        return 1
+    fi
+    
+    local i=1
+    for backup in "${db_backups[@]}"; do
+        local backup_name=$(basename "$backup")
+        local backup_date=$(echo "$backup_name" | grep -o '[0-9]\{8\}_[0-9]\{6\}' || echo "未知")
+        local backup_size=$(du -h "$backup" | cut -f1)
+        echo "$i) $backup_name (建立於: $backup_date, 大小: $backup_size)"
+        ((i++))
+    done
+    
+    echo ""
+    read -p "請選擇要恢復的資料庫備份 (1-${#db_backups[@]}): " backup_choice
+    
+    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#db_backups[@]} ]; then
+        echo "❌ 無效的選擇"
+        return 1
+    fi
+    
+    local selected_backup="${db_backups[$((backup_choice-1))]}"
+    echo "📥 恢復資料庫備份: $(basename "$selected_backup")"
+    
+    echo "⚠️ 警告：這將覆蓋整個資料庫！"
+    read -p "確定要繼續嗎? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "❌ 取消恢復操作"
+        return 1
+    fi
+    
+    # 先執行當前資料庫備份
+    echo "💾 備份當前資料庫..."
+    create_backup "db"
+    
+    # 讀取資料庫配置
+    if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
+        echo "❌ 找不到 .env 檔案"
+        return 1
+    fi
+    
+    DB_HOST=$(grep "^DB_HOST=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    DB_PORT=$(grep "^DB_PORT=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    DB_DATABASE=$(grep "^DB_DATABASE=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    DB_USERNAME=$(grep "^DB_USERNAME=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    DB_PASSWORD=$(grep "^DB_PASSWORD=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2)
+    
+    # 預設值
+    DB_HOST=${DB_HOST:-localhost}
+    DB_PORT=${DB_PORT:-3306}
+    
+    if [ -z "$DB_DATABASE" ] || [ -z "$DB_USERNAME" ]; then
+        echo "❌ 無法讀取資料庫配置"
+        return 1
+    fi
+    
+    echo "🗄️ 正在恢復資料庫: $DB_DATABASE"
+    
+    # 檢查備份檔案是否壓縮
+    if [[ "$selected_backup" == *.gz ]]; then
+        # 解壓縮並恢復
+        MYSQL_PWD="$DB_PASSWORD" gunzip -c "$selected_backup" | mysql \
+            -h "$DB_HOST" \
+            -P "$DB_PORT" \
+            -u "$DB_USERNAME" \
+            "$DB_DATABASE"
+    else
+        # 直接恢復
+        MYSQL_PWD="$DB_PASSWORD" mysql \
+            -h "$DB_HOST" \
+            -P "$DB_PORT" \
+            -u "$DB_USERNAME" \
+            "$DB_DATABASE" < "$selected_backup"
+    fi
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ 資料庫恢復完成"
+        
+        # 清除 Laravel 快取
+        echo "🧹 清除應用快取..."
+        cd "$PROJECT_DIR/backend"
+        php artisan config:clear
+        php artisan cache:clear
+        php artisan route:clear
+        cd - > /dev/null
+        
+    else
+        echo "❌ 資料庫恢復失敗"
+        return 1
+    fi
+    
+    echo "✅ 資料庫恢復完成"
+}
+
+# 顯示所有備份狀態
+show_backup_status() {
+    echo "📊 【備份系統監控】備份系統狀態總覽"
+    echo "====================================="
+    
+    # 專案備份狀態
+    local project_backup_dir="$USER_HOME/line-reservation-backups/project-backups"
+    if [ -d "$project_backup_dir" ]; then
+        echo ""
+        echo "📁 專案備份狀態:"
+        local env_count=$(find "$project_backup_dir" -name "env_backup_*" -type d | wc -l)
+        local project_count=$(find "$project_backup_dir" -name "project_backup_*.tar.gz" -o -name "*-project.tar.gz" | wc -l)
+        local project_size=$(du -sh "$project_backup_dir" 2>/dev/null | cut -f1)
+        
+        echo "  🔧 環境配置備份: $env_count 個"
+        echo "  📦 專案檔案備份: $project_count 個"
+        echo "  💾 專案備份總大小: $project_size"
+        
+        # 顯示最新的專案備份
+        local latest_project=$(find "$project_backup_dir" -name "project_backup_*.tar.gz" -o -name "*-project.tar.gz" | sort -r | head -1)
+        if [ -n "$latest_project" ]; then
+            local latest_date=$(stat -c %y "$latest_project" | cut -d' ' -f1)
+            echo "  📅 最新專案備份: $(basename "$latest_project") ($latest_date)"
+        fi
+    else
+        echo "❌ 專案備份目錄不存在"
+    fi
+    
+    # 資料庫備份狀態
+    local db_backup_dir="$USER_HOME/line-reservation-backups/database"
+    if [ -d "$db_backup_dir" ]; then
+        echo ""
+        echo "🗄️ 資料庫備份狀態:"
+        local db_count=$(find "$db_backup_dir" -name "line_reservation_backup_*.sql*" | wc -l)
+        local db_size=$(du -sh "$db_backup_dir" 2>/dev/null | cut -f1)
+        
+        echo "  📊 資料庫備份數量: $db_count 個"
+        echo "  💾 資料庫備份總大小: $db_size"
+        
+        # 顯示最新的資料庫備份
+        local latest_db=$(find "$db_backup_dir" -name "line_reservation_backup_*.sql*" | sort -r | head -1)
+        if [ -n "$latest_db" ]; then
+            local latest_date=$(stat -c %y "$latest_db" | cut -d' ' -f1)
+            echo "  📅 最新資料庫備份: $(basename "$latest_db") ($latest_date)"
+        fi
+    else
+        echo "❌ 資料庫備份目錄不存在"
+        echo "   請先執行完整部署腳本以設置資料庫備份系統"
+    fi
+    
+    # 備份腳本狀態
+    local scripts_dir="$USER_HOME/line-reservation-backups/scripts"
+    if [ -d "$scripts_dir" ]; then
+        echo ""
+        echo "🔧 備份腳本狀態:"
+        local manual_script="$scripts_dir/manual_backup.sh"
+        local auto_script="$scripts_dir/database_backup.sh"
+        local status_script="$scripts_dir/backup_status.sh"
+        
+        [ -f "$manual_script" ] && echo "  ✅ 手動備份腳本: $(basename "$manual_script")" || echo "  ❌ 手動備份腳本: 不存在"
+        [ -f "$auto_script" ] && echo "  ✅ 自動備份腳本: $(basename "$auto_script")" || echo "  ❌ 自動備份腳本: 不存在"
+        [ -f "$status_script" ] && echo "  ✅ 狀態檢查腳本: $(basename "$status_script")" || echo "  ❌ 狀態檢查腳本: 不存在"
+        
+        # 檢查 crontab
+        echo ""
+        echo "⏰ 自動備份排程:"
+        if crontab -l 2>/dev/null | grep -q "database_backup.sh"; then
+            echo "  ✅ 自動備份已設定"
+            crontab -l | grep "database_backup.sh" | sed 's/^/  /'
+        else
+            echo "  ❌ 未設定自動備份"
+        fi
+    else
+        echo "❌ 備份腳本目錄不存在"
+    fi
+    
+    echo ""
+    echo "====================================="
 }
 
 # 智能 Git 清理函數
@@ -276,24 +590,37 @@ cd "$PROJECT_DIR"
 # 選單系統
 show_menu() {
     echo ""
-    echo "=================================="
-    echo "🛠️  LINE Reservation 快速更新工具"
-    echo "=================================="
-    echo "1) 更新域名/IP 設定"
-    echo "2) 切換 SSL 開關"
-    echo "3) 重建前端 (npm run build)"
-    echo "4) 清除後端快取"
-    echo "5) 完整重建 (前端+後端快取)"
-    echo "6) 更新代碼並重建"
-    echo "7) 重啟 Apache 服務"
-    echo "8) 檢查服務狀態"
-    echo "9) 查看日誌"
-    echo "10) 恢復 Git 並更新代碼"
-    echo "11) 備份環境配置檔案"
-    echo "12) 備份整個專案"
-    echo "13) 恢復備份"
-    echo "0) 退出"
-    echo "=================================="
+    echo "============================================="
+    echo "🛠️  LINE Reservation 生產環境管理控制台"
+    echo "============================================="
+    echo ""
+    echo "📁 【環境配置管理】"
+    echo "1) 域名/IP 配置更新"
+    echo "2) SSL 證書開關切換"
+    echo ""
+    echo "🏗️ 【建置與部署管理】"
+    echo "3) 前端重新建置 (Frontend Build)"
+    echo "4) 後端快取清理 (Backend Cache)"
+    echo "5) 完整系統重建 (Full Rebuild)"
+    echo ""
+    echo "🔄 【版本控制與更新】"
+    echo "6) 代碼更新與建置"
+    echo "7) Git 倉庫恢復與同步"
+    echo ""
+    echo "⚙️ 【系統服務管理】"
+    echo "8) 重啟 Web 服務"
+    echo "9) 系統狀態監控"
+    echo "10) 日誌查看與分析"
+    echo ""
+    echo "💾 【備份與恢復管理】"
+    echo "11) 環境配置備份"
+    echo "12) 專案檔案備份"
+    echo "13) 資料庫專項備份"
+    echo "14) 完整系統備份"
+    echo "15) 備份恢復控制台"
+    echo ""
+    echo "0) 安全退出系統"
+    echo "============================================="
 }
 
 # 讀取當前設定
@@ -336,7 +663,7 @@ update_domain() {
     echo "💾 自動備份環境配置..."
     create_backup "env"
     
-    echo "🌐 更新域名/IP 設定..."
+    echo "🌐 【環境配置】域名/IP 配置更新..."
     read_current_settings
     
     echo ""
@@ -371,7 +698,7 @@ toggle_ssl() {
     echo "� 自動備份環境配置..."
     create_backup "env"
     
-    echo "�🔒 切換 SSL 設定..."
+    echo "🔒 【安全配置】SSL 證書狀態切換..."
     read_current_settings
     
     echo ""
@@ -427,7 +754,7 @@ toggle_ssl() {
 
 # 重建前端
 rebuild_frontend() {
-    echo "🏗️ 重建前端..."
+    echo "🏗️ 【前端建置】執行 Frontend 重新建置..."
     cd frontend
     
     # 確保權限正確
@@ -462,7 +789,7 @@ rebuild_frontend() {
 
 # 清除後端快取
 clear_backend_cache() {
-    echo "🧹 清除後端快取..."
+    echo "🧹 【後端維護】清理 Laravel 快取系統..."
     cd backend
     
     # 確保權限正確
@@ -495,7 +822,7 @@ clear_backend_cache() {
 
 # 完整重建
 full_rebuild() {
-    echo "🔄 執行完整重建..."
+    echo "🔄 【系統重建】執行完整系統重建流程..."
     clear_backend_cache
     rebuild_frontend
     
@@ -507,7 +834,7 @@ full_rebuild() {
 
 # 恢復 Git 並更新代碼
 restore_git_and_update() {
-    echo "� 恢復 Git 並更新代碼..."
+    echo "🔄 【版本控制】Git 倉庫恢復與代碼同步..."
     
     # 確保權限
     sudo chown -R $USER:$USER "$PROJECT_DIR"
@@ -574,7 +901,7 @@ cleanup_git_files() {
 
 # 更新代碼並重建 (原版，不使用 Git)
 update_and_rebuild() {
-    echo "📥 更新代碼並重建..."
+    echo "📥 【代碼更新】拉取最新代碼並執行重建..."
     
     if [ ! -d ".git" ]; then
         echo "❌ 沒有 Git 倉庫，請選擇選項 10 來恢復 Git"
@@ -608,7 +935,7 @@ cleanup_git_and_rebuild() {
 
 # 重啟服務
 restart_services() {
-    echo "🔄 重啟 Apache 服務..."
+    echo "⚙️ 【服務管理】重啟 Web 服務器與相關服務..."
     sudo systemctl reload apache2
     
     echo "🔄 重啟 PHP-FPM..."
@@ -619,7 +946,7 @@ restart_services() {
 
 # 檢查狀態
 check_status() {
-    echo "📊 檢查服務狀態..."
+    echo "📊 【系統監控】檢查系統與服務運行狀態..."
     
     echo ""
     echo "🌐 Apache 狀態:"
@@ -644,7 +971,7 @@ check_status() {
 
 # 查看日誌
 view_logs() {
-    echo "📋 查看日誌..."
+    echo "📋 【日誌分析】查看系統與應用日誌..."
     echo ""
     echo "選擇要查看的日誌:"
     echo "1) Apache 錯誤日誌"
@@ -683,7 +1010,7 @@ main() {
         show_menu
         read_current_settings
         echo ""
-        read -p "請選擇操作 (0-13): " CHOICE
+        read -p "請選擇操作 (0-15): " CHOICE
         
         case $CHOICE in
             1)
@@ -705,16 +1032,16 @@ main() {
                 update_and_rebuild
                 ;;
             7)
-                restart_services
+                restore_git_and_update
                 ;;
             8)
-                check_status
+                restart_services
                 ;;
             9)
-                view_logs
+                check_status
                 ;;
             10)
-                restore_git_and_update
+                view_logs
                 ;;
             11)
                 create_backup "env"
@@ -723,14 +1050,20 @@ main() {
                 create_backup "project"
                 ;;
             13)
+                create_backup "db"
+                ;;
+            14)
+                create_backup "full"
+                ;;
+            15)
                 restore_backup
                 ;;
             0)
-                echo "👋 再見！"
+                echo "👋 感謝使用！系統已安全退出"
                 exit 0
                 ;;
             *)
-                echo "❌ 無效選擇，請重試"
+                echo "❌ 無效選擇，請輸入 0-15 之間的數字"
                 ;;
         esac
         
