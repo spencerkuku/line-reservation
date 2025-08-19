@@ -14,6 +14,252 @@ fi
 PROJECT_DIR="/var/www/line-reservation"
 USER_HOME=$(eval echo "~$USER")
 
+# 安全權限設置函數
+set_secure_permissions() {
+    echo "🔧 設置安全權限..."
+    
+    # 設置基本擁有者權限
+    sudo chown -R www-data:www-data "$PROJECT_DIR"
+    
+    # 設置目錄權限 (755 - 僅擁有者可寫入)
+    find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
+    
+    # 設置一般檔案權限 (644 - 僅擁有者可寫入，無執行權限)
+    find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
+    
+    # 設置 Laravel 必要的寫入權限目錄 (限制為 755，不使用 775)
+    sudo chmod -R 755 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    
+    # 嚴格保護敏感配置檔案 (600 - 僅擁有者可讀寫)
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example" 2>/dev/null || true
+    
+    # 確保 artisan 有執行權限 (Laravel CLI 需要)
+    sudo chmod 755 "$PROJECT_DIR/backend/artisan"
+    
+    # 移除常見檔案類型的不必要執行權限
+    find "$PROJECT_DIR" -type f \( -name "*.php" -o -name "*.js" -o -name "*.vue" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.md" -o -name "*.txt" -o -name "*.log" \) -exec sudo chmod 644 {} \;
+    
+    echo "✅ 安全權限設置完成"
+}
+
+# 創建備份函數
+create_backup() {
+    local backup_type="$1"
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local backup_dir="$USER_HOME/line-reservation-backups/project-backups"
+    local backup_name="${backup_type}_backup_${timestamp}"
+    local backup_path="$backup_dir/$backup_name"
+    
+    echo "💾 創建 $backup_type 備份..."
+    
+    # 確保備份目錄存在
+    mkdir -p "$backup_dir"
+    chmod 700 "$backup_dir"  # 僅擁有者可存取
+    
+    case $backup_type in
+        "env")
+            echo "📄 備份環境配置檔案..."
+            mkdir -p "$backup_path"
+            
+            # 備份前端 .env
+            if [ -f "$PROJECT_DIR/frontend/.env" ]; then
+                cp "$PROJECT_DIR/frontend/.env" "$backup_path/frontend.env"
+                echo "✅ 前端 .env 已備份"
+            fi
+            
+            # 備份後端 .env
+            if [ -f "$PROJECT_DIR/backend/.env" ]; then
+                cp "$PROJECT_DIR/backend/.env" "$backup_path/backend.env"
+                echo "✅ 後端 .env 已備份"
+            fi
+            
+            # 備份資料庫憑證
+            if [ -f "$PROJECT_DIR/db_credentials.txt" ]; then
+                cp "$PROJECT_DIR/db_credentials.txt" "$backup_path/db_credentials.txt"
+                echo "✅ 資料庫憑證已備份"
+            fi
+            
+            chmod 600 "$backup_path"/* 2>/dev/null || true
+            ;;
+            
+        "project")
+            echo "📁 備份整個專案..."
+            
+            # 排除不必要的目錄和檔案
+            tar --exclude="$PROJECT_DIR/backend/vendor" \
+                --exclude="$PROJECT_DIR/backend/storage/logs/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/cache/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/sessions/*" \
+                --exclude="$PROJECT_DIR/backend/storage/framework/views/*" \
+                --exclude="$PROJECT_DIR/frontend/node_modules" \
+                --exclude="$PROJECT_DIR/frontend/dist" \
+                --exclude="$PROJECT_DIR/.git" \
+                -czf "$backup_path.tar.gz" \
+                -C "$(dirname "$PROJECT_DIR")" \
+                "$(basename "$PROJECT_DIR")" 2>/dev/null
+                
+            echo "✅ 專案備份已保存到: $backup_path.tar.gz"
+            ;;
+    esac
+    
+    chmod 600 "$backup_path"* 2>/dev/null || true
+    echo "📍 備份位置: $backup_path"
+    echo "📅 備份時間: $(date)"
+    
+    # 清理超過 30 天的舊備份
+    find "$backup_dir" -name "*_backup_*" -mtime +30 -delete 2>/dev/null || true
+    
+    return 0
+}
+
+# 恢復備份函數
+restore_backup() {
+    local backup_dir="$USER_HOME/line-reservation-backups/project-backups"
+    
+    if [ ! -d "$backup_dir" ]; then
+        echo "❌ 找不到備份目錄: $backup_dir"
+        return 1
+    fi
+    
+    echo "📋 可用的備份:"
+    local backups=($(find "$backup_dir" -name "*_backup_*" -type f -o -type d | sort -r))
+    
+    if [ ${#backups[@]} -eq 0 ]; then
+        echo "❌ 找不到任何備份檔案"
+        return 1
+    fi
+    
+    local i=1
+    for backup in "${backups[@]}"; do
+        local backup_name=$(basename "$backup")
+        local backup_date=$(echo "$backup_name" | grep -o '[0-9]\{8\}_[0-9]\{6\}' || echo "未知")
+        echo "$i) $backup_name (建立於: $backup_date)"
+        ((i++))
+    done
+    
+    echo ""
+    read -p "請選擇要恢復的備份 (1-${#backups[@]}): " backup_choice
+    
+    if [[ ! "$backup_choice" =~ ^[0-9]+$ ]] || [ "$backup_choice" -lt 1 ] || [ "$backup_choice" -gt ${#backups[@]} ]; then
+        echo "❌ 無效的選擇"
+        return 1
+    fi
+    
+    local selected_backup="${backups[$((backup_choice-1))]}"
+    echo "📥 恢復備份: $(basename "$selected_backup")"
+    
+    if [[ "$selected_backup" == *"env_backup"* ]]; then
+        # 恢復環境檔案
+        if [ -f "$selected_backup/frontend.env" ]; then
+            cp "$selected_backup/frontend.env" "$PROJECT_DIR/frontend/.env"
+            chmod 600 "$PROJECT_DIR/frontend/.env"
+            echo "✅ 前端 .env 已恢復"
+        fi
+        
+        if [ -f "$selected_backup/backend.env" ]; then
+            cp "$selected_backup/backend.env" "$PROJECT_DIR/backend/.env"
+            chmod 600 "$PROJECT_DIR/backend/.env"
+            echo "✅ 後端 .env 已恢復"
+        fi
+        
+        if [ -f "$selected_backup/db_credentials.txt" ]; then
+            cp "$selected_backup/db_credentials.txt" "$PROJECT_DIR/db_credentials.txt"
+            chmod 600 "$PROJECT_DIR/db_credentials.txt"
+            echo "✅ 資料庫憑證已恢復"
+        fi
+    elif [[ "$selected_backup" == *".tar.gz" ]]; then
+        # 恢復整個專案
+        echo "⚠️ 警告：這將覆蓋整個專案目錄！"
+        read -p "確定要繼續嗎? (y/N): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            # 先備份當前狀態
+            create_backup "project"
+            
+            # 解壓縮備份
+            tar -xzf "$selected_backup" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null
+            echo "✅ 專案已從備份恢復"
+            
+            # 重新設置權限
+            set_secure_permissions
+        else
+            echo "❌ 取消恢復操作"
+            return 1
+        fi
+    fi
+    
+    echo "✅ 備份恢復完成"
+}
+
+# 智能 Git 清理函數
+smart_git_cleanup() {
+    echo "🗑️ 智能 Git 清理..."
+    
+    # 檢查是否為多人開發環境
+    local is_multi_dev=false
+    
+    # 檢查 .gitignore 是否有重要內容
+    if [ -f ".gitignore" ]; then
+        local gitignore_size=$(wc -l < .gitignore)
+        if [ "$gitignore_size" -gt 10 ]; then
+            echo "📋 發現詳細的 .gitignore 檔案 ($gitignore_size 行)"
+            is_multi_dev=true
+        fi
+    fi
+    
+    # 檢查是否有多個遠端分支
+    if [ -d ".git" ]; then
+        local remote_branches=$(git branch -r 2>/dev/null | wc -l)
+        if [ "$remote_branches" -gt 2 ]; then
+            echo "🌿 發現多個遠端分支 ($remote_branches 個)"
+            is_multi_dev=true
+        fi
+    fi
+    
+    if [ "$is_multi_dev" = true ]; then
+        echo "⚠️ 檢測到可能的多人開發環境"
+        echo "建議保留以下檔案以供未來開發使用："
+        echo "  - .gitignore (忽略規則)"
+        echo "  - .gitattributes (檔案屬性)"
+        echo ""
+        read -p "是否要保留 Git 配置檔案? (Y/n): " keep_git_config
+        
+        if [[ ! "$keep_git_config" =~ ^[Nn]$ ]]; then
+            # 僅刪除 .git 目錄，保留配置檔案
+            if [ -d ".git" ]; then
+                rm -rf .git
+                echo "✅ .git 目錄已刪除（保留配置檔案）"
+            fi
+            
+            echo "ℹ️ 已保留 .gitignore 和 .gitattributes 供未來使用"
+            return 0
+        fi
+    fi
+    
+    # 完全清理 Git 相關檔案
+    echo "🧹 完全清理 Git 相關檔案..."
+    
+    if [ -d ".git" ]; then
+        rm -rf .git
+        echo "✅ .git 目錄已刪除"
+    fi
+    
+    if [ -f ".gitignore" ]; then
+        rm -f .gitignore
+        echo "✅ .gitignore 檔案已刪除"
+    fi
+    
+    if [ -f ".gitattributes" ]; then
+        rm -f .gitattributes
+        echo "✅ .gitattributes 檔案已刪除"
+    fi
+    
+    # 清理其他 Git 相關檔案
+    find . -name ".git*" -type f -delete 2>/dev/null || true
+    
+    echo "✅ Git 完全清理完成"
+}
+
 # 檢查專案目錄是否存在
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "❌ 專案目錄不存在: $PROJECT_DIR"
@@ -43,6 +289,9 @@ show_menu() {
     echo "8) 檢查服務狀態"
     echo "9) 查看日誌"
     echo "10) 恢復 Git 並更新代碼"
+    echo "11) 備份環境配置檔案"
+    echo "12) 備份整個專案"
+    echo "13) 恢復備份"
     echo "0) 退出"
     echo "=================================="
 }
@@ -84,6 +333,9 @@ update_env_var() {
 
 # 更新域名/IP
 update_domain() {
+    echo "💾 自動備份環境配置..."
+    create_backup "env"
+    
     echo "🌐 更新域名/IP 設定..."
     read_current_settings
     
@@ -116,7 +368,10 @@ update_domain() {
 
 # 切換 SSL
 toggle_ssl() {
-    echo "🔒 切換 SSL 設定..."
+    echo "� 自動備份環境配置..."
+    create_backup "env"
+    
+    echo "�🔒 切換 SSL 設定..."
     read_current_settings
     
     echo ""
@@ -194,7 +449,12 @@ rebuild_frontend() {
     npm run build
     
     echo "🔧 設定權限..."
+    # 設置基本擁有者權限
     sudo chown -R www-data:www-data dist
+    
+    # 移除不必要的執行權限，僅保留讀取權限
+    find dist -type f -exec sudo chmod 644 {} \;
+    find dist -type d -exec sudo chmod 755 {} \;
     
     cd ..
     echo "✅ 前端重建完成"
@@ -223,8 +483,11 @@ clear_backend_cache() {
     php artisan cache:clear
     
     echo "🔧 設定權限..."
+    # 設置基本擁有者權限
     sudo chown -R www-data:www-data storage bootstrap/cache
-    sudo chmod -R 775 storage bootstrap/cache
+    
+    # 設置寫入權限但限制為 755，不使用 775
+    sudo chmod -R 755 storage bootstrap/cache
     
     cd ..
     echo "✅ 後端快取清除完成"
@@ -237,10 +500,7 @@ full_rebuild() {
     rebuild_frontend
     
     echo "🔧 最終權限設定..."
-    sudo chown -R www-data:www-data "$PROJECT_DIR"
-    find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
-    find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
-    sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    set_secure_permissions
     
     echo "✅ 完整重建完成"
 }
@@ -309,27 +569,7 @@ restore_git_and_update() {
 
 # 清理 Git 檔案
 cleanup_git_files() {
-    echo "🗑️ 清理 Git 相關檔案..."
-    
-    if [ -d ".git" ]; then
-        rm -rf .git
-        echo "✅ .git 目錄已刪除"
-    fi
-    
-    if [ -f ".gitignore" ]; then
-        rm -f .gitignore
-        echo "✅ .gitignore 檔案已刪除"
-    fi
-    
-    if [ -f ".gitattributes" ]; then
-        rm -f .gitattributes
-        echo "✅ .gitattributes 檔案已刪除"
-    fi
-    
-    # 清理可能的 Git 相關檔案
-    find . -name ".git*" -type f -delete 2>/dev/null || true
-    
-    echo "✅ Git 相關檔案清理完成"
+    smart_git_cleanup
 }
 
 # 更新代碼並重建 (原版，不使用 Git)
@@ -358,10 +598,7 @@ cleanup_git_and_rebuild() {
     rebuild_frontend
     
     echo "🔧 最終權限設定..."
-    sudo chown -R www-data:www-data "$PROJECT_DIR"
-    find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
-    find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
-    sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    set_secure_permissions
     
     echo "🗑️ 清理 Git 資料..."
     cleanup_git_files
@@ -446,7 +683,7 @@ main() {
         show_menu
         read_current_settings
         echo ""
-        read -p "請選擇操作 (0-10): " CHOICE
+        read -p "請選擇操作 (0-13): " CHOICE
         
         case $CHOICE in
             1)
@@ -478,6 +715,15 @@ main() {
                 ;;
             10)
                 restore_git_and_update
+                ;;
+            11)
+                create_backup "env"
+                ;;
+            12)
+                create_backup "project"
+                ;;
+            13)
+                restore_backup
                 ;;
             0)
                 echo "👋 再見！"

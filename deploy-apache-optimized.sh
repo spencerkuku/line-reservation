@@ -14,6 +14,41 @@ fi
 PROJECT_DIR="/var/www/line-reservation"
 USER_HOME=$(eval echo "~$USER")
 
+# 安全權限設置函數
+set_secure_permissions() {
+    echo "🔧 設置生產環境安全權限..."
+    
+    # 設置基本擁有者權限
+    sudo chown -R www-data:www-data "$PROJECT_DIR"
+    
+    # 設置目錄權限 (755 - 僅擁有者可寫入)
+    find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
+    
+    # 設置一般檔案權限 (644 - 僅擁有者可寫入，無執行權限)
+    find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
+    
+    # 設置 Laravel 必要的寫入權限目錄 (限制為 755，不使用 775)
+    sudo chmod -R 755 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    sudo chown -R www-data:www-data "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    sudo chmod -R g+s "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
+    
+    # 嚴格保護敏感配置檔案 (600 - 僅擁有者可讀寫)
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env"
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example"
+    sudo chmod 600 "$PROJECT_DIR/db_credentials.txt" 2>/dev/null || true
+    
+    # 確保 artisan 有執行權限 (Laravel CLI 需要)
+    sudo chmod 755 "$PROJECT_DIR/backend/artisan"
+    
+    # 移除常見檔案類型的不必要執行權限
+    find "$PROJECT_DIR" -type f \( -name "*.php" -o -name "*.js" -o -name "*.vue" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.md" -o -name "*.txt" -o -name "*.log" \) -exec sudo chmod 644 {} \;
+    
+    # 保護配置檔案
+    find "$PROJECT_DIR" -type f \( -name "composer.json" -o -name "composer.lock" -o -name "package.json" -o -name "package-lock.json" \) -exec sudo chmod 644 {} \;
+    
+    echo "✅ 生產環境安全權限設置完成"
+}
+
 # 自動偵測 IP
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
@@ -283,13 +318,7 @@ fi
 sudo -u $USER npm run build
 
 echo "🔧 調整權限..."
-sudo chown -R www-data:www-data "$PROJECT_DIR"
-find "$PROJECT_DIR" -type d -exec sudo chmod 755 {} \;
-find "$PROJECT_DIR" -type f -exec sudo chmod 644 {} \;
-
-sudo chmod -R 775 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
-sudo chmod -R g+s "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
-sudo chmod -R 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example"
+set_secure_permissions
 
 echo "🖥️ 設定 Apache 虛擬主機..."
 
@@ -454,8 +483,9 @@ SCRIPTS_DIR="$BACKUP_BASE_DIR/scripts"
 
 echo "📁 建立備份目錄結構..."
 mkdir -p "$DB_BACKUP_DIR" "$LOG_DIR" "$SCRIPTS_DIR"
+# 設置嚴格的備份目錄權限 (僅擁有者可存取)
 chown -R $USER:$USER "$BACKUP_BASE_DIR"
-chmod -R 755 "$BACKUP_BASE_DIR"
+chmod -R 700 "$BACKUP_BASE_DIR"  # 700 而非 755，更安全
 
 # 建立備份配置文件
 BACKUP_CONFIG="$SCRIPTS_DIR/backup.conf"
@@ -475,10 +505,18 @@ TIMESTAMP_FORMAT="%Y%m%d_%H%M%S"
 # 壓縮設置
 USE_COMPRESSION=true
 COMPRESSION_LEVEL=6
+
+# 專案備份設置
+PROJECT_BACKUP_DIR="$BACKUP_BASE_DIR/project-backups"
+PROJECT_BACKUP_RETENTION_DAYS=14
 EOF
 
 chown $USER:$USER "$BACKUP_CONFIG"
-chmod 600 "$BACKUP_CONFIG"
+chmod 600 "$BACKUP_CONFIG"  # 嚴格保護備份配置檔案
+
+# 建立專案備份目錄
+mkdir -p "$BACKUP_BASE_DIR/project-backups"
+chmod 700 "$BACKUP_BASE_DIR/project-backups"
 
 # 建立主要備份腳本
 BACKUP_SCRIPT="$SCRIPTS_DIR/database_backup.sh"
@@ -682,8 +720,8 @@ main() {
 main "$@"
 BACKUP_SCRIPT_EOF
 
-# 設定腳本權限
-chmod +x "$BACKUP_SCRIPT"
+# 設定腳本權限 (僅擁有者可執行)
+chmod 700 "$BACKUP_SCRIPT"  # 700 而非 755，更安全
 chown $USER:$USER "$BACKUP_SCRIPT"
 
 # 建立手動備份腳本
@@ -710,7 +748,7 @@ else
 fi
 MANUAL_SCRIPT_EOF
 
-chmod +x "$MANUAL_BACKUP_SCRIPT"
+chmod 700 "$MANUAL_BACKUP_SCRIPT"  # 700 而非 755，更安全
 chown $USER:$USER "$MANUAL_BACKUP_SCRIPT"
 
 # 建立備份狀態檢查腳本
@@ -768,8 +806,133 @@ fi
 echo "============================================"
 STATUS_SCRIPT_EOF
 
-chmod +x "$STATUS_SCRIPT"
+chmod 700 "$STATUS_SCRIPT"  # 700 而非 755，更安全
 chown $USER:$USER "$STATUS_SCRIPT"
+
+# 建立專案備份腳本
+PROJECT_BACKUP_SCRIPT="$SCRIPTS_DIR/project_backup.sh"
+cat > "$PROJECT_BACKUP_SCRIPT" <<'PROJECT_BACKUP_SCRIPT_EOF'
+#!/bin/bash
+
+# LINE Reservation 專案備份腳本
+# 用於備份整個專案或環境配置
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/backup.conf"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "❌ 找不到配置文件: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+source "$CONFIG_FILE"
+
+PROJECT_DIR="/var/www/line-reservation"
+PROJECT_BACKUP_DIR="${PROJECT_BACKUP_DIR:-$BACKUP_BASE_DIR/project-backups}"
+
+log() {
+    local level="$1"
+    shift
+    local message="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_DIR/project_backup.log"
+}
+
+backup_env() {
+    local timestamp=$(date +"$TIMESTAMP_FORMAT")
+    local backup_name="env_backup_${timestamp}"
+    local backup_path="$PROJECT_BACKUP_DIR/$backup_name"
+    
+    log "INFO" "開始備份環境配置檔案..."
+    
+    mkdir -p "$backup_path"
+    chmod 700 "$backup_path"
+    
+    # 備份環境檔案
+    [ -f "$PROJECT_DIR/frontend/.env" ] && cp "$PROJECT_DIR/frontend/.env" "$backup_path/frontend.env"
+    [ -f "$PROJECT_DIR/backend/.env" ] && cp "$PROJECT_DIR/backend/.env" "$backup_path/backend.env"
+    [ -f "$PROJECT_DIR/db_credentials.txt" ] && cp "$PROJECT_DIR/db_credentials.txt" "$backup_path/db_credentials.txt"
+    
+    chmod 600 "$backup_path"/* 2>/dev/null || true
+    
+    log "INFO" "環境配置備份完成: $backup_path"
+    echo "$backup_path"
+}
+
+backup_project() {
+    local timestamp=$(date +"$TIMESTAMP_FORMAT")
+    local backup_name="project_backup_${timestamp}.tar.gz"
+    local backup_path="$PROJECT_BACKUP_DIR/$backup_name"
+    
+    log "INFO" "開始備份整個專案..."
+    
+    mkdir -p "$PROJECT_BACKUP_DIR"
+    chmod 700 "$PROJECT_BACKUP_DIR"
+    
+    # 創建專案備份，排除不必要的檔案
+    tar --exclude="$PROJECT_DIR/backend/vendor" \
+        --exclude="$PROJECT_DIR/backend/storage/logs/*" \
+        --exclude="$PROJECT_DIR/backend/storage/framework/cache/*" \
+        --exclude="$PROJECT_DIR/backend/storage/framework/sessions/*" \
+        --exclude="$PROJECT_DIR/backend/storage/framework/views/*" \
+        --exclude="$PROJECT_DIR/frontend/node_modules" \
+        --exclude="$PROJECT_DIR/frontend/dist" \
+        --exclude="$PROJECT_DIR/.git" \
+        -czf "$backup_path" \
+        -C "$(dirname "$PROJECT_DIR")" \
+        "$(basename "$PROJECT_DIR")" 2>/dev/null
+    
+    chmod 600 "$backup_path"
+    
+    local file_size=$(du -h "$backup_path" | cut -f1)
+    log "INFO" "專案備份完成: $backup_path (大小: $file_size)"
+    echo "$backup_path"
+}
+
+cleanup_old_backups() {
+    local retention_days="${PROJECT_BACKUP_RETENTION_DAYS:-14}"
+    
+    log "INFO" "清理 $retention_days 天前的舊專案備份..."
+    
+    local deleted_count=0
+    while IFS= read -r -d '' file; do
+        rm -f "$file"
+        ((deleted_count++))
+        log "INFO" "已刪除舊備份: $(basename "$file")"
+    done < <(find "$PROJECT_BACKUP_DIR" -name "*_backup_*" -mtime +$retention_days -print0 2>/dev/null)
+    
+    if [[ $deleted_count -eq 0 ]]; then
+        log "INFO" "沒有需要清理的舊備份"
+    else
+        log "INFO" "共清理了 $deleted_count 個舊備份檔案"
+    fi
+}
+
+case "${1:-help}" in
+    env)
+        backup_env
+        ;;
+    project)
+        backup_project
+        cleanup_old_backups
+        ;;
+    cleanup)
+        cleanup_old_backups
+        ;;
+    *)
+        echo "用法: $0 {env|project|cleanup}"
+        echo "  env     - 備份環境配置檔案"
+        echo "  project - 備份整個專案"
+        echo "  cleanup - 清理舊備份"
+        exit 1
+        ;;
+esac
+PROJECT_BACKUP_SCRIPT_EOF
+
+chmod 700 "$PROJECT_BACKUP_SCRIPT"
+chown $USER:$USER "$PROJECT_BACKUP_SCRIPT"
 
 # 設定自動備份排程
 echo "⏰ 設定自動備份排程..."
@@ -783,14 +946,18 @@ sudo -u $USER crontab -l 2>/dev/null | grep -v "backup" | sudo -u $USER crontab 
 echo "✅ 資料庫備份系統設置完成！"
 echo ""
 echo "📋 備份系統資訊:"
-echo "  📁 備份目錄: $DB_BACKUP_DIR"
+echo "  📁 資料庫備份目錄: $DB_BACKUP_DIR"
+echo "  📁 專案備份目錄: $BACKUP_BASE_DIR/project-backups"
 echo "  📄 日誌目錄: $LOG_DIR"
 echo "  🔧 腳本目錄: $SCRIPTS_DIR"
 echo "  ⏰ 自動備份時間: 每日凌晨 2:30"
-echo "  🗂️ 備份保留天數: 30 天"
+echo "  🗂️ 資料庫備份保留: 30 天"
+echo "  🗂️ 專案備份保留: 14 天"
 echo ""
 echo "📝 可用命令:"
-echo "  手動備份: $MANUAL_BACKUP_SCRIPT"
+echo "  資料庫備份: $MANUAL_BACKUP_SCRIPT"
+echo "  專案環境備份: $PROJECT_BACKUP_SCRIPT env"
+echo "  完整專案備份: $PROJECT_BACKUP_SCRIPT project"
 echo "  檢查狀態: $STATUS_SCRIPT"
 echo "  查看日誌: tail -f $LOG_DIR/backup.log"
 echo ""
@@ -803,6 +970,23 @@ else
     echo "⚠️ 測試備份失敗，請檢查配置"
 fi
 
+# 創建初始專案環境配置備份
+echo "💾 創建初始環境配置備份..."
+INITIAL_BACKUP_DIR="$BACKUP_BASE_DIR/project-backups/initial_env_backup_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$INITIAL_BACKUP_DIR"
+chmod 700 "$INITIAL_BACKUP_DIR"
+
+# 備份環境檔案
+cp "$PROJECT_DIR/frontend/.env" "$INITIAL_BACKUP_DIR/frontend.env" 2>/dev/null || true
+cp "$PROJECT_DIR/backend/.env" "$INITIAL_BACKUP_DIR/backend.env" 2>/dev/null || true
+cp "$PROJECT_DIR/db_credentials.txt" "$INITIAL_BACKUP_DIR/db_credentials.txt" 2>/dev/null || true
+
+# 設置備份檔案權限
+chmod 600 "$INITIAL_BACKUP_DIR"/* 2>/dev/null || true
+chown -R $USER:$USER "$INITIAL_BACKUP_DIR"
+
+echo "✅ 初始環境配置備份已創建: $INITIAL_BACKUP_DIR"
+
 echo "🔧 重啟 Apache..."
 sudo systemctl reload apache2
 
@@ -813,22 +997,117 @@ sudo ufw --force enable
 
 echo "🗑️ 清理 Git 資料..."
 cd "$PROJECT_DIR"
-if [ -d ".git" ]; then
-    sudo rm -rf .git
-    echo "✅ Git 資料已清理完成"
-else
-    echo "ℹ️ 未找到 .git 目錄"
+
+# 智能 Git 清理 - 檢查是否為多人開發環境
+echo "🔍 檢查開發環境類型..."
+
+is_multi_dev=false
+
+# 檢查 .gitignore 是否有重要內容
+if [ -f ".gitignore" ]; then
+    gitignore_size=$(wc -l < .gitignore)
+    if [ "$gitignore_size" -gt 10 ]; then
+        echo "📋 發現詳細的 .gitignore 檔案 ($gitignore_size 行)"
+        is_multi_dev=true
+    fi
 fi
 
-echo "✅ 部署完成！"
-echo "網站應該已可透過 ${PROTOCOL}://$DOMAIN 訪問。"
-echo "MySQL 資料庫憑證已存於 $CRED_FILE"
-if [ "$USE_SSL" = true ]; then
-    echo "🔒 SSL 已啟用，網站使用 HTTPS 加密連線"
-    echo "HTTP 流量將自動重定向到 HTTPS"
-else
-    echo "🌐 使用 IP 訪問，未啟用 SSL"
+# 檢查是否有多個遠端分支
+if [ -d ".git" ]; then
+    remote_branches=$(git branch -r 2>/dev/null | wc -l)
+    if [ "$remote_branches" -gt 2 ]; then
+        echo "🌿 發現多個遠端分支 ($remote_branches 個)"
+        is_multi_dev=true
+    fi
 fi
-echo "請確保 DNS 已指向此伺服器 IP 或直接使用 IP 訪問。"
+
+if [ "$is_multi_dev" = true ]; then
+    echo "⚠️ 檢測到可能的多人開發環境"
+    echo "建議保留以下檔案以供未來開發使用："
+    echo "  - .gitignore (忽略規則)"
+    echo "  - .gitattributes (檔案屬性)"
+    echo ""
+    read -p "是否要保留 Git 配置檔案? (Y/n): " keep_git_config
+    
+    if [[ ! "$keep_git_config" =~ ^[Nn]$ ]]; then
+        # 僅刪除 .git 目錄，保留配置檔案
+        if [ -d ".git" ]; then
+            sudo rm -rf .git
+            echo "✅ .git 目錄已刪除（保留配置檔案）"
+        fi
+        
+        echo "ℹ️ 已保留 .gitignore 和 .gitattributes 供未來使用"
+    else
+        # 完全清理
+        echo "🧹 完全清理 Git 相關檔案..."
+        if [ -d ".git" ]; then
+            sudo rm -rf .git
+            echo "✅ .git 目錄已刪除"
+        fi
+        
+        if [ -f ".gitignore" ]; then
+            sudo rm -f .gitignore
+            echo "✅ .gitignore 檔案已刪除"
+        fi
+        
+        if [ -f ".gitattributes" ]; then
+            sudo rm -f .gitattributes
+            echo "✅ .gitattributes 檔案已刪除"
+        fi
+        
+        # 清理其他 Git 相關檔案
+        find . -name ".git*" -type f -delete 2>/dev/null || true
+    fi
+else
+    echo "🏠 檢測到單人生產環境，執行完全清理..."
+    if [ -d ".git" ]; then
+        sudo rm -rf .git
+        echo "✅ .git 目錄已刪除"
+    fi
+    
+    if [ -f ".gitignore" ]; then
+        sudo rm -f .gitignore
+        echo "✅ .gitignore 檔案已刪除"
+    fi
+    
+    if [ -f ".gitattributes" ]; then
+        sudo rm -f .gitattributes
+        echo "✅ .gitattributes 檔案已刪除"
+    fi
+    
+    # 清理其他 Git 相關檔案
+    find . -name ".git*" -type f -delete 2>/dev/null || true
+fi
+
+echo "✅ Git 資料清理完成"
+
+echo "✅ 部署完成！"
+echo ""
+echo "🌐 網站訪問:"
+echo "   網站應該已可透過 ${PROTOCOL}://$DOMAIN 訪問"
+if [ "$USE_SSL" = true ]; then
+    echo "   🔒 SSL 已啟用，網站使用 HTTPS 加密連線"
+    echo "   HTTP 流量將自動重定向到 HTTPS"
+else
+    echo "   🌐 使用 IP 訪問，未啟用 SSL"
+fi
+echo "   請確保 DNS 已指向此伺服器 IP 或直接使用 IP 訪問"
+echo ""
+echo "🔑 重要檔案位置:"
+echo "   MySQL 資料庫憑證: $CRED_FILE"
+echo "   初始環境備份: $INITIAL_BACKUP_DIR"
+echo "   專案目錄: $PROJECT_DIR"
+echo ""
+echo "🛠️ 管理工具:"
+echo "   快速更新工具: $(dirname "$PROJECT_DIR")/quick-update.sh"
+echo "   資料庫備份: $MANUAL_BACKUP_SCRIPT"
+echo "   專案備份: $PROJECT_BACKUP_SCRIPT env|project"
+echo "   備份狀態檢查: $STATUS_SCRIPT"
+echo ""
+echo "⚠️ 安全建議:"
+echo "   1. 定期檢查備份狀態"
+echo "   2. 變更配置前先執行備份"
+echo "   3. 保護好資料庫憑證檔案"
+echo "   4. 定期更新系統套件"
 
 exit 0
