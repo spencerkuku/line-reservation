@@ -231,6 +231,28 @@ onMounted(async () => {
       }
     }
   }
+  
+  // 監聽 localStorage 變化以即時更新用戶資料
+  const handleStorageChange = () => {
+    const userData = localStorage.getItem('user')
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData)
+        user.value.name = parsedUser.name || 'User'
+        user.value.email = parsedUser.email || ''
+        user.value.role = parsedUser.role || 'user'
+        user.value.avatar = parsedUser.avatar || null
+      } catch (e) {
+        console.error('Failed to parse user data:', e)
+      }
+    }
+  }
+  
+  // 監聽 storage 事件（跨標籤頁變化）
+  window.addEventListener('storage', handleStorageChange)
+  
+  // 監聽自定義事件（同標籤頁內變化）
+  window.addEventListener('userDataUpdated', handleStorageChange)
 })
 
 // 監聽路由變化，在每次導航時驗證 token

@@ -80,7 +80,7 @@
               </div>
             </div>
 
-            <!-- 保存按鈕 -->
+            <!-- 儲存按鈕 -->
             <div class="flex justify-end pt-4">
               <button
                 type="submit"
@@ -91,7 +91,7 @@
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {{ profileLoading ? '保存中...' : '保存更改' }}
+                {{ profileLoading ? '儲存中...' : '儲存更改' }}
               </button>
             </div>
           </form>
@@ -173,7 +173,7 @@
               </p>
             </div>
 
-            <!-- 保存按鈕 -->
+            <!-- 儲存按鈕 -->
             <div class="flex justify-end pt-4">
               <button
                 type="submit"
@@ -354,6 +354,7 @@ const handleImageError = (event) => {
 const updateProfile = async () => {
   profileLoading.value = true
   try {
+    let response;
     if (profileForm.value.avatarFile) {
       // 如果有上傳新頭像，使用 FormData
       const formData = new FormData()
@@ -361,13 +362,20 @@ const updateProfile = async () => {
       formData.append('email', profileForm.value.email)
       formData.append('avatar', profileForm.value.avatarFile)
       
-      await apiUpload('/auth/profile', formData, 'POST')
+      response = await apiUpload('/auth/profile', formData, 'POST')
     } else {
       // 只更新基本資料
-      await apiPost('/auth/profile', {
+      response = await apiPost('/auth/profile', {
         name: profileForm.value.name,
         email: profileForm.value.email
       })
+    }
+    
+    // 更新 localStorage 中的用戶資料
+    if (response && response.user) {
+      localStorage.setItem('user', JSON.stringify(response.user))
+      // 觸發自定義事件通知其他組件更新
+      window.dispatchEvent(new Event('userDataUpdated'))
     }
     
     showMessage('個人資料更新成功')
