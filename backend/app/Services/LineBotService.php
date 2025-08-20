@@ -54,7 +54,7 @@ class LineBotService
      */
     private function getReservationConfirmMode()
     {
-        return Setting::get('reservation_confirm_mode', 'manual');
+        return Setting::get('reservation_confirm_mode', 'auto');
     }
 
     public function handleWebhook($events)

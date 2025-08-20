@@ -68,7 +68,7 @@ class SettingController extends Controller
             ->pluck('value', 'key');
         
         // 加入預約確認模式的預設值
-        $settings['reservation_confirm_mode'] = Setting::get('reservation_confirm_mode', 'manual');
+        $settings['reservation_confirm_mode'] = Setting::get('reservation_confirm_mode', 'auto');
         
         return response()->json([
             'success' => true,

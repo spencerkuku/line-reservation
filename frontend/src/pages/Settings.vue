@@ -7,138 +7,249 @@
     </div>
 
     <!-- 設定容器 -->
-    <div class="max-w-4xl mx-auto">
-      <!-- LINE API 設定卡片 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-        <!-- 卡片標題 -->
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div class="flex items-center">
-            <div class="flex-shrink-0">
-              <svg class="h-8 w-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
-              </svg>
-            </div>
-            <div class="ml-4">
-              <h3 class="text-lg font-semibold text-gray-900">LINE Message API 設定</h3>
-              <p class="text-sm text-gray-600 mt-1">配置 LINE Bot 連接資訊</p>
+    <div class="max-w-7xl mx-auto">
+      <!-- 主要設定卡片容器 - 並排顯示 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- LINE API 設定卡片 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <!-- 卡片標題 -->
+          <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                </svg>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900">LINE Message API 設定</h3>
+                <p class="text-sm text-gray-600 mt-1">配置 LINE Bot 連接資訊</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 設定表單 -->
-        <div class="p-6">
+          <!-- 設定表單 -->
+          <div class="p-6">
 
-          <form @submit.prevent="submitToken" class="space-y-6">
-                        <!-- Channel Secret -->
-            <div>
-              <label for="LineChannelSecret" class="text-sm font-medium text-gray-700 mb-2 block">
-                Channel Secret *
-              </label>
-              <div class="relative">
-                <input
-                  id="LineChannelSecret"
-                  v-model="LineChannelSecret"
-                  type="password"
-                  :disabled="loading"
-                  placeholder="請輸入您的 Channel Secret"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
-                />
-                <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-              </div>
-              <div v-if="currentSecret" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
-                目前設定: {{ currentSecret }}
-              </div>
-              <p class="mt-1 text-xs text-gray-500">
-                用於驗證 webhook 請求的數位簽章
-              </p>
-            </div>
-
-            <!-- Channel Access Token -->
-            <div>
-              <label for="LineChannelAccessToken" class="text-sm font-medium text-gray-700 mb-2 block">
-                Channel Access Token *
-              </label>
-              <div class="relative">
-                <input
-                  id="LineChannelAccessToken"
-                  v-model="LineChannelAccessToken"
-                  type="password"
-                  :disabled="loading"
-                  placeholder="請輸入您的 Channel Access Token"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
-                />
-                <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
-                  <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </div>
-              </div>
-              <div v-if="currentAccessToken" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
-                目前設定: {{ currentAccessToken }}
-              </div>
-              <p class="mt-1 text-xs text-gray-500">
-                從 LINE Developers Console 的 Messaging API 設定中取得
-              </p>
-            </div>
-
-            <!-- 安全警告 -->
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div class="flex items-start">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <h4 class="text-sm font-semibold text-red-800">重要提醒</h4>
-                  <p class="mt-1 text-sm text-red-700">
-                    請妥善保管您的 API 憑證，切勿分享給他人或在不安全的環境中使用。
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 提交按鈕 -->
-            <div class="flex justify-end pt-4">
-              <button
-                type="submit"
-                :disabled="loading || (!LineChannelAccessToken.trim() || !LineChannelSecret.trim())"
-                class="inline-flex items-center px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-              >
-                <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {{ loading ? '儲存中...' : '儲存設定' }}
-              </button>
-            </div>
-
-            <!-- 成功/錯誤訊息 -->
-            <div v-if="successMessage" class="mt-4">
-              <div class="rounded-lg p-4" :class="successMessage.includes('失敗') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0">
-                    <svg v-if="successMessage.includes('失敗')" class="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            <form @submit.prevent="submitToken" class="space-y-6">
+                          <!-- Channel Secret -->
+              <div>
+                <label for="LineChannelSecret" class="text-sm font-medium text-gray-700 mb-2 block">
+                  Channel Secret *
+                </label>
+                <div class="relative">
+                  <input
+                    id="LineChannelSecret"
+                    v-model="LineChannelSecret"
+                    type="password"
+                    :disabled="loading"
+                    placeholder="請輸入您的 Channel Secret"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
+                  />
+                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    <svg v-else class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                  </div>
+                </div>
+                <div v-if="currentSecret" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
+                  目前設定: {{ currentSecret }}
+                </div>
+                <p class="mt-1 text-xs text-gray-500">
+                  用於驗證 webhook 請求的數位簽章
+                </p>
+              </div>
+
+              <!-- Channel Access Token -->
+              <div>
+                <label for="LineChannelAccessToken" class="text-sm font-medium text-gray-700 mb-2 block">
+                  Channel Access Token *
+                </label>
+                <div class="relative">
+                  <input
+                    id="LineChannelAccessToken"
+                    v-model="LineChannelAccessToken"
+                    type="password"
+                    :disabled="loading"
+                    placeholder="請輸入您的 Channel Access Token"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
+                  />
+                  <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </div>
+                </div>
+                <div v-if="currentAccessToken" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
+                  目前設定: {{ currentAccessToken }}
+                </div>
+                <p class="mt-1 text-xs text-gray-500">
+                  從 LINE Developers Console 的 Messaging API 設定中取得
+                </p>
+              </div>
+
+              <!-- 安全警告 -->
+              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="flex items-start">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                     </svg>
                   </div>
                   <div class="ml-3">
-                    <p class="text-sm font-medium" :class="successMessage.includes('失敗') ? 'text-red-800' : 'text-green-800'">
-                      {{ successMessage }}
+                    <h4 class="text-sm font-semibold text-red-800">重要提醒</h4>
+                    <p class="mt-1 text-sm text-red-700">
+                      請妥善保管您的 API 憑證，切勿分享給他人或在不安全的環境中使用。
                     </p>
                   </div>
                 </div>
               </div>
+
+              <!-- 提交按鈕 -->
+              <div class="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  :disabled="loading || (!LineChannelAccessToken.trim() || !LineChannelSecret.trim())"
+                  class="inline-flex items-center px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {{ loading ? '儲存中...' : '儲存設定' }}
+                </button>
+              </div>
+
+              <!-- 成功/錯誤訊息 -->
+              <div v-if="successMessage" class="mt-4">
+                <div class="rounded-lg p-4" :class="successMessage.includes('失敗') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'">
+                  <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                      <svg v-if="successMessage.includes('失敗')" class="h-5 w-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                      </svg>
+                      <svg v-else class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                    <div class="ml-3">
+                      <p class="text-sm font-medium" :class="successMessage.includes('失敗') ? 'text-red-800' : 'text-green-800'">
+                        {{ successMessage }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- 預約設定卡片 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <!-- 卡片標題 -->
+          <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900">預約管理設定</h3>
+                <p class="text-sm text-gray-600 mt-1">配置預約確認模式與相關設定</p>
+              </div>
             </div>
-          </form>
+          </div>
+
+          <!-- 預約設定表單 -->
+          <div class="p-6">
+            <form @submit.prevent="saveReservationSettings" class="space-y-6">
+              <!-- 預約確認模式 -->
+              <div>
+                <label class="text-sm font-medium text-gray-700 mb-3 block">
+                  預約確認模式
+                </label>
+                <div class="space-y-3">
+                  <div class="flex items-center">
+                    <input
+                      id="auto_confirm"
+                      v-model="reservationConfirmMode"
+                      type="radio"
+                      value="auto"
+                      :disabled="loading"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label for="auto_confirm" class="ml-3 block text-sm font-medium text-gray-700">
+                      自動確認
+                    </label>
+                  </div>
+                  <div class="ml-7 text-sm text-gray-600">
+                    LINE Bot 收到預約後立即自動確認，無需人工干預
+                  </div>
+                  
+                  <div class="flex items-center">
+                    <input
+                      id="manual_confirm"
+                      v-model="reservationConfirmMode"
+                      type="radio"
+                      value="manual"
+                      :disabled="loading"
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label for="manual_confirm" class="ml-3 block text-sm font-medium text-gray-700">
+                      手動確認
+                    </label>
+                  </div>
+                  <div class="ml-7 text-sm text-gray-600">
+                    預約提交後保持「待確認」狀態，需要管理員手動確認
+                  </div>
+                </div>
+              </div>
+
+              <!-- 設定說明 -->
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-start">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="ml-3">
+                    <h4 class="text-sm font-semibold text-blue-800">設定說明</h4>
+                    <div class="mt-1 text-sm text-blue-700">
+                      <p><strong>自動確認：</strong>適合無需審核的簡單預約服務，提升用戶體驗</p>
+                      <p class="mt-1"><strong>手動確認：</strong>適合需要人工審核或有特殊要求的預約服務</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 保存按鈕 -->
+              <div class="flex justify-end">
+                <button
+                  type="submit"
+                  :disabled="loading"
+                  class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {{ loading ? '儲存中...' : '儲存設定' }}
+                </button>
+              </div>
+            </form>
+
+            <!-- 成功訊息 -->
+            <div v-if="reservationSuccessMessage" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div class="flex items-center">
+                <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+                <span class="ml-2 text-sm font-medium text-green-800">{{ reservationSuccessMessage }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -215,114 +326,6 @@
         </div>
       </div>
 
-      <!-- 預約設定卡片 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-        <!-- 卡片標題 -->
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-          <div class="flex items-center">
-            <div class="flex-shrink-0">
-              <svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div class="ml-4">
-              <h3 class="text-lg font-semibold text-gray-900">預約管理設定</h3>
-              <p class="text-sm text-gray-600 mt-1">配置預約確認模式與相關設定</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- 預約設定表單 -->
-        <div class="p-6">
-          <form @submit.prevent="saveReservationSettings" class="space-y-6">
-            <!-- 預約確認模式 -->
-            <div>
-              <label class="text-sm font-medium text-gray-700 mb-3 block">
-                預約確認模式
-              </label>
-              <div class="space-y-3">
-                <div class="flex items-center">
-                  <input
-                    id="auto_confirm"
-                    v-model="reservationConfirmMode"
-                    type="radio"
-                    value="auto"
-                    :disabled="loading"
-                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                  />
-                  <label for="auto_confirm" class="ml-3 block text-sm font-medium text-gray-700">
-                    自動確認
-                  </label>
-                </div>
-                <div class="ml-7 text-sm text-gray-600">
-                  LINE Bot 收到預約後立即自動確認，無需人工干預
-                </div>
-                
-                <div class="flex items-center">
-                  <input
-                    id="manual_confirm"
-                    v-model="reservationConfirmMode"
-                    type="radio"
-                    value="manual"
-                    :disabled="loading"
-                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                  />
-                  <label for="manual_confirm" class="ml-3 block text-sm font-medium text-gray-700">
-                    手動確認
-                  </label>
-                </div>
-                <div class="ml-7 text-sm text-gray-600">
-                  預約提交後保持「待確認」狀態，需要管理員手動確認
-                </div>
-              </div>
-            </div>
-
-            <!-- 設定說明 -->
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div class="flex items-start">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <h4 class="text-sm font-semibold text-blue-800">設定說明</h4>
-                  <div class="mt-1 text-sm text-blue-700">
-                    <p><strong>自動確認：</strong>適合無需審核的簡單預約服務，提升用戶體驗</p>
-                    <p class="mt-1"><strong>手動確認：</strong>適合需要人工審核或有特殊要求的預約服務</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 保存按鈕 -->
-            <div class="flex justify-end">
-              <button
-                type="submit"
-                :disabled="loading"
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {{ loading ? '儲存中...' : '儲存設定' }}
-              </button>
-            </div>
-          </form>
-
-          <!-- 成功訊息 -->
-          <div v-if="reservationSuccessMessage" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div class="flex items-center">
-              <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-              </svg>
-              <span class="ml-2 text-sm font-medium text-green-800">{{ reservationSuccessMessage }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 </template>
@@ -337,7 +340,7 @@ const successMessage = ref('')
 const loading = ref(false)
 
 // 預約設定
-const reservationConfirmMode = ref('manual') // 預設為手動確認
+const reservationConfirmMode = ref('auto') // 預設為自動確認
 const reservationSuccessMessage = ref('')
 
 // 顯示後端返回的遮蔽版本
@@ -406,8 +409,8 @@ async function submitToken() {
 async function fetchReservationSettings() {
   try {
     const response = await apiGet('/settings')
-    if (response.reservation_confirm_mode) {
-      reservationConfirmMode.value = response.reservation_confirm_mode
+    if (response.success && response.data && response.data.reservation_confirm_mode) {
+      reservationConfirmMode.value = response.data.reservation_confirm_mode
     }
   } catch (err) {
     if (import.meta.env.DEV) {
