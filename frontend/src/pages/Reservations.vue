@@ -227,7 +227,20 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-10 w-10">
-                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
+                    <div v-if="record.customer?.line_picture_url" class="h-10 w-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img 
+                        :src="record.customer.line_picture_url" 
+                        :alt="record.customer?.line_display_name || record.customer?.name || record.customer_name"
+                        class="h-full w-full object-cover"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                      />
+                      <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md" style="display: none;">
+                        <span class="text-sm font-medium text-white">
+                          {{ (record.customer?.line_display_name || record.customer?.name || record.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
                       <span class="text-sm font-medium text-white">{{ (record.customer?.line_display_name || record.customer?.name || record.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
                     </div>
                   </div>
@@ -360,8 +373,23 @@
               <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">客戶資訊</h4>
               <div class="space-y-3">
                 <div class="flex items-center">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center mr-3">
-                    <span class="text-sm font-medium text-white">{{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                  <div class="flex-shrink-0 h-10 w-10 mr-3">
+                    <div v-if="selectedRecord.customer?.line_picture_url" class="h-10 w-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img 
+                        :src="selectedRecord.customer.line_picture_url" 
+                        :alt="selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name"
+                        class="h-full w-full object-cover"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                      />
+                      <div class="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center" style="display: none;">
+                        <span class="text-sm font-medium text-white">
+                          {{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center">
+                      <span class="text-sm font-medium text-white">{{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                    </div>
                   </div>
                   <div>
                     <p class="text-sm font-medium text-gray-900">
@@ -448,28 +476,17 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { apiGet, apiPut } from '../utils/api.js'
-
-// 路由
-const router = useRouter()
 
 // 響應式數據
 const search = ref('')
 const statusFilter = ref('')
 const dateFilter = ref('')
 const records = ref([])
-const reservations = computed(() => {
-  // 確保返回數組
-  return Array.isArray(records.value) ? records.value : []
-})
+const reservations = computed(() => records.value)
 const loading = ref(false)
 const error = ref('')
 const currentPage = ref(1)
-
-// 確認模式相關
-const autoConfirmEnabled = ref(false)
-const loadingSettings = ref(false)
 
 // 自動刷新相關
 const autoRefreshEnabled = ref(true)
@@ -513,8 +530,6 @@ const selectedRecord = ref(null)
 
 // 統計數據
 const todayReservations = computed(() => {
-  if (!Array.isArray(records.value)) return 0
-  
   const today = new Date().toISOString().split('T')[0]
   return records.value.filter(record => {
     const recordDate = record.reservation_date || record.time
@@ -523,23 +538,15 @@ const todayReservations = computed(() => {
 })
 
 const pendingReservations = computed(() => {
-  if (!Array.isArray(records.value)) return 0
   return records.value.filter(record => record.status === 'pending').length
 })
 
 const confirmedReservations = computed(() => {
-  if (!Array.isArray(records.value)) return 0
   return records.value.filter(record => record.status === 'confirmed').length
 })
 
 // 篩選邏輯
 const filteredRecords = computed(() => {
-  // 確保 records.value 是數組
-  if (!Array.isArray(records.value)) {
-    console.warn('Records is not an array:', records.value)
-    return []
-  }
-  
   let filtered = records.value
 
   // 搜尋篩選
@@ -596,27 +603,6 @@ const filteredRecords = computed(() => {
 // 分頁邏輯
 const totalPages = computed(() => Math.ceil(filteredRecords.value.length / itemsPerPage.value))
 
-// 獲取系統設定
-async function fetchSettings() {
-  loadingSettings.value = true
-  
-  try {
-    const response = await apiGet('/settings')
-    
-    if (response && response.success && response.data) {
-      // 查找自動確認設定
-      const autoConfirmSetting = response.data.find(setting => setting.key === 'auto_confirm_reservations')
-      autoConfirmEnabled.value = autoConfirmSetting ? autoConfirmSetting.value === '1' || autoConfirmSetting.value === true : false
-    }
-  } catch (err) {
-    console.error('Failed to fetch settings:', err)
-    // 設定默認值
-    autoConfirmEnabled.value = false
-  } finally {
-    loadingSettings.value = false
-  }
-}
-
 // 獲取預約列表
 async function fetchReservations() {
   loading.value = true
@@ -625,31 +611,13 @@ async function fetchReservations() {
   try {
     // 添加時間戳參數防止快取
     const timestamp = Date.now()
-    const response = await apiGet(`/reservations?_t=${timestamp}`)
+    const data = await apiGet(`/reservations?_t=${timestamp}`)
     
-    // 檢查回應結構並提取正確的數據
-    if (response && response.success) {
-      // 後端現在應該返回數組格式的 data
-      if (Array.isArray(response.data)) {
-        records.value = response.data
-      } else {
-        console.error('Data is not an array:', response.data)
-        records.value = []
-        error.value = '預約資料格式錯誤'
-      }
-    } else if (Array.isArray(response)) {
-      // 兼容直接返回數組的情況
-      records.value = response
-    } else {
-      console.error('Unexpected API response structure:', response)
-      records.value = []
-      error.value = '預約資料格式錯誤'
-    }
+    const newData = data.data || data
+    records.value = newData
     
   } catch (err) {
-    console.error('Failed to fetch reservations:', err)
     error.value = err.message || '載入預約資料失敗'
-    records.value = [] // 確保 records 是空數組而不是 undefined
   } finally {
     loading.value = false
   }
@@ -802,11 +770,6 @@ function clearFilters() {
   currentPage.value = 1
 }
 
-// 跳轉到設定頁面
-function goToSettings() {
-  router.push({ name: 'Settings' })
-}
-
 // 通知功能（簡化版）
 function showNotification(message, type = 'info') {
   // 在實際應用中，這裡可以整合一個更完善的通知系統
@@ -817,13 +780,9 @@ function showNotification(message, type = 'info') {
   }
 }
 
-// 頁面載入時獲取預約列表和系統設定
-onMounted(async () => {
-  // 同時載入預約和設定
-  await Promise.all([
-    fetchReservations(),
-    fetchSettings()
-  ])
+// 頁面載入時獲取預約列表
+onMounted(() => {
+  fetchReservations()
   startAutoRefresh()
 })
 
