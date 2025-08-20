@@ -3961,16 +3961,6 @@ class LineBotService
                                     'label' => '查看我的預約',
                                     'text' => '查詢預約'
                                 ]
-                            ],
-                            [
-                                'type' => 'button',
-                                'style' => 'secondary',
-                                'height' => 'sm',
-                                'action' => [
-                                    'type' => 'message',
-                                    'label' => '重新預約',
-                                    'text' => '我要預約'
-                                ]
                             ]
                         ],
                         'paddingAll' => 'lg'
