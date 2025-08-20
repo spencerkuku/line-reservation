@@ -250,6 +250,8 @@ onMounted(() => {
               :src="service.full_image_url" 
               :alt="service.name || service.title"
               class="w-full h-full object-cover"
+              @error="handleImageError($event)"
+              @load="handleImageLoad($event)"
             />
             <div v-else class="w-full h-full flex items-center justify-center">
               <svg class="w-16 h-16 text-white opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
