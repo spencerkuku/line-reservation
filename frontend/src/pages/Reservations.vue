@@ -596,12 +596,30 @@ const filteredRecords = computed(() => {
     })
   }
 
-  return filtered.sort((a, b) => {
-    // 按預約時間排序，最新的在前
+return filtered.sort((a, b) => {
+    const now = new Date()
     const dateA = new Date(a.reservation_date || a.time)
     const dateB = new Date(b.reservation_date || b.time)
-    return dateB - dateA
+
+    // pending 最優先
+    if (a.status === 'pending' && b.status !== 'pending') return -1
+    if (b.status === 'pending' && a.status !== 'pending') return 1
+
+    // 都不是 pending，接下來比時間
+    const aFuture = dateA > now
+    const bFuture = dateB > now
+
+    // 未來的預約排前面，按時間升序
+    if (aFuture && bFuture) return dateA - dateB
+    // 過期的預約排後面，按時間降序
+    if (!aFuture && !bFuture) return dateB - dateA
+    // 一個未來一個過期 → 未來排前
+    if (aFuture && !bFuture) return -1
+    if (!aFuture && bFuture) return 1
+
+    return 0
   })
+
 })
 
 // 分頁邏輯
