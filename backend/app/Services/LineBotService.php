@@ -145,22 +145,18 @@ class LineBotService
 
         if ($message['type'] === 'text') {
             $text = trim($message['text']);
-            
             LoggingService::logLineBotEvent('text_message_processing', $userId, [
                 'text' => $text,
                 'customer_id' => $customer->id ?? null
             ]);
-            
             Log::info('Processing text message: ' . $text);
-            
-            // 檢查是否為強制終止指令
+
+            // 只回覆關鍵字
             if ($this->isCancelKeyword($text)) {
                 LoggingService::logLineBotEvent('cancel_command', $userId, ['text' => $text]);
                 Log::info('Cancel keyword detected, clearing reservation context');
                 $this->handleCancelCommand($replyToken, $userId);
-            }
-            // 檢查是否為填寫預約資訊的回覆
-            elseif ($this->isCustomerInfoMessage($text, $replyToken, $userId)) {
+            } elseif ($this->isCustomerInfoMessage($text, $replyToken, $userId)) {
                 LoggingService::logLineBotEvent('customer_info_processing', $userId, [
                     'text' => $text,
                     'customer_id' => $customer->id ?? null
@@ -171,31 +167,24 @@ class LineBotService
                     'userId' => $userId
                 ]);
                 $this->processCustomerInfo($text, $replyToken, $userId);
-            }
-            // 檢查是否為查詢預約關鍵字
-            elseif ($this->isQueryReservationKeyword($text)) {
+            } elseif ($this->isQueryReservationKeyword($text)) {
                 Log::info('Query reservation keyword detected, showing reservations');
                 $this->sendReservationQuery($replyToken, $userId);
-            }
-            // 檢查是否為預約相關關鍵字
-            elseif ($this->isReservationKeyword($text)) {
+            } elseif ($this->isReservationKeyword($text)) {
                 Log::info('Reservation keyword detected, sending service selection');
                 $this->sendServiceSelection($replyToken);
             } else {
-                Log::info('General message, sending welcome message', [
+                Log::info('Message not a keyword, no reply sent', [
                     'text' => $text,
-                    'replyToken' => $replyToken,
-                    'isCustomerInfo' => $this->isCustomerInfoMessage($text, $replyToken, $userId),
-                    'isQueryKeyword' => $this->isQueryReservationKeyword($text),
-                    'isReservationKeyword' => $this->isReservationKeyword($text),
-                    'isCancelKeyword' => $this->isCancelKeyword($text)
+                    'replyToken' => $replyToken
                 ]);
-                // 一般訊息回應
-                $this->sendWelcomeMessage($replyToken);
+                // 不回覆
+                return;
             }
         } else {
-            Log::info('Non-text message, sending welcome message');
-            $this->sendWelcomeMessage($replyToken);
+            Log::info('Non-text message, no reply sent');
+            // 不回覆
+            return;
         }
     }
 
