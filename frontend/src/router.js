@@ -4,7 +4,6 @@ import { createRouter, createWebHistory } from "vue-router";
 import DefaultLayout from "./components/DefaultLayout.vue";
 
 import Dashboard from "./pages/Dashboard.vue";
-import Users from "./pages/Users.vue";
 import Services from "./pages/Services.vue";
 import AvailableTimes from "./pages/AvailableTimes.vue";
 import Reservations from "./pages/Reservations.vue";
@@ -21,7 +20,6 @@ const routes = [
         component: DefaultLayout,
         children: [
             { path: '/', name: 'Dashboard', component: Dashboard },
-            { path: 'users', name: 'Users', component: Users },
             { path: 'customers', name: 'Customers', component: Customers },
             { path: 'services', name: 'Services', component: Services },
             { path: 'available-times', name: 'AvailableTimes', component: AvailableTimes },
@@ -107,7 +105,7 @@ router.beforeEach(async (to, from, next) => {
     }
     
     // 檢查管理員權限 - 所有管理頁面都只允許管理員訪問
-    const adminOnlyPages = ['Dashboard', 'Users', 'Services', 'AvailableTimes', 'Reservations', 'Settings']
+    const adminOnlyPages = ['Dashboard', 'Services', 'AvailableTimes', 'Reservations', 'Settings']
     if (adminOnlyPages.includes(to.name) && user && user.role !== 'admin') {
         // 非管理員訪問管理頁面，重定向到登入頁面並顯示錯誤
         alert('權限不足，僅限管理員訪問此系統')

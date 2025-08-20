@@ -196,7 +196,6 @@ const navigation = computed(() => {
       { name: '服務項目', to: { name: 'Services' } },
       { name: '可預約時段', to: { name: 'AvailableTimes' } },
       { name: '客戶管理', to: { name: 'Customers' } },
-      { name: '管理員管理', to: { name: 'Users' } },
       { name: '系統設定', to: { name: 'Settings' } }
     )
   }
