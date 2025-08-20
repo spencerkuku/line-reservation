@@ -530,12 +530,16 @@ const selectedRecord = ref(null)
 
 // 統計數據
 const todayReservations = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' }) // 本地日期
   return records.value.filter(record => {
-    const recordDate = record.reservation_date || record.time
-    return recordDate && recordDate.startsWith(today)
+    const recordDateStr = record.reservation_date || record.time
+    if (!recordDateStr) return false
+    const recordDate = new Date(recordDateStr)
+    const recordDay = recordDate.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })
+    return recordDay === today
   }).length
 })
+
 
 const pendingReservations = computed(() => {
   return records.value.filter(record => record.status === 'pending').length
