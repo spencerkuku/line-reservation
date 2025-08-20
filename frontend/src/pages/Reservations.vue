@@ -227,7 +227,20 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <div class="flex-shrink-0 h-10 w-10">
-                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
+                    <div v-if="record.customer?.line_picture_url" class="h-10 w-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img 
+                        :src="record.customer.line_picture_url" 
+                        :alt="record.customer?.line_display_name || record.customer?.name || record.customer_name"
+                        class="h-full w-full object-cover"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                      />
+                      <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md" style="display: none;">
+                        <span class="text-sm font-medium text-white">
+                          {{ (record.customer?.line_display_name || record.customer?.name || record.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-md">
                       <span class="text-sm font-medium text-white">{{ (record.customer?.line_display_name || record.customer?.name || record.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
                     </div>
                   </div>
@@ -360,8 +373,23 @@
               <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">客戶資訊</h4>
               <div class="space-y-3">
                 <div class="flex items-center">
-                  <div class="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center mr-3">
-                    <span class="text-sm font-medium text-white">{{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                  <div class="flex-shrink-0 h-10 w-10 mr-3">
+                    <div v-if="selectedRecord.customer?.line_picture_url" class="h-10 w-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img 
+                        :src="selectedRecord.customer.line_picture_url" 
+                        :alt="selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name"
+                        class="h-full w-full object-cover"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                      />
+                      <div class="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center" style="display: none;">
+                        <span class="text-sm font-medium text-white">
+                          {{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="h-10 w-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center">
+                      <span class="text-sm font-medium text-white">{{ (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name)?.charAt(0)?.toUpperCase() || 'C' }}</span>
+                    </div>
                   </div>
                   <div>
                     <p class="text-sm font-medium text-gray-900">
