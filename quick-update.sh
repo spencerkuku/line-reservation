@@ -935,7 +935,7 @@ restore_git_and_update() {
             sudo rm -rf .git
         else
             echo "�📥 使用現有 Git 拉取更新..."
-            git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
+            git pull origin single-user-version || echo "⚠️ Git 更新可能失敗，請檢查"
             cleanup_git_and_rebuild
             return
         fi
@@ -970,9 +970,9 @@ restore_git_and_update() {
     fi
     
     echo "🌿 選擇分支..."
-    read -p "請輸入要使用的分支名稱 (預設: main): " BRANCH_NAME
+    read -p "請輸入要使用的分支名稱 (預設: single-user-version): " BRANCH_NAME
     if [ -z "$BRANCH_NAME" ]; then
-        BRANCH_NAME="main"
+        BRANCH_NAME="single-user-version"
     fi
     
     echo "🔄 切換到分支: $BRANCH_NAME"
