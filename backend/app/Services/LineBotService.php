@@ -49,6 +49,14 @@ class LineBotService
         }
     }
 
+    /**
+     * 獲取預約確認模式
+     */
+    private function getReservationConfirmMode()
+    {
+        return Setting::get('reservation_confirm_mode', 'manual');
+    }
+
     public function handleWebhook($events)
     {
         $requestId = LoggingService::generateRequestId();
@@ -451,9 +459,25 @@ class LineBotService
             ->whereIn('status', ['confirmed', 'pending', 'cancelled'])
             ->where('reservation_date', '>=', now()->subDays(30))
             ->with(['service', 'availableTime'])
-            ->orderBy('reservation_date', 'desc')
-            ->orderBy('reservation_time', 'desc')
-            ->get();
+            ->get()
+            ->sortBy(function ($reservation) {
+                $now = now();
+                $reservationDateTime = $reservation->getReservationDateTime();
+                
+                // 計算與現在時間的距離（秒數）
+                $diffInSeconds = abs($reservationDateTime->diffInSeconds($now));
+                
+                if ($reservation->status === 'pending') {
+                    // 1. 待確定預約 - 最高優先級，按接近今天的時間排序
+                    return 1000000 + $diffInSeconds;
+                } elseif ($reservationDateTime->isFuture()) {
+                    // 2. 最近的預約 - 已確定且未過期，按接近今天的時間排序
+                    return 2000000 + $diffInSeconds;
+                } else {
+                    // 3. 過期的預約 - 最低優先級，最近過期的在前面
+                    return 3000000 + $diffInSeconds;
+                }
+            });
 
         if ($reservations->isEmpty()) {
             $this->replyMessage($replyToken, [
@@ -1883,6 +1907,10 @@ class LineBotService
                     throw new \Exception('該時段已無法容納此服務');
                 }
                 
+                // 根據設定決定預約狀態
+                $confirmMode = $this->getReservationConfirmMode();
+                $status = $confirmMode === 'auto' ? 'confirmed' : 'pending';
+                
                 // 創建預約記錄，使用基礎時段 ID
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
@@ -1891,7 +1919,7 @@ class LineBotService
                     'available_time_id' => $virtualTimeSlot->base_time_slot_id, // 使用基礎時段 ID
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
-                    'status' => 'confirmed',
+                    'status' => $status,
                     'notes' => '無',
                 ]);
             });
@@ -1901,10 +1929,20 @@ class LineBotService
             $dateTime = Carbon::parse($virtualTimeSlot->start_time);
             $priceText = $service->price ? "NT$ " . number_format((float)$service->price) : "免費";
 
-            // 使用 Flex Message 呈現預約成功資訊
+            // 根據預約狀態決定訊息內容
+            $isAutoConfirmed = $reservation->status === 'confirmed';
+            $headerText = $isAutoConfirmed ? '預約成功' : '預約提交成功';
+            $subHeaderText = $isAutoConfirmed ? '預約已確認' : '等待確認中';
+            $headerColor = $isAutoConfirmed ? '#27AE60' : '#F39C12';
+            $statusText = $isAutoConfirmed ? '已確認' : '待確認';
+            $bottomText = $isAutoConfirmed 
+                ? '感謝您的預約，我們將在預約時間為您提供服務。'
+                : '您的預約已提交，我們將盡快確認並通知您。';
+
+            // 使用 Flex Message 呈現預約結果資訊
             $message = [
                 'type' => 'flex',
-                'altText' => '預約成功',
+                'altText' => $headerText,
                 'contents' => [
                     'type' => 'bubble',
                     'header' => [
@@ -1913,7 +1951,7 @@ class LineBotService
                         'contents' => [
                             [
                                 'type' => 'text',
-                                'text' => '預約成功',
+                                'text' => $headerText,
                                 'weight' => 'bold',
                                 'color' => '#ffffff',
                                 'size' => 'xl',
@@ -1921,14 +1959,14 @@ class LineBotService
                             ],
                             [
                                 'type' => 'text',
-                                'text' => '預約已完成',
+                                'text' => $subHeaderText,
                                 'color' => '#ffffff',
                                 'size' => 'sm',
                                 'align' => 'center',
                                 'margin' => 'xs'
                             ]
                         ],
-                        'backgroundColor' => '#27AE60',
+                        'backgroundColor' => $headerColor,
                         'paddingAll' => 'lg'
                     ],
                     'body' => [
@@ -2062,18 +2100,43 @@ class LineBotService
                                 'margin' => 'xl'
                             ],
                             [
-                                'type' => 'text',
-                                'text' => '我們將為您保留此預約，如需取消或修改請聯繫我們。',
-                                'size' => 'sm',
-                                'color' => '#666666',
-                                'margin' => 'xl',
-                                'wrap' => true,
-                                'align' => 'center'
+                                'type' => 'box',
+                                'layout' => 'horizontal',
+                                'contents' => [
+                                    [
+                                        'type' => 'text',
+                                        'text' => '預約狀態',
+                                        'size' => 'sm',
+                                        'color' => '#666666',
+                                        'flex' => 2
+                                    ],
+                                    [
+                                        'type' => 'text',
+                                        'text' => $statusText,
+                                        'size' => 'sm',
+                                        'color' => $headerColor,
+                                        'weight' => 'bold',
+                                        'flex' => 3
+                                    ]
+                                ]
                             ]
-                        ],
-                        'paddingAll' => 'xl'
+                        ]
+                    ],
+                    [
+                        'type' => 'separator',
+                        'margin' => 'xl'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $bottomText,
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'margin' => 'xl',
+                        'wrap' => true,
+                        'align' => 'center'
                     ]
-                ]
+                ],
+                'paddingAll' => 'xl'
             ];
 
             $this->replyMessage($replyToken, $message);
@@ -2659,6 +2722,10 @@ class LineBotService
                     'customer_notes' => $context['customer_data']['notes'] ?? 'NOT_SET'
                 ]);
                 
+                // 根據設定決定預約狀態
+                $confirmMode = $this->getReservationConfirmMode();
+                $status = $confirmMode === 'auto' ? 'confirmed' : 'pending';
+                
                 // 建立預約，使用虛擬時段的具體時間
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
@@ -2670,7 +2737,7 @@ class LineBotService
                     'customer_name' => $context['customer_data']['name'] ?? '',
                     'customer_phone' => $context['customer_data']['phone'] ?? '',
                     'customer_notes' => $context['customer_data']['notes'] ?? '',
-                    'status' => 'confirmed',
+                    'status' => $status,
                     'notes' => '無',
                 ]);
             });
@@ -2679,6 +2746,12 @@ class LineBotService
             // 這樣可以確保時間重疊檢查的準確性
             
             $dateTime = Carbon::parse($virtualTimeSlot->start_time);
+            
+            // 根據預約狀態決定訊息內容
+            $isAutoConfirmed = $reservation->status === 'confirmed';
+            $headerText = $isAutoConfirmed ? '預約資料確定' : '預約資料提交';
+            $subHeaderText = $isAutoConfirmed ? '請確認以下預約資訊' : '等待管理員確認';
+            $headerColor = $isAutoConfirmed ? '#27AE60' : '#F39C12';
             
             // 建構基本的預約資訊欄位
             $infoContents = [
@@ -2816,10 +2889,10 @@ class LineBotService
                 ];
             }
 
-            // 使用 Flex Message 呈現預約成功資訊
+            // 使用 Flex Message 呈現預約結果資訊
             $message = [
                 'type' => 'flex',
-                'altText' => '預約成功確認',
+                'altText' => $headerText,
                 'contents' => [
                     'type' => 'bubble',
                     'header' => [
@@ -2828,7 +2901,7 @@ class LineBotService
                         'contents' => [
                             [
                                 'type' => 'text',
-                                'text' => '預約資料確定',
+                                'text' => $headerText,
                                 'weight' => 'bold',
                                 'color' => '#ffffff',
                                 'size' => 'xl',
@@ -2836,14 +2909,14 @@ class LineBotService
                             ],
                             [
                                 'type' => 'text',
-                                'text' => '請確認以下預約資訊',
+                                'text' => $subHeaderText,
                                 'color' => '#ffffff',
                                 'size' => 'sm',
                                 'align' => 'center',
                                 'margin' => 'xs'
                             ]
                         ],
-                        'backgroundColor' => '#27AE60',
+                        'backgroundColor' => $headerColor,
                         'paddingAll' => 'lg'
                     ],
                     'body' => [
@@ -3650,6 +3723,10 @@ class LineBotService
                 // 獲取基礎時段
                 $baseTimeSlot = AvailableTime::find($virtualTimeSlot->base_time_slot_id);
                 
+                // 根據設定決定預約狀態
+                $confirmMode = $this->getReservationConfirmMode();
+                $status = $confirmMode === 'auto' ? 'confirmed' : 'pending';
+                
                 // 建立預約記錄，使用虛擬時段的具體時間和預約時填寫的客戶資料
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
@@ -3661,7 +3738,7 @@ class LineBotService
                     'customer_name' => $context['customer_data']['name'] ?? '',
                     'customer_phone' => $context['customer_data']['phone'] ?? '',
                     'customer_notes' => $context['customer_data']['notes'] ?? '',
-                    'status' => 'confirmed',
+                    'status' => $status,
                     'notes' => '無',
                 ]);
             });
@@ -3670,10 +3747,16 @@ class LineBotService
             
             $dateTime = Carbon::parse($virtualTimeSlot->start_time);
             
-            // 發送預約成功的訊息
+            // 根據預約狀態決定訊息內容
+            $isAutoConfirmed = $reservation->status === 'confirmed';
+            $headerText = $isAutoConfirmed ? '預約成功！' : '預約提交成功！';
+            $subHeaderText = $isAutoConfirmed ? '您的預約已確認' : '等待確認中';
+            $headerColor = $isAutoConfirmed ? '#27AE60' : '#F39C12';
+            
+            // 發送預約結果的訊息
             $message = [
                 'type' => 'flex',
-                'altText' => '預約成功',
+                'altText' => $headerText,
                 'contents' => [
                     'type' => 'bubble',
                     'header' => [
@@ -3682,7 +3765,7 @@ class LineBotService
                         'contents' => [
                             [
                                 'type' => 'text',
-                                'text' => '預約成功！',
+                                'text' => $headerText,
                                 'weight' => 'bold',
                                 'color' => '#ffffff',
                                 'size' => 'xl',
@@ -3690,14 +3773,14 @@ class LineBotService
                             ],
                             [
                                 'type' => 'text',
-                                'text' => '您的預約已確認',
+                                'text' => $subHeaderText,
                                 'color' => '#ffffff',
                                 'size' => 'sm',
                                 'align' => 'center',
                                 'margin' => 'xs'
                             ]
                         ],
-                        'backgroundColor' => '#27AE60',
+                        'backgroundColor' => $headerColor,
                         'paddingAll' => 'lg'
                     ],
                     'body' => [

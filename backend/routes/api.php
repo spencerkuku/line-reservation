@@ -98,6 +98,8 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     // 設定
     Route::get('/settings/line', [SettingController::class, 'getLineSettings']);
     Route::post('/settings/line', [SettingController::class, 'updateLineSettings']);
+    Route::get('/settings', [SettingController::class, 'getAllSettings']);
+    Route::post('/settings', [SettingController::class, 'updateSetting']);
 
     // 客戶管理（僅管理員可訪問）
     Route::prefix('customers')->group(function () {

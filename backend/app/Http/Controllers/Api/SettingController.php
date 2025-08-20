@@ -62,7 +62,13 @@ class SettingController extends Controller
     // 獲取所有設定
     public function getAllSettings()
     {
-        $settings = Setting::all()->pluck('value', 'key');
+        // 獲取所有非敏感設定
+        $settings = Setting::whereNotIn('key', ['line_channel_access_token', 'line_channel_secret'])
+            ->get()
+            ->pluck('value', 'key');
+        
+        // 加入預約確認模式的預設值
+        $settings['reservation_confirm_mode'] = Setting::get('reservation_confirm_mode', 'manual');
         
         return response()->json([
             'success' => true,

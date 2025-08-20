@@ -214,6 +214,115 @@
           </div>
         </div>
       </div>
+
+      <!-- 預約設定卡片 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+        <!-- 卡片標題 -->
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <h3 class="text-lg font-semibold text-gray-900">預約管理設定</h3>
+              <p class="text-sm text-gray-600 mt-1">配置預約確認模式與相關設定</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 預約設定表單 -->
+        <div class="p-6">
+          <form @submit.prevent="saveReservationSettings" class="space-y-6">
+            <!-- 預約確認模式 -->
+            <div>
+              <label class="text-sm font-medium text-gray-700 mb-3 block">
+                預約確認模式
+              </label>
+              <div class="space-y-3">
+                <div class="flex items-center">
+                  <input
+                    id="auto_confirm"
+                    v-model="reservationConfirmMode"
+                    type="radio"
+                    value="auto"
+                    :disabled="loading"
+                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  />
+                  <label for="auto_confirm" class="ml-3 block text-sm font-medium text-gray-700">
+                    自動確認
+                  </label>
+                </div>
+                <div class="ml-7 text-sm text-gray-600">
+                  LINE Bot 收到預約後立即自動確認，無需人工干預
+                </div>
+                
+                <div class="flex items-center">
+                  <input
+                    id="manual_confirm"
+                    v-model="reservationConfirmMode"
+                    type="radio"
+                    value="manual"
+                    :disabled="loading"
+                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  />
+                  <label for="manual_confirm" class="ml-3 block text-sm font-medium text-gray-700">
+                    手動確認
+                  </label>
+                </div>
+                <div class="ml-7 text-sm text-gray-600">
+                  預約提交後保持「待確認」狀態，需要管理員手動確認
+                </div>
+              </div>
+            </div>
+
+            <!-- 設定說明 -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h4 class="text-sm font-semibold text-blue-800">設定說明</h4>
+                  <div class="mt-1 text-sm text-blue-700">
+                    <p><strong>自動確認：</strong>適合無需審核的簡單預約服務，提升用戶體驗</p>
+                    <p class="mt-1"><strong>手動確認：</strong>適合需要人工審核或有特殊要求的預約服務</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 保存按鈕 -->
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                :disabled="loading"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ loading ? '儲存中...' : '儲存設定' }}
+              </button>
+            </div>
+          </form>
+
+          <!-- 成功訊息 -->
+          <div v-if="reservationSuccessMessage" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-center">
+              <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <span class="ml-2 text-sm font-medium text-green-800">{{ reservationSuccessMessage }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -226,6 +335,10 @@ const LineChannelAccessToken = ref('')
 const LineChannelSecret = ref('')
 const successMessage = ref('')
 const loading = ref(false)
+
+// 預約設定
+const reservationConfirmMode = ref('manual') // 預設為手動確認
+const reservationSuccessMessage = ref('')
 
 // 顯示後端返回的遮蔽版本
 const currentAccessToken = ref('')
@@ -247,6 +360,9 @@ async function fetchSettings() {
     if (data.channel_secret) {
       LineChannelSecret.value = data.channel_secret
     }
+
+    // 獲取預約設定
+    await fetchReservationSettings()
   } catch (err) {
     if (import.meta.env.DEV) {
       console.error('Error fetching settings:', err)
@@ -285,6 +401,47 @@ async function submitToken() {
     setTimeout(() => { successMessage.value = '' }, 3000)
   }
 }
+
+// 獲取預約設定
+async function fetchReservationSettings() {
+  try {
+    const response = await apiGet('/settings')
+    if (response.reservation_confirm_mode) {
+      reservationConfirmMode.value = response.reservation_confirm_mode
+    }
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.error('Error fetching reservation settings:', err)
+    }
+  }
+}
+
+// 儲存預約設定
+async function saveReservationSettings() {
+  loading.value = true
+  try {
+    await apiPost('/settings', {
+      key: 'reservation_confirm_mode',
+      value: reservationConfirmMode.value,
+      type: 'string'
+    })
+    
+    reservationSuccessMessage.value = '預約設定已儲存'
+    
+    setTimeout(() => {
+      reservationSuccessMessage.value = ''
+    }, 3000)
+    
+  } catch (err) {
+    reservationSuccessMessage.value = `儲存失敗: ${err.message}`
+    setTimeout(() => {
+      reservationSuccessMessage.value = ''
+    }, 3000)
+  } finally {
+    loading.value = false
+  }
+}
+
 
 // 頁面載入時獲取設定
 onMounted(() => {

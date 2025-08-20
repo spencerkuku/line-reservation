@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
@@ -19,10 +20,28 @@ class ReservationController extends Controller
         LoggingService::logApiRequestStart($request, $requestId, 'Get Reservations');
         
         try {
-            $reservations = Reservation::with(['user', 'customer', 'service'])
-                ->orderBy('reservation_date', 'desc')
-                ->orderBy('reservation_time', 'desc')
-                ->get();
+            $now = Carbon::now();
+            $reservations = Reservation::with(['user', 'service', 'customer'])->get();
+            
+            // 排序邏輯：1. 待確定預約(按時間排序) 2. 最近預約(已確定且未過期) 3. 過期預約
+            $reservations = $reservations->sortBy(function ($reservation) use ($now) {
+                // 使用模型方法獲取完整的預約時間，避免字串拼接問題
+                $reservationDate = $reservation->getReservationDateTime();
+                
+                // 計算與現在時間的距離（秒數）
+                $diffInSeconds = abs($reservationDate->diffInSeconds($now));
+                
+                if ($reservation->status === 'pending') {
+                    // 1. 待確定預約 - 最高優先級，按時間順序排列（最近的時間在前）
+                    return $diffInSeconds;
+                } elseif ($reservationDate->isFuture()) {
+                    // 2. 最近的預約 - 已確定且未過期，按接近度排序
+                    return 1000000 + $diffInSeconds;
+                } else {
+                    // 3. 過期的預約 - 最低優先級，按時間倒序（最近過期的在前）
+                    return 2000000 + $diffInSeconds;
+                }
+            });
 
             $data = $reservations->map(function ($reservation) {
                 return [
@@ -34,16 +53,16 @@ class ReservationController extends Controller
                     'customer_phone' => e($reservation->customer_phone),
                     'customer_notes' => e($reservation->customer_notes),
                     'customer_line_display_name' => e($reservation->customer->line_display_name ?? null),
-                    'customer_line_user_id' => e($reservation->customer->line_user_id),
-                    'service_name' => e($reservation->service->name),
-                    'service_price' => $reservation->service->price,
+                    'customer_line_user_id' => e($reservation->customer->line_user_id ?? null),
+                    'service_name' => e($reservation->service->name ?? '未指定服務'),
+                    'service_price' => $reservation->service->price ?? 0,
                     'reservation_date' => $reservation->reservation_date,
                     'reservation_time' => $reservation->reservation_time,
                     'status' => $reservation->status,
                     'notes' => e($reservation->notes),
                     'created_at' => $reservation->created_at
                 ];
-            });
+            })->values(); // 重要：使用 values() 確保返回數組而不是對象
 
             LoggingService::logApiRequestSuccess($requestId, ['count' => $reservations->count()]);
 
