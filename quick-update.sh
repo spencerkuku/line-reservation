@@ -106,7 +106,7 @@ create_backup() {
             echo "🗄️ 【完整備份】執行系統完整備份（專案+資料庫）..."
             
             # 1. 先備份專案檔案
-            echo "�️ 完整備份（專案 + 資料庫）..."
+            echo "🗄️ 完整備份（專案 + 資料庫）..."
             
             # 1. 先備份專案檔案
             echo "📁 備份專案檔案..."
@@ -765,7 +765,7 @@ update_domain() {
 
 # 切換 SSL
 toggle_ssl() {
-    echo "� 自動備份環境配置..."
+    echo "💾 自動備份環境配置..."
     create_backup "env"
     
     echo "🔒 【安全配置】SSL 證書狀態切換..."
@@ -931,10 +931,10 @@ restore_git_and_update() {
         echo "✅ Git 目錄已存在"
         read -p "是否要重新初始化 Git? (y/N): " REINIT_GIT
         if [[ "$REINIT_GIT" =~ ^[Yy]$ ]]; then
-            echo "�️ 移除現有 Git..."
+            echo "🗑️ 移除現有 Git..."
             sudo rm -rf .git
         else
-            echo "�📥 使用現有 Git 拉取更新..."
+            echo "📥 使用現有 Git 拉取更新..."
             git pull origin single-user-version || echo "⚠️ Git 更新可能失敗，請檢查"
             cleanup_git_and_rebuild
             return
@@ -981,9 +981,9 @@ restore_git_and_update() {
         echo "📋 可用的遠端分支:"
         git branch -r 2>/dev/null || echo "無法列出遠端分支"
         return 1
-    }
+    fi
     
-    echo "�🔄 執行完整重建..."
+    echo "🔄 執行完整重建..."
     full_rebuild
     
     echo "🗑️ 清理 Git 資料..."
