@@ -49,10 +49,26 @@ return new class extends Migration
      */
     private function indexExists(string $table, string $indexName): bool
     {
-        $connection = Schema::getConnection();
-        $doctrineSchemaManager = $connection->getDoctrineSchemaManager();
-        $doctrineTable = $doctrineSchemaManager->listTableDetails($table);
-        
-        return $doctrineTable->hasIndex($indexName);
+        try {
+            $connection = Schema::getConnection();
+            
+            // 使用原生 SQL 查詢檢查索引是否存在
+            $indexes = $connection->select("
+                SELECT COUNT(*) as count 
+                FROM information_schema.statistics 
+                WHERE table_schema = ? 
+                AND table_name = ? 
+                AND index_name = ?
+            ", [
+                $connection->getDatabaseName(),
+                $table,
+                $indexName
+            ]);
+            
+            return $indexes[0]->count > 0;
+        } catch (\Exception $e) {
+            // 如果查詢失敗，假設索引不存在
+            return false;
+        }
     }
 };
