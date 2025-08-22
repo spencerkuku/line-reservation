@@ -15,7 +15,7 @@
           </svg>
         </div>
         <div class="ml-4">
-          <h3 class="text-lg font-semibold text-blue-900">歡迎使用 LINE 預約系統</h3>
+          <h3 class="text-lg font-semibold text-blue-900">歡迎使用 LINE 預約管理系統</h3>
           <p class="text-blue-700 mt-1">您目前是一般用戶身份。如需使用完整管理功能，請聯絡系統管理員。</p>
         </div>
       </div>
