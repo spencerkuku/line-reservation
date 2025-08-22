@@ -42,6 +42,7 @@
                     v-model="LineChannelSecret"
                     type="password"
                     :disabled="loading"
+                    @focus="handleSecretFocus"
                     placeholder="請輸入您的 Channel Secret"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
                   />
@@ -51,8 +52,11 @@
                     </svg>
                   </div>
                 </div>
-                <div v-if="currentSecret" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
-                  目前設定: {{ currentSecret }}
+                <div v-if="currentSecret" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600 overflow-hidden">
+                  <div class="truncate">目前設定: {{ currentSecret }}</div>
+                </div>
+                <div v-if="hasExistingSecret && LineChannelSecret.includes('*')" class="mt-1 text-xs text-green-600">
+                  ✓ 已儲存資料，點擊輸入框可修改
                 </div>
                 <p class="mt-1 text-xs text-gray-500">
                   用於驗證 webhook 請求的數位簽章
@@ -70,6 +74,7 @@
                     v-model="LineChannelAccessToken"
                     type="password"
                     :disabled="loading"
+                    @focus="handleAccessTokenFocus"
                     placeholder="請輸入您的 Channel Access Token"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed pr-12"
                   />
@@ -80,8 +85,11 @@
                     </svg>
                   </div>
                 </div>
-                <div v-if="currentAccessToken" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600">
-                  目前設定: {{ currentAccessToken }}
+                <div v-if="currentAccessToken" class="mt-2 p-2 bg-gray-50 rounded border text-sm font-mono text-gray-600 overflow-hidden">
+                  <div class="truncate">目前設定: {{ currentAccessToken }}</div>
+                </div>
+                <div v-if="hasExistingAccessToken && LineChannelAccessToken.includes('*')" class="mt-1 text-xs text-green-600">
+                  ✓ 已儲存資料，點擊輸入框可修改
                 </div>
                 <p class="mt-1 text-xs text-gray-500">
                   從 LINE Developers Console 的 Messaging API 設定中取得
@@ -109,7 +117,7 @@
               <div class="flex justify-end pt-4">
                 <button
                   type="submit"
-                  :disabled="loading || (!LineChannelAccessToken.trim() || !LineChannelSecret.trim())"
+                  :disabled="loading || ((!LineChannelAccessToken.trim() || LineChannelAccessToken.includes('*')) && (!LineChannelSecret.trim() || LineChannelSecret.includes('*')))"
                   class="inline-flex items-center px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -339,6 +347,10 @@ const LineChannelSecret = ref('')
 const successMessage = ref('')
 const loading = ref(false)
 
+// 新增狀態來追蹤是否有現有資料
+const hasExistingAccessToken = ref(false)
+const hasExistingSecret = ref(false)
+
 // 預約設定
 const reservationConfirmMode = ref('auto') // 預設為自動確認
 const reservationSuccessMessage = ref('')
@@ -351,33 +363,73 @@ const currentSecret = ref('')
 async function fetchSettings() {
   loading.value = true
   try {
-    const data = await apiGet('/settings/line')
+    const response = await apiGet('/settings/line')
+    console.log('Fetched settings response:', response) // 調試用
+    
+    // 檢查回應格式並正確取得數據
+    const data = response.data || response
+    console.log('Extracted data:', data) // 調試用
+    
     // 後端已經返回遮蔽版本，直接顯示
     currentAccessToken.value = data.channel_access_token || ''
     currentSecret.value = data.channel_secret || ''
     
-    // 如果有現有設定，也在輸入框中顯示遮蔽版本
-    if (data.channel_access_token) {
-      LineChannelAccessToken.value = data.channel_access_token
+    // 設定是否有現有資料的狀態
+    hasExistingAccessToken.value = !!(data.channel_access_token && data.channel_access_token.trim() !== '')
+    hasExistingSecret.value = !!(data.channel_secret && data.channel_secret.trim() !== '')
+    
+    console.log('Has existing token:', hasExistingAccessToken.value) // 調試用
+    console.log('Has existing secret:', hasExistingSecret.value) // 調試用
+    
+    // 如果有現有設定，在輸入框中顯示星號表示已有資料
+    if (hasExistingAccessToken.value) {
+      LineChannelAccessToken.value = '****************************************'
+    } else {
+      LineChannelAccessToken.value = ''
     }
-    if (data.channel_secret) {
-      LineChannelSecret.value = data.channel_secret
+    
+    if (hasExistingSecret.value) {
+      LineChannelSecret.value = '********************************'
+    } else {
+      LineChannelSecret.value = ''
     }
 
     // 獲取預約設定
     await fetchReservationSettings()
   } catch (err) {
-    if (import.meta.env.DEV) {
-      console.error('Error fetching settings:', err)
-    }
+    console.error('Error fetching settings:', err) // 顯示所有錯誤
   } finally {
     loading.value = false
   }
 }
 
+// 處理輸入框焦點事件 - 清除星號讓使用者輸入新值
+function handleAccessTokenFocus() {
+  if (hasExistingAccessToken.value && LineChannelAccessToken.value.includes('*')) {
+    LineChannelAccessToken.value = ''
+  }
+}
+
+function handleSecretFocus() {
+  if (hasExistingSecret.value && LineChannelSecret.value.includes('*')) {
+    LineChannelSecret.value = ''
+  }
+}
+
 // 儲存設定
 async function submitToken() {
-  if (!LineChannelAccessToken.value.trim() || !LineChannelSecret.value.trim()) {
+  // 如果使用者沒有修改星號內容，就不要送出請求
+  if (LineChannelAccessToken.value.includes('*') && LineChannelSecret.value.includes('*')) {
+    successMessage.value = '設定未變更'
+    setTimeout(() => { successMessage.value = '' }, 3000)
+    return
+  }
+  
+  // 檢查是否有實際的新值
+  const newAccessToken = LineChannelAccessToken.value.includes('*') ? '' : LineChannelAccessToken.value.trim()
+  const newSecret = LineChannelSecret.value.includes('*') ? '' : LineChannelSecret.value.trim()
+  
+  if (!newAccessToken && !newSecret && !hasExistingAccessToken.value && !hasExistingSecret.value) {
     successMessage.value = '請輸入有效的 LINE Token'
     setTimeout(() => { successMessage.value = '' }, 3000)
     return
@@ -385,10 +437,11 @@ async function submitToken() {
   
   loading.value = true
   try {
-    await apiPost('/settings/line', {
-      channel_access_token: LineChannelAccessToken.value.trim(),
-      channel_secret: LineChannelSecret.value.trim()
-    })
+    const payload = {}
+    if (newAccessToken) payload.channel_access_token = newAccessToken
+    if (newSecret) payload.channel_secret = newSecret
+    
+    await apiPost('/settings/line', payload)
     
     successMessage.value = '設定已儲存'
     
