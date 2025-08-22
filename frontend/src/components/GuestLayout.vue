@@ -132,24 +132,6 @@ function handleSubmit(event) {
               </button>
             </div>
           </form>
-
-          <!-- 額外資訊 -->
-          <div class="mt-6">
-            <div class="relative">
-              <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-gray-300" />
-              </div>
-              <div class="relative flex justify-center text-sm">
-                <span class="px-2 bg-white text-gray-500">安全登入</span>
-              </div>
-            </div>
-
-            <div class="mt-4 text-center">
-              <p class="text-xs text-gray-500">
-                此系統採用安全加密傳輸，保護您的登入資訊
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
