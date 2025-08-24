@@ -119,6 +119,7 @@ fi
 
 echo "📥 安裝 Composer (如未安裝)..."
 if ! command -v composer &>/dev/null; then
+    cd /tmp
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
     php composer-setup.php
     sudo mv composer.phar /usr/local/bin/composer
