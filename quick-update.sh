@@ -14,6 +14,29 @@ fi
 PROJECT_DIR="/var/www/line-reservation"
 USER_HOME=$(eval echo "~$USER")
 
+# 安全讀取 .env 檔案的輔助函數
+safe_read_env() {
+    local env_file="$1"
+    local key="$2"
+    local default_value="${3:-}"
+    
+    if [ ! -f "$env_file" ]; then
+        echo "$default_value"
+        return 1
+    fi
+    
+    # 臨時調整權限以便讀取
+    sudo chmod 644 "$env_file" 2>/dev/null || true
+    
+    # 讀取值
+    local value=$(grep "^${key}=" "$env_file" 2>/dev/null | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//' || echo "$default_value")
+    
+    # 恢復安全權限
+    sudo chmod 600 "$env_file" 2>/dev/null || true
+    
+    echo "$value"
+}
+
 # 安全權限設置函數
 set_secure_permissions() {
     echo "🔧 設置安全權限..."
@@ -30,9 +53,9 @@ set_secure_permissions() {
     # 設置 Laravel 必要的寫入權限目錄 (限制為 755，不使用 775)
     sudo chmod -R 755 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
     
-    # 保護敏感配置檔案，但允許部署用戶讀取 (640 - 擁有者讀寫，群組可讀)
-    sudo chmod 640 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
-    sudo chmod 640 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example" 2>/dev/null || true
+    # 保護敏感配置檔案 (600 - 僅擁有者可讀寫)
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+    sudo chmod 600 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example" 2>/dev/null || true
     
     # 確保部署用戶可以讀取配置檔案（將 spencerku 加入 www-data 群組）
     sudo usermod -a -G www-data "$USER" 2>/dev/null || true
@@ -257,18 +280,21 @@ restore_env_backup() {
     # 恢復環境檔案
     if [ -f "$selected_backup/frontend.env" ]; then
         cp "$selected_backup/frontend.env" "$PROJECT_DIR/frontend/.env"
+        sudo chown www-data:www-data "$PROJECT_DIR/frontend/.env"
         chmod 600 "$PROJECT_DIR/frontend/.env"
         echo "✅ 前端 .env 已恢復"
     fi
     
     if [ -f "$selected_backup/backend.env" ]; then
         cp "$selected_backup/backend.env" "$PROJECT_DIR/backend/.env"
+        sudo chown www-data:www-data "$PROJECT_DIR/backend/.env"
         chmod 600 "$PROJECT_DIR/backend/.env"
         echo "✅ 後端 .env 已恢復"
     fi
     
     if [ -f "$selected_backup/db_credentials.txt" ]; then
         cp "$selected_backup/db_credentials.txt" "$PROJECT_DIR/db_credentials.txt"
+        sudo chown www-data:www-data "$PROJECT_DIR/db_credentials.txt"
         chmod 600 "$PROJECT_DIR/db_credentials.txt"
         echo "✅ 資料庫憑證已恢復"
     fi
@@ -388,12 +414,12 @@ restore_database_backup() {
         return 1
     fi
     
-    # 更安全的配置讀取方式，處理引號和特殊字符
-    DB_HOST=$(grep "^DB_HOST=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
-    DB_PORT=$(grep "^DB_PORT=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
-    DB_DATABASE=$(grep "^DB_DATABASE=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
-    DB_USERNAME=$(grep "^DB_USERNAME=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
-    DB_PASSWORD=$(grep "^DB_PASSWORD=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2- | sed 's/^["'\'']*//;s/["'\'']*$//')
+    # 使用安全函數讀取資料庫配置
+    DB_HOST=$(safe_read_env "$PROJECT_DIR/backend/.env" "DB_HOST" "localhost")
+    DB_PORT=$(safe_read_env "$PROJECT_DIR/backend/.env" "DB_PORT" "3306")
+    DB_DATABASE=$(safe_read_env "$PROJECT_DIR/backend/.env" "DB_DATABASE" "")
+    DB_USERNAME=$(safe_read_env "$PROJECT_DIR/backend/.env" "DB_USERNAME" "")
+    DB_PASSWORD=$(safe_read_env "$PROJECT_DIR/backend/.env" "DB_PASSWORD" "")
     
     # 預設值
     DB_HOST=${DB_HOST:-localhost}
@@ -681,22 +707,24 @@ read_current_settings() {
     CURRENT_SSL=""
     CURRENT_PROTOCOL=""
     
-    # 臨時調整權限以便讀取配置檔案
+    # 使用安全函數讀取配置
     if [ -f "$PROJECT_DIR/backend/.env" ]; then
-        sudo chmod 644 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
-        sudo chgrp www-data "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+        local app_url=$(safe_read_env "$PROJECT_DIR/backend/.env" "APP_URL" "")
         
-        CURRENT_DOMAIN=$(grep "^APP_URL=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2 | sed 's|https\?://||' 2>/dev/null || echo "")
-        if grep -q "^APP_URL=https://" "$PROJECT_DIR/backend/.env" 2>/dev/null; then
-            CURRENT_SSL="true"
-            CURRENT_PROTOCOL="https"
+        if [ -n "$app_url" ]; then
+            CURRENT_DOMAIN=$(echo "$app_url" | sed 's|https\?://||')
+            if echo "$app_url" | grep -q "^https://"; then
+                CURRENT_SSL="true"
+                CURRENT_PROTOCOL="https"
+            else
+                CURRENT_SSL="false"
+                CURRENT_PROTOCOL="http"
+            fi
         else
-            CURRENT_SSL="false"
+            CURRENT_DOMAIN="未設定"
+            CURRENT_SSL="未知"
             CURRENT_PROTOCOL="http"
         fi
-        
-        # 恢復安全權限
-        sudo chmod 600 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
     else
         echo "⚠️ 警告：找不到後端 .env 檔案"
         CURRENT_DOMAIN="未設定"
