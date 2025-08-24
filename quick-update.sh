@@ -726,6 +726,12 @@ update_env_var() {
     sudo chmod 644 "$file" 2>/dev/null || { echo "❌ 無法調整檔案權限: $file"; return 1; }
     sudo chown $USER:$USER "$file" 2>/dev/null || { echo "❌ 無法取得檔案寫入權限: $file"; return 1; }
     
+    # 確保當前目錄有寫入權限給 sed 創建臨時檔案
+    local current_dir=$(dirname "$file")
+    local temp_dir_perms=$(stat -c %a "$current_dir" 2>/dev/null)
+    sudo chmod 755 "$current_dir" 2>/dev/null || true
+    sudo chown $USER:$USER "$current_dir" 2>/dev/null || true
+    
     if grep -q "^${key}=" "$file" 2>/dev/null; then
         sed -i "s|^${key}=.*|${key}=${val}|" "$file" || { echo "❌ 更新環境變數失敗: $key"; return 1; }
         echo "✅ 已更新 $key=$val"
@@ -733,6 +739,10 @@ update_env_var() {
         echo "${key}=${val}" >> "$file" || { echo "❌ 添加環境變數失敗: $key"; return 1; }
         echo "✅ 已添加 $key=$val"
     fi
+    
+    # 恢復目錄權限
+    sudo chown www-data:www-data "$current_dir" 2>/dev/null || true
+    sudo chmod "$temp_dir_perms" "$current_dir" 2>/dev/null || true
     
     # 恢復安全權限 (600 - 僅擁有者可讀寫)
     sudo chown www-data:www-data "$file" 2>/dev/null || true
