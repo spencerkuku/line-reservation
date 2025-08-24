@@ -30,9 +30,16 @@ set_secure_permissions() {
     # 設置 Laravel 必要的寫入權限目錄 (限制為 755，不使用 775)
     sudo chmod -R 755 "$PROJECT_DIR/backend/storage" "$PROJECT_DIR/backend/bootstrap/cache"
     
-    # 嚴格保護敏感配置檔案 (600 - 僅擁有者可讀寫)
-    sudo chmod 600 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
-    sudo chmod 600 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example" 2>/dev/null || true
+    # 保護敏感配置檔案，但允許部署用戶讀取 (640 - 擁有者讀寫，群組可讀)
+    sudo chmod 640 "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+    sudo chmod 640 "$PROJECT_DIR/frontend/.env.example" "$PROJECT_DIR/backend/.env.example" 2>/dev/null || true
+    
+    # 確保部署用戶可以讀取配置檔案（將 spencerku 加入 www-data 群組）
+    sudo usermod -a -G www-data "$USER" 2>/dev/null || true
+    
+    # 強制應用群組權限變更（需要重新登入才會生效，所以用 newgrp 臨時生效）
+    # 但為了腳本能立即運作，我們確保檔案的群組擁有者正確
+    sudo chgrp www-data "$PROJECT_DIR/frontend/.env" "$PROJECT_DIR/backend/.env" 2>/dev/null || true
     
     # 確保 artisan 有執行權限 (Laravel CLI 需要)
     sudo chmod 755 "$PROJECT_DIR/backend/artisan"
@@ -62,21 +69,30 @@ create_backup() {
             echo "📄 【環境備份】備份系統環境配置檔案..."
             mkdir -p "$backup_path"
             
+            # 臨時調整權限以便備份
+            echo "🔧 臨時調整權限以進行備份..."
+            
             # 備份前端 .env
             if [ -f "$PROJECT_DIR/frontend/.env" ]; then
-                cp "$PROJECT_DIR/frontend/.env" "$backup_path/frontend.env"
+                sudo chmod 644 "$PROJECT_DIR/frontend/.env" 2>/dev/null || true
+                sudo cp "$PROJECT_DIR/frontend/.env" "$backup_path/frontend.env"
+                sudo chmod 600 "$PROJECT_DIR/frontend/.env" 2>/dev/null || true
                 echo "✅ 前端 .env 已備份"
             fi
             
             # 備份後端 .env
             if [ -f "$PROJECT_DIR/backend/.env" ]; then
-                cp "$PROJECT_DIR/backend/.env" "$backup_path/backend.env"
+                sudo chmod 644 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+                sudo cp "$PROJECT_DIR/backend/.env" "$backup_path/backend.env"
+                sudo chmod 600 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
                 echo "✅ 後端 .env 已備份"
             fi
             
             # 備份資料庫憑證
             if [ -f "$PROJECT_DIR/db_credentials.txt" ]; then
-                cp "$PROJECT_DIR/db_credentials.txt" "$backup_path/db_credentials.txt"
+                sudo chmod 644 "$PROJECT_DIR/db_credentials.txt" 2>/dev/null || true
+                sudo cp "$PROJECT_DIR/db_credentials.txt" "$backup_path/db_credentials.txt"
+                sudo chmod 600 "$PROJECT_DIR/db_credentials.txt" 2>/dev/null || true
                 echo "✅ 資料庫憑證已備份"
             fi
             
@@ -665,7 +681,11 @@ read_current_settings() {
     CURRENT_SSL=""
     CURRENT_PROTOCOL=""
     
+    # 臨時調整權限以便讀取配置檔案
     if [ -f "$PROJECT_DIR/backend/.env" ]; then
+        sudo chmod 644 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+        sudo chgrp www-data "$PROJECT_DIR/backend/.env" 2>/dev/null || true
+        
         CURRENT_DOMAIN=$(grep "^APP_URL=" "$PROJECT_DIR/backend/.env" | cut -d'=' -f2 | sed 's|https\?://||' 2>/dev/null || echo "")
         if grep -q "^APP_URL=https://" "$PROJECT_DIR/backend/.env" 2>/dev/null; then
             CURRENT_SSL="true"
@@ -674,6 +694,9 @@ read_current_settings() {
             CURRENT_SSL="false"
             CURRENT_PROTOCOL="http"
         fi
+        
+        # 恢復安全權限
+        sudo chmod 600 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
     else
         echo "⚠️ 警告：找不到後端 .env 檔案"
         CURRENT_DOMAIN="未設定"
@@ -698,10 +721,10 @@ update_env_var() {
         return 1
     fi
     
-    # 確保當前用戶可以寫入檔案
-    if [ ! -w "$file" ]; then
-        sudo chown $USER:$USER "$file" || { echo "❌ 無法取得檔案寫入權限: $file"; return 1; }
-    fi
+    # 臨時調整權限以便寫入
+    local original_perms=$(stat -c %a "$file" 2>/dev/null)
+    sudo chmod 644 "$file" 2>/dev/null || { echo "❌ 無法調整檔案權限: $file"; return 1; }
+    sudo chown $USER:$USER "$file" 2>/dev/null || { echo "❌ 無法取得檔案寫入權限: $file"; return 1; }
     
     if grep -q "^${key}=" "$file" 2>/dev/null; then
         sed -i "s|^${key}=.*|${key}=${val}|" "$file" || { echo "❌ 更新環境變數失敗: $key"; return 1; }
@@ -711,7 +734,8 @@ update_env_var() {
         echo "✅ 已添加 $key=$val"
     fi
     
-    # 恢復適當的檔案權限
+    # 恢復安全權限 (600 - 僅擁有者可讀寫)
+    sudo chown www-data:www-data "$file" 2>/dev/null || true
     sudo chmod 600 "$file" 2>/dev/null || true
 }
 
