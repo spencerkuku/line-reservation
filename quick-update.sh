@@ -906,9 +906,6 @@ rebuild_frontend() {
     
     cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
     
-    echo "🔧 執行完整權限設置..."
-    set_secure_permissions
-    
     echo "✅ 前端重建完成"
 }
 
@@ -942,9 +939,6 @@ clear_backend_cache() {
     sudo chmod -R 755 storage bootstrap/cache 2>/dev/null || true
     
     cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
-    
-    echo "🔧 執行完整權限設置..."
-    set_secure_permissions
     
     echo "✅ 後端快取清除完成"
 }
@@ -1067,11 +1061,11 @@ cleanup_git_and_rebuild() {
     clear_backend_cache
     rebuild_frontend
     
-    echo "🔧 最終權限設定..."
-    set_secure_permissions
-    
-    echo "🗑️ 清理 Git 資料..."
+    echo "�️ 清理 Git 資料..."
     cleanup_git_files
+    
+    echo "� 最終權限設定..."
+    set_secure_permissions
     
     echo "✅ 完整重建和清理完成"
 }
