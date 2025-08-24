@@ -787,13 +787,21 @@ update_domain() {
     echo "🔍 檢查配置更新結果..."
     if [ -f "$PROJECT_DIR/backend/.env" ]; then
         echo "後端配置檢查:"
+        # 臨時調整權限以便檢查
+        sudo chmod 644 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
         grep "^APP_URL=" "$PROJECT_DIR/backend/.env" || echo "⚠️ APP_URL 未找到"
         grep "^CORS_ALLOWED_ORIGINS=" "$PROJECT_DIR/backend/.env" || echo "⚠️ CORS_ALLOWED_ORIGINS 未找到"
+        # 恢復權限
+        sudo chmod 600 "$PROJECT_DIR/backend/.env" 2>/dev/null || true
     fi
     
     if [ -f "$PROJECT_DIR/frontend/.env" ]; then
         echo "前端配置檢查:"
+        # 臨時調整權限以便檢查
+        sudo chmod 644 "$PROJECT_DIR/frontend/.env" 2>/dev/null || true
         grep "^VITE_API_BASE_URL=" "$PROJECT_DIR/frontend/.env" || echo "⚠️ VITE_API_BASE_URL 未找到"
+        # 恢復權限
+        sudo chmod 600 "$PROJECT_DIR/frontend/.env" 2>/dev/null || true
     fi
 }
 
