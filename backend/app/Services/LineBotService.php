@@ -295,7 +295,7 @@ class LineBotService
 
     private function isQueryReservationKeyword($text)
     {
-        $keywords = ['查詢預約', '我的預約', '預約查詢', '預約記錄', '預約紀錄'];
+        $keywords = ['查詢預約', '我的預約', '預約查詢', '預約記錄', '預約紀錄', '預約情況'];
         foreach ($keywords as $keyword) {
             if (strpos($text, $keyword) !== false) {
                 return true;
