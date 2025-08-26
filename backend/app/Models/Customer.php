@@ -77,11 +77,11 @@ class Customer extends Model
     // 獲取客戶等級
     public function getCustomerLevelAttribute()
     {
-        if ($this->total_reservations >= 20 || $this->total_spent >= 2000) {
+        if ($this->total_reservations >= 20 || $this->total_spent >= 5000) {
             return 'VIP';
-        } elseif ($this->total_reservations >= 10 || $this->total_spent >= 1000) {
+        } elseif ($this->total_reservations >= 10 || $this->total_spent >= 3000) {
             return 'Gold';
-        } elseif ($this->total_reservations >= 5 || $this->total_spent >= 500) {
+        } elseif ($this->total_reservations >= 5 || $this->total_spent >= 1000) {
             return 'Silver';
         }
         return 'Bronze';
