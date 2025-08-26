@@ -302,7 +302,7 @@
                 <h4 class="text-sm font-medium text-gray-900">設定 Webhook URL</h4>
                 <p class="text-sm text-gray-600 mt-1">
                   點選「Messaging API」→ 在 Webhook URL 欄位填入：<br>
-                  <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">http://(您的IP或網域)/api/line/webhook</code>
+                  <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">https://(您的IP或網域)/api/line/webhook</code>
                 </p>
               </div>
             </div>
