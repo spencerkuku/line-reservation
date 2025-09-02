@@ -1332,7 +1332,15 @@ restore_git_and_update() {
     fi
     
     echo "🔄 切換到分支: $BRANCH_NAME"
-    if ! git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" 2>/dev/null && ! git checkout "$BRANCH_NAME" 2>/dev/null; then
+    # 首先嘗試創建並切換到新分支
+    if git checkout -b "$BRANCH_NAME" "origin/$BRANCH_NAME" 2>/dev/null; then
+        echo "✅ 成功切換到新分支: $BRANCH_NAME"
+    # 如果失敗，嘗試切換到已存在的本地分支
+    elif git checkout "$BRANCH_NAME" 2>/dev/null; then
+        echo "✅ 切換到已存在的分支: $BRANCH_NAME"
+        # 更新本地分支到最新
+        git pull origin "$BRANCH_NAME" 2>/dev/null || echo "⚠️ 無法更新分支"
+    else
         echo "❌ 無法切換到分支 $BRANCH_NAME"
         echo "📋 可用的遠端分支:"
         git branch -r 2>/dev/null || echo "無法列出遠端分支"
@@ -1366,7 +1374,7 @@ update_and_rebuild() {
     sudo chown -R $USER:$USER "$PROJECT_DIR" || { echo "❌ 無法設定權限"; return 1; }
     
     echo "📥 拉取最新代碼..."
-    if ! git pull origin main; then
+    if ! git pull origin single-user-version; then
         echo "❌ Git 更新失敗，請檢查網路連線或手動處理衝突"
         return 1
     fi
