@@ -738,6 +738,123 @@ read_current_settings() {
     echo "  協議: $CURRENT_PROTOCOL"
 }
 
+# 更新 Apache 配置
+update_apache_config() {
+    local protocol="$1"
+    local domain="$2"
+    local apache_conf="/etc/apache2/sites-available/line-reservation.conf"
+    
+    echo "🔧 生成新的 Apache 配置..."
+    
+    if [ "$protocol" = "https" ]; then
+        # SSL 配置 (HTTPS)
+        sudo tee "$apache_conf" > /dev/null <<EOF
+<VirtualHost *:80>
+    ServerName $domain
+    # 所有 HTTP 流量跳轉到 HTTPS
+    Redirect permanent / https://$domain/
+</VirtualHost>
+
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName $domain
+    # ServerAlias 可選，讓 www 也導向同一個證書
+    ServerAlias www.$domain
+    DocumentRoot $PROJECT_DIR/frontend/dist
+
+    <Directory $PROJECT_DIR/frontend/dist>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+
+    <Directory $PROJECT_DIR/backend/public>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+        <FilesMatch "\.php$">
+            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+    </Directory>
+
+    Alias /storage $PROJECT_DIR/backend/storage/app/public
+    <Directory $PROJECT_DIR/backend/storage/app/public>
+        AllowOverride None
+        Require all granted
+        Options FollowSymLinks
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
+
+    Include /etc/letsencrypt/options-ssl-apache.conf
+    SSLCertificateFile /etc/letsencrypt/live/$domain/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/$domain/privkey.pem
+</VirtualHost>
+</IfModule>
+EOF
+    else
+        # 非 SSL 配置 (HTTP)
+        sudo tee "$apache_conf" > /dev/null <<EOF
+<VirtualHost *:80>
+    ServerName $domain
+    DocumentRoot $PROJECT_DIR/frontend/dist
+
+    <Directory $PROJECT_DIR/frontend/dist>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/api/
+        RewriteCond %{REQUEST_URI} !^/storage/
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    RewriteEngine On
+    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+
+    <Directory $PROJECT_DIR/backend/public>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+        <FilesMatch "\.php$">
+            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+    </Directory>
+
+    Alias /storage $PROJECT_DIR/backend/storage/app/public
+    <Directory $PROJECT_DIR/backend/storage/app/public>
+        AllowOverride None
+        Require all granted
+        Options FollowSymLinks
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
+</VirtualHost>
+EOF
+    fi
+    
+    echo "✅ Apache 配置已更新"
+}
+
 # 更新環境變數
 update_env_var() {
     local key="$1"
@@ -811,6 +928,70 @@ update_domain() {
     
     cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
     echo "✅ 域名/IP 已更新為: $NEW_DOMAIN"
+    
+    # 檢查新域名是否支持 SSL
+    NEW_PROTOCOL="$CURRENT_PROTOCOL"
+    if [[ $NEW_DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [ "$CURRENT_PROTOCOL" = "https" ]; then
+            echo "⚠️ 警告：IP 地址無法使用 SSL，將切換為 HTTP"
+            NEW_PROTOCOL="http"
+            
+            # 更新協議設定
+            echo "🔄 更新協議設定為 HTTP..."
+            cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
+            update_env_var "APP_URL" "http://$NEW_DOMAIN" ".env"
+            update_env_var "FRONTEND_URL" "http://$NEW_DOMAIN" ".env"
+            update_env_var "CORS_ALLOWED_ORIGINS" "http://$NEW_DOMAIN" ".env"
+            
+            cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
+            update_env_var "VITE_API_BASE_URL" "http://$NEW_DOMAIN/api" ".env"
+            update_env_var "VITE_APP_BASE_URL" "http://$NEW_DOMAIN" ".env"
+            update_env_var "VITE_APP_URL" "http://$NEW_DOMAIN" ".env"
+            update_env_var "VITE_BACKEND_URL" "http://$NEW_DOMAIN/api" ".env"
+            
+            cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+        fi
+    else
+        # 域名形式 - 詢問是否要啟用 SSL
+        if [ "$CURRENT_PROTOCOL" = "http" ]; then
+            read -p "檢測到域名格式，是否要啟用 SSL? (y/N): " ENABLE_SSL
+            if [[ "$ENABLE_SSL" =~ ^[Yy]$ ]]; then
+                NEW_PROTOCOL="https"
+                
+                # 更新協議設定
+                echo "🔄 更新協議設定為 HTTPS..."
+                cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
+                update_env_var "APP_URL" "https://$NEW_DOMAIN" ".env"
+                update_env_var "FRONTEND_URL" "https://$NEW_DOMAIN" ".env"
+                update_env_var "CORS_ALLOWED_ORIGINS" "https://$NEW_DOMAIN" ".env"
+                
+                cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
+                update_env_var "VITE_API_BASE_URL" "https://$NEW_DOMAIN/api" ".env"
+                update_env_var "VITE_APP_BASE_URL" "https://$NEW_DOMAIN" ".env"
+                update_env_var "VITE_APP_URL" "https://$NEW_DOMAIN" ".env"
+                update_env_var "VITE_BACKEND_URL" "https://$NEW_DOMAIN/api" ".env"
+                
+                cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+            fi
+        fi
+    fi
+    
+    # 重新生成 Apache 配置
+    echo "🔧 更新 Apache 配置..."
+    update_apache_config "$NEW_PROTOCOL" "$NEW_DOMAIN"
+    
+    if [ "$NEW_PROTOCOL" = "https" ]; then
+        echo "🔒 設定 SSL 憑證..."
+        echo "正在獲取 SSL 憑證..."
+        if sudo certbot --apache -d "$NEW_DOMAIN" --non-interactive --agree-tos --email "admin@$NEW_DOMAIN" --redirect; then
+            echo "✅ SSL 憑證設置成功！"
+        else
+            echo "⚠️ SSL 憑證設置失敗，您可以稍後手動執行: sudo certbot --apache -d $NEW_DOMAIN"
+        fi
+    else
+        echo "🔄 重新載入 Apache 配置..."
+        sudo systemctl reload apache2
+    fi
     
     echo "🔍 檢查配置更新結果..."
     if [ -f "$PROJECT_DIR/backend/.env" ]; then
@@ -887,9 +1068,21 @@ toggle_ssl() {
     cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
     echo "✅ SSL 設定已更新為: $NEW_PROTOCOL"
     
+    # 重新生成 Apache 配置
+    echo "🔧 更新 Apache 配置..."
+    update_apache_config "$NEW_PROTOCOL" "$CURRENT_DOMAIN"
+    
     if [ "$NEW_PROTOCOL" = "https" ]; then
-        echo "⚠️ 注意：您需要手動設定 SSL 憑證和更新 Apache 配置"
-        echo "建議執行: sudo certbot --apache -d $CURRENT_DOMAIN"
+        echo "🔒 設定 SSL 憑證..."
+        echo "正在獲取 SSL 憑證..."
+        if sudo certbot --apache -d "$CURRENT_DOMAIN" --non-interactive --agree-tos --email "admin@$CURRENT_DOMAIN" --redirect; then
+            echo "✅ SSL 憑證設置成功！"
+        else
+            echo "⚠️ SSL 憑證設置失敗，您可以稍後手動執行: sudo certbot --apache -d $CURRENT_DOMAIN"
+        fi
+    else
+        echo "🔄 重新載入 Apache 配置..."
+        sudo systemctl reload apache2
     fi
 }
 
