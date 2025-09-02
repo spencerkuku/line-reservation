@@ -23,9 +23,6 @@ class Reservation extends Model
         'available_time_id',
         'reservation_date',
         'reservation_time',
-        'customer_name', // 預約時填寫的姓名
-        'customer_phone', // 預約時填寫的電話
-        'customer_notes', // 預約時填寫的備註
         'status',
         'notes',
         'confirmed_at',
@@ -108,10 +105,5 @@ class Reservation extends Model
             'status' => 'cancelled',
             'cancelled_at' => now()
         ]);
-
-        // 釋放可預約時段容量
-        if ($this->available_time_id) {
-            $this->availableTime->decrement('current_bookings');
-        }
     }
 }
