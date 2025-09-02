@@ -436,10 +436,10 @@
               </span>
             </div>
             
-            <div v-if="selectedRecord.notes" class="space-y-2">
-              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">備註</h4>
-              <div class="p-3 bg-gray-50 rounded-lg">
-                <p class="text-sm text-gray-700">{{ selectedRecord.notes }}</p>
+            <div v-if="selectedRecord.customer_notes" class="space-y-4">
+              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">客戶備註</h4>
+              <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-blue-800">{{ selectedRecord.customer_notes }}</p>
               </div>
             </div>
           </div>
