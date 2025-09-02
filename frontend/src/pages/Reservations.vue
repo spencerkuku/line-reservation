@@ -82,7 +82,7 @@
             <input
               v-model="search"
               type="text"
-              placeholder="搜尋預約姓名、服務項目..."
+              placeholder="搜尋預約姓名、服務項目、備註..."
               class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
           </div>
@@ -212,6 +212,7 @@
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">預約資訊</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">服務項目</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">預約時間</th>
+              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider notes-column">備註</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">狀態</th>
               <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
             </tr>
@@ -256,6 +257,15 @@
                       </span>
                       <span v-if="record.customer_phone" class="ml-2 text-gray-400">{{ record.customer_phone }}</span>
                       <span v-if="record.customer_line_user_id" class="ml-2 text-xs text-blue-500">LINE</span>
+                      
+                      <!-- 備註提示圖標 -->
+                      <span v-if="record.customer_notes" 
+                            class="ml-2 inline-flex items-center" 
+                            :title="'客戶備註：' + record.customer_notes">
+                        <svg class="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -272,6 +282,18 @@
                 <div class="text-sm text-gray-900">{{ formatDateTime(record.reservation_date || record.time, record.reservation_time) }}</div>
                 <div v-if="isToday(record.reservation_date || record.time)" class="text-xs text-blue-600 font-medium">今日</div>
                 <div v-else-if="isTomorrow(record.reservation_date || record.time)" class="text-xs text-green-600 font-medium">明日</div>
+              </td>
+              
+              <!-- 備註 -->
+              <td class="px-6 py-4 max-w-xs notes-column">
+                <div v-if="record.customer_notes" class="space-y-1">
+                  <!-- 客戶備註 -->
+                  <div class="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border-l-2 border-blue-300">
+                    <span class="font-medium">客戶備註：</span>
+                    <span class="truncate">{{ record.customer_notes.length > 30 ? record.customer_notes.substring(0, 30) + '...' : record.customer_notes }}</span>
+                  </div>
+                </div>
+                <div v-else class="text-xs text-gray-400 italic">無備註</div>
               </td>
               
               <!-- 狀態 -->
@@ -436,10 +458,10 @@
               </span>
             </div>
             
-            <div v-if="selectedRecord.notes" class="space-y-2">
-              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">備註</h4>
-              <div class="p-3 bg-gray-50 rounded-lg">
-                <p class="text-sm text-gray-700">{{ selectedRecord.notes }}</p>
+            <div v-if="selectedRecord.customer_notes" class="space-y-4">
+              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">客戶備註</h4>
+              <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-blue-800">{{ selectedRecord.customer_notes }}</p>
               </div>
             </div>
           </div>
@@ -561,7 +583,8 @@ const filteredRecords = computed(() => {
         (r.customer_name || r.name || '').toLowerCase().includes(keyword) ||
         (r.service_name || r.item || '').toLowerCase().includes(keyword) ||
         getStatusText(r.status).toLowerCase().includes(keyword) ||
-        (r.customer_phone || r.phone || '').toLowerCase().includes(keyword)
+        (r.customer_phone || r.phone || '').toLowerCase().includes(keyword) ||
+        (r.customer_notes || '').toLowerCase().includes(keyword)
     )
   }
 
@@ -892,6 +915,17 @@ tbody tr:hover {
   .py-4 {
     padding-top: 0.75rem;
     padding-bottom: 0.75rem;
+  }
+  
+  /* 在小螢幕上隱藏備註列 */
+  .notes-column {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .notes-column {
+    display: table-cell;
   }
 }
 
