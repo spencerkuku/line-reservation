@@ -399,36 +399,22 @@ if [ "$USE_SSL" = true ]; then
     sudo tee "$APACHE_CONF" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $DOMAIN
-    DocumentRoot $PROJECT_DIR/frontend/dist
-    
-    # 重定向所有 HTTP 流量到 HTTPS
-    RewriteEngine On
-    RewriteCond %{HTTPS} off
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+    # 所有 HTTP 流量跳轉到 HTTPS
+    Redirect permanent / https://$DOMAIN/
 </VirtualHost>
 
+<IfModule mod_ssl.c>
 <VirtualHost *:443>
     ServerName $DOMAIN
+    # ServerAlias 可選，讓 www 也導向同一個證書
+    ServerAlias www.$DOMAIN
     DocumentRoot $PROJECT_DIR/frontend/dist
 
-    # SSL 配置
-    SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
-    
-    # 安全標頭
-    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
-    Header always set X-Frame-Options DENY
-    Header always set X-Content-Type-Options nosniff
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
-
-    # 前端靜態檔案服務
     <Directory $PROJECT_DIR/frontend/dist>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
-        
-        # Vue Router 歷史模式支援
+
         RewriteEngine On
         RewriteBase /
         RewriteRule ^index\.html$ - [L]
@@ -439,7 +425,6 @@ if [ "$USE_SSL" = true ]; then
         RewriteRule . /index.html [L]
     </Directory>
 
-    # API 路由代理到後端
     RewriteEngine On
     RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
 
@@ -447,13 +432,11 @@ if [ "$USE_SSL" = true ]; then
         AllowOverride All
         Require all granted
         Options FollowSymLinks
-
         <FilesMatch "\.php$">
             SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
     </Directory>
 
-    # 後端存儲檔案
     Alias /storage $PROJECT_DIR/backend/storage/app/public
     <Directory $PROJECT_DIR/backend/storage/app/public>
         AllowOverride None
@@ -463,7 +446,12 @@ if [ "$USE_SSL" = true ]; then
 
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
     CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
+
+    Include /etc/letsencrypt/options-ssl-apache.conf
+    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
 </VirtualHost>
+</IfModule>
 EOF
 else
     # 非 SSL 配置 (HTTP)
