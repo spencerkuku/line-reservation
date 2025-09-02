@@ -433,7 +433,7 @@ if [ "$USE_SSL" = true ]; then
         Require all granted
         Options FollowSymLinks
         <FilesMatch "\.php$">
-            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+            SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
     </Directory>
 
