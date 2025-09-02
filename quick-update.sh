@@ -740,14 +740,37 @@ read_current_settings() {
 
 # 更新 Apache 配置
 update_apache_config() {
-    local protocol="$1"
-    local domain="$2"
+    local domain="$1"
+    local use_ssl="$2"
+    local project_dir="/var/www/line-reservation"
     local apache_conf="/etc/apache2/sites-available/line-reservation.conf"
     
-    echo "🔧 生成新的 Apache 配置..."
+    echo "🔧 更新 Apache 虛擬主機配置..."
     
-    if [ "$protocol" = "https" ]; then
-        # SSL 配置 (HTTPS)
+    # 檢測 PHP-FPM socket
+    local php_fpm_handler=""
+    local possible_sockets=(
+        "/run/php/php8.3-fpm.sock"
+        "/var/run/php/php8.3-fpm.sock"
+        "/run/php/php8.2-fpm.sock"
+        "/var/run/php/php8.2-fpm.sock"
+        "/run/php/php8.1-fpm.sock"
+        "/var/run/php/php8.1-fpm.sock"
+    )
+    
+    for sock in "${possible_sockets[@]}"; do
+        if [ -S "$sock" ]; then
+            php_fpm_handler="proxy:unix:${sock}|fcgi://localhost"
+            break
+        fi
+    done
+    
+    if [ -z "$php_fpm_handler" ]; then
+        php_fpm_handler="proxy:fcgi://127.0.0.1:9000"
+    fi
+    
+    if [ "$use_ssl" = "true" ]; then
+        # SSL 配置
         sudo tee "$apache_conf" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $domain
@@ -760,9 +783,9 @@ update_apache_config() {
     ServerName $domain
     # ServerAlias 可選，讓 www 也導向同一個證書
     ServerAlias www.$domain
-    DocumentRoot $PROJECT_DIR/frontend/dist
+    DocumentRoot $project_dir/frontend/dist
 
-    <Directory $PROJECT_DIR/frontend/dist>
+    <Directory $project_dir/frontend/dist>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
@@ -778,19 +801,19 @@ update_apache_config() {
     </Directory>
 
     RewriteEngine On
-    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+    RewriteRule ^/api/(.*)$ $project_dir/backend/public/index.php [QSA,L]
 
-    <Directory $PROJECT_DIR/backend/public>
+    <Directory $project_dir/backend/public>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
         <FilesMatch "\.php$">
-            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+            SetHandler "$php_fpm_handler"
         </FilesMatch>
     </Directory>
 
-    Alias /storage $PROJECT_DIR/backend/storage/app/public
-    <Directory $PROJECT_DIR/backend/storage/app/public>
+    Alias /storage $project_dir/backend/storage/app/public
+    <Directory $project_dir/backend/storage/app/public>
         AllowOverride None
         Require all granted
         Options FollowSymLinks
@@ -806,17 +829,17 @@ update_apache_config() {
 </IfModule>
 EOF
     else
-        # 非 SSL 配置 (HTTP)
+        # 非 SSL 配置
         sudo tee "$apache_conf" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $domain
-    DocumentRoot $PROJECT_DIR/frontend/dist
+    DocumentRoot $project_dir/frontend/dist
 
-    <Directory $PROJECT_DIR/frontend/dist>
+    <Directory $project_dir/frontend/dist>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
-
+        
         RewriteEngine On
         RewriteBase /
         RewriteRule ^index\.html$ - [L]
@@ -828,19 +851,19 @@ EOF
     </Directory>
 
     RewriteEngine On
-    RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
+    RewriteRule ^/api/(.*)$ $project_dir/backend/public/index.php [QSA,L]
 
-    <Directory $PROJECT_DIR/backend/public>
+    <Directory $project_dir/backend/public>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
         <FilesMatch "\.php$">
-            SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+            SetHandler "$php_fpm_handler"
         </FilesMatch>
     </Directory>
 
-    Alias /storage $PROJECT_DIR/backend/storage/app/public
-    <Directory $PROJECT_DIR/backend/storage/app/public>
+    Alias /storage $project_dir/backend/storage/app/public
+    <Directory $project_dir/backend/storage/app/public>
         AllowOverride None
         Require all granted
         Options FollowSymLinks
@@ -1012,6 +1035,71 @@ update_domain() {
         # 恢復權限
         sudo chmod 600 "$PROJECT_DIR/frontend/.env" 2>/dev/null || true
     fi
+    
+    # 檢查是否從 IP 地址改為域名，如果是且當前為 HTTP，詢問是否啟用 SSL
+    local was_ip=false
+    local is_domain=false
+    
+    if [[ $CURRENT_DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        was_ip=true
+    fi
+    
+    if [[ ! $NEW_DOMAIN =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        is_domain=true
+    fi
+    
+    # 更新 Apache 配置
+    echo "🔧 更新 Apache 配置..."
+    local use_ssl_flag
+    if [ "$CURRENT_PROTOCOL" = "https" ]; then
+        use_ssl_flag="true"
+    else
+        use_ssl_flag="false"
+    fi
+    update_apache_config "$NEW_DOMAIN" "$use_ssl_flag"
+    
+    echo "🔄 重新載入 Apache 配置..."
+    sudo systemctl reload apache2
+    
+    # 如果從 IP 改為域名且當前為 HTTP，詢問是否啟用 SSL
+    if [ "$was_ip" = true ] && [ "$is_domain" = true ] && [ "$CURRENT_PROTOCOL" = "http" ]; then
+        echo ""
+        echo "🔒 檢測到您從 IP 地址更改為域名，現在可以啟用 SSL 了！"
+        read -p "是否要啟用 SSL? (y/N): " ENABLE_SSL_AFTER_DOMAIN
+        if [[ "$ENABLE_SSL_AFTER_DOMAIN" =~ ^[Yy]$ ]]; then
+            echo "🔄 正在啟用 SSL..."
+            
+            # 更新環境變數為 HTTPS
+            cd "$PROJECT_DIR/backend" || { echo "❌ 無法進入後端目錄"; return 1; }
+            update_env_var "APP_URL" "https://$NEW_DOMAIN" ".env"
+            update_env_var "FRONTEND_URL" "https://$NEW_DOMAIN" ".env"
+            update_env_var "CORS_ALLOWED_ORIGINS" "https://$NEW_DOMAIN" ".env"
+            update_env_var "SESSION_SECURE_COOKIE" "true" ".env"
+            
+            cd "$PROJECT_DIR/frontend" || { echo "❌ 無法進入前端目錄"; return 1; }
+            update_env_var "VITE_API_BASE_URL" "https://$NEW_DOMAIN/api" ".env"
+            update_env_var "VITE_APP_BASE_URL" "https://$NEW_DOMAIN" ".env"
+            update_env_var "VITE_APP_URL" "https://$NEW_DOMAIN" ".env"
+            update_env_var "VITE_BACKEND_URL" "https://$NEW_DOMAIN/api" ".env"
+            
+            cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+            
+            # 更新 Apache 配置為 SSL
+            update_apache_config "$NEW_DOMAIN" "true"
+            sudo systemctl reload apache2
+            
+            # 獲取 SSL 憑證
+            echo "🔒 設定 SSL 憑證..."
+            echo "正在獲取 SSL 憑證，這可能需要幾分鐘..."
+            if sudo certbot --apache -d "$NEW_DOMAIN" --non-interactive --agree-tos --email "admin@$NEW_DOMAIN" --redirect; then
+                echo "✅ SSL 憑證設置成功！"
+                echo "✅ 網站現在可以通過 https://$NEW_DOMAIN 訪問"
+            else
+                echo "⚠️ SSL 憑證設置失敗，請手動執行: sudo certbot --apache -d $NEW_DOMAIN"
+                echo "✅ 域名已更新，但仍使用 HTTP"
+            fi
+        fi
+    fi
 }
 
 # 切換 SSL
@@ -1066,6 +1154,20 @@ toggle_ssl() {
     update_env_var "VITE_BACKEND_URL" "${NEW_PROTOCOL}://$CURRENT_DOMAIN/api" ".env"
     
     cd "$PROJECT_DIR" || { echo "❌ 無法返回專案目錄"; return 1; }
+    
+    # 更新 Apache 配置
+    echo "🔧 更新 Apache 配置..."
+    local use_ssl_flag
+    if [ "$NEW_PROTOCOL" = "https" ]; then
+        use_ssl_flag="true"
+    else
+        use_ssl_flag="false"
+    fi
+    update_apache_config "$CURRENT_DOMAIN" "$use_ssl_flag"
+    
+    echo "🔄 重新載入 Apache 配置..."
+    sudo systemctl reload apache2
+    
     echo "✅ SSL 設定已更新為: $NEW_PROTOCOL"
     
     # 重新生成 Apache 配置
@@ -1074,15 +1176,12 @@ toggle_ssl() {
     
     if [ "$NEW_PROTOCOL" = "https" ]; then
         echo "🔒 設定 SSL 憑證..."
-        echo "正在獲取 SSL 憑證..."
-        if sudo certbot --apache -d "$CURRENT_DOMAIN" --non-interactive --agree-tos --email "admin@$CURRENT_DOMAIN" --redirect; then
-            echo "✅ SSL 憑證設置成功！"
-        else
-            echo "⚠️ SSL 憑證設置失敗，您可以稍後手動執行: sudo certbot --apache -d $CURRENT_DOMAIN"
-        fi
+    echo "正在獲取 SSL 憑證，這可能需要幾分鐘..."
+    if sudo certbot --apache -d "$CURRENT_DOMAIN" --non-interactive --agree-tos --email "admin@$CURRENT_DOMAIN" --redirect; then
+        echo "✅ SSL 憑證設置成功！"
     else
-        echo "🔄 重新載入 Apache 配置..."
-        sudo systemctl reload apache2
+        echo "⚠️ SSL 憑證設置失敗，請手動執行: sudo certbot --apache -d $CURRENT_DOMAIN"
+    fi
     fi
 }
 

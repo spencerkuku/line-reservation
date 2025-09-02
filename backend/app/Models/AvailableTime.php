@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class AvailableTime extends Model
 {
@@ -15,7 +16,6 @@ class AvailableTime extends Model
         'start_time',
         'end_time',
         'max_capacity',
-        'current_bookings',
         'is_active'
     ];
 
@@ -57,29 +57,22 @@ class AvailableTime extends Model
 
     public function scopeAvailable($query)
     {
-        return $query->whereColumn('current_bookings', '<', 'max_capacity');
+        return $query->whereRaw('(
+            SELECT COUNT(*) 
+            FROM reservations 
+            WHERE reservations.available_time_id = available_times.id 
+            AND reservations.status IN ("confirmed", "pending")
+        ) < available_times.max_capacity');
+    }
+
+    // 獲取當前預約數量（計算型屬性）
+    public function getCurrentBookingsAttribute()
+    {
+        return $this->reservations()->whereIn('status', ['confirmed', 'pending'])->count();
     }
 
     public function isAvailable()
     {
         return $this->current_bookings < $this->max_capacity;
-    }
-
-    public function book()
-    {
-        if ($this->isAvailable()) {
-            $this->increment('current_bookings');
-            return true;
-        }
-        return false;
-    }
-
-    public function cancelBooking()
-    {
-        if ($this->current_bookings > 0) {
-            $this->decrement('current_bookings');
-            return true;
-        }
-        return false;
     }
 }

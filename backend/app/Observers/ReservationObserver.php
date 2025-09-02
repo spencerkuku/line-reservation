@@ -12,7 +12,7 @@ class ReservationObserver
      */
     public function created(Reservation $reservation): void
     {
-        $this->updateCustomerStats($reservation);
+        $this->logReservationEvent('created', $reservation);
     }
 
     /**
@@ -20,11 +20,16 @@ class ReservationObserver
      */
     public function updated(Reservation $reservation): void
     {
-        $this->updateCustomerStats($reservation);
+        $this->logReservationEvent('updated', $reservation);
         
-        // 如果狀態改變了，也需要更新統計
+        // 如果狀態改變了，記錄狀態變更
         if ($reservation->wasChanged('status')) {
-            $this->updateCustomerStats($reservation);
+            Log::info('Reservation status changed', [
+                'reservation_id' => $reservation->id,
+                'customer_id' => $reservation->customer_id,
+                'old_status' => $reservation->getOriginal('status'),
+                'new_status' => $reservation->status
+            ]);
         }
     }
 
@@ -33,29 +38,27 @@ class ReservationObserver
      */
     public function deleted(Reservation $reservation): void
     {
-        $this->updateCustomerStats($reservation);
+        $this->logReservationEvent('deleted', $reservation);
     }
 
     /**
-     * 更新客戶統計數據
+     * 記錄預約事件
      */
-    private function updateCustomerStats(Reservation $reservation): void
+    private function logReservationEvent(string $event, Reservation $reservation): void
     {
         try {
-            if ($reservation->customer) {
-                $reservation->customer->recalculateStats();
-                
-                Log::info('Customer stats updated', [
-                    'customer_id' => $reservation->customer->id,
-                    'reservation_id' => $reservation->id,
-                    'reservation_status' => $reservation->status
-                ]);
-            }
+            Log::info("Reservation {$event}", [
+                'reservation_id' => $reservation->id,
+                'customer_id' => $reservation->customer_id,
+                'service_id' => $reservation->service_id,
+                'reservation_date' => $reservation->reservation_date,
+                'reservation_time' => $reservation->reservation_time,
+                'status' => $reservation->status
+            ]);
         } catch (\Exception $e) {
-            Log::error('Failed to update customer stats', [
+            Log::error("Failed to log reservation {$event}", [
                 'error' => $e->getMessage(),
-                'customer_id' => $reservation->customer_id ?? null,
-                'reservation_id' => $reservation->id
+                'reservation_id' => $reservation->id ?? null
             ]);
         }
     }
