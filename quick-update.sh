@@ -580,74 +580,7 @@ show_backup_status() {
     echo "====================================="
 }
 
-# 智能 Git 清理函數
-smart_git_cleanup() {
-    echo "🗑️ 智能 Git 清理..."
-    
-    # 檢查是否為多人開發環境
-    local is_multi_dev=false
-    
-    # 檢查 .gitignore 是否有重要內容
-    if [ -f ".gitignore" ]; then
-        local gitignore_size=$(wc -l < .gitignore)
-        if [ "$gitignore_size" -gt 10 ]; then
-            echo "📋 發現詳細的 .gitignore 檔案 ($gitignore_size 行)"
-            is_multi_dev=true
-        fi
-    fi
-    
-    # 檢查是否有多個遠端分支
-    if [ -d ".git" ]; then
-        local remote_branches=$(git branch -r 2>/dev/null | wc -l)
-        if [ "$remote_branches" -gt 2 ]; then
-            echo "🌿 發現多個遠端分支 ($remote_branches 個)"
-            is_multi_dev=true
-        fi
-    fi
-    
-    if [ "$is_multi_dev" = true ]; then
-        echo "⚠️ 檢測到可能的多人開發環境"
-        echo "建議保留以下檔案以供未來開發使用："
-        echo "  - .gitignore (忽略規則)"
-        echo "  - .gitattributes (檔案屬性)"
-        echo ""
-        read -p "是否要保留 Git 配置檔案? (Y/n): " keep_git_config
-        
-        if [[ ! "$keep_git_config" =~ ^[Nn]$ ]]; then
-            # 僅刪除 .git 目錄，保留配置檔案
-            if [ -d ".git" ]; then
-                rm -rf .git
-                echo "✅ .git 目錄已刪除（保留配置檔案）"
-            fi
-            
-            echo "ℹ️ 已保留 .gitignore 和 .gitattributes 供未來使用"
-            return 0
-        fi
-    fi
-    
-    # 完全清理 Git 相關檔案
-    echo "🧹 完全清理 Git 相關檔案..."
-    
-    if [ -d ".git" ]; then
-        rm -rf .git
-        echo "✅ .git 目錄已刪除"
-    fi
-    
-    if [ -f ".gitignore" ]; then
-        rm -f .gitignore
-        echo "✅ .gitignore 檔案已刪除"
-    fi
-    
-    if [ -f ".gitattributes" ]; then
-        rm -f .gitattributes
-        echo "✅ .gitattributes 檔案已刪除"
-    fi
-    
-    # 清理其他 Git 相關檔案
-    find . -name ".git*" -type f -delete 2>/dev/null || true
-    
-    echo "✅ Git 完全清理完成"
-}
+# Git 相關功能已移除，保留版本控制功能供後續使用
 
 # 檢查專案目錄是否存在
 if [ ! -d "$PROJECT_DIR" ]; then
@@ -1288,11 +1221,11 @@ restore_git_and_update() {
         read -p "是否要重新初始化 Git? (y/N): " REINIT_GIT
         if [[ "$REINIT_GIT" =~ ^[Yy]$ ]]; then
             echo "🗑️ 移除現有 Git..."
-            sudo rm -rf .git
+            rm -rf .git
         else
             echo "📥 使用現有 Git 拉取更新..."
             git pull origin single-user-version || echo "⚠️ Git 更新可能失敗，請檢查"
-            cleanup_git_and_rebuild
+            rebuild_after_update
             return
         fi
     fi
@@ -1348,20 +1281,12 @@ restore_git_and_update() {
     fi
     
     echo "🔄 執行完整重建..."
-    full_rebuild
-    
-    echo "🗑️ 清理 Git 資料..."
-    cleanup_git_files
+    rebuild_after_update
     
     echo "✅ Git 恢復和代碼更新完成"
 }
 
-# 清理 Git 檔案
-cleanup_git_files() {
-    smart_git_cleanup
-}
-
-# 更新代碼並重建 (原版，不使用 Git)
+# 更新代碼並重建
 update_and_rebuild() {
     echo "📥 【代碼更新】拉取最新代碼並執行重建..."
     
@@ -1379,18 +1304,16 @@ update_and_rebuild() {
         return 1
     fi
     
-    echo "🔄 執行完整重建和清理..."
-    cleanup_git_and_rebuild
+    echo "🔄 執行完整重建..."
+    rebuild_after_update
     
     echo "✅ 代碼更新並重建完成"
 }
-cleanup_git_and_rebuild() {
+rebuild_after_update() {
     echo "🔄 執行完整重建..."
     clear_backend_cache
     rebuild_frontend
     
-    echo "�️ 清理 Git 資料..."
-    cleanup_git_files
     
     echo "� 最終權限設定..."
     set_secure_permissions

@@ -1053,91 +1053,12 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw --force enable
 
-echo "🗑️ 清理 Git 資料..."
+echo "� 保留 Git 版本控制系統..."
 cd "$PROJECT_DIR"
 
-# 智能 Git 清理 - 檢查是否為多人開發環境
-echo "🔍 檢查開發環境類型..."
-
-is_multi_dev=false
-
-# 檢查 .gitignore 是否有重要內容
-if [ -f ".gitignore" ]; then
-    gitignore_size=$(wc -l < .gitignore)
-    if [ "$gitignore_size" -gt 10 ]; then
-        echo "📋 發現詳細的 .gitignore 檔案 ($gitignore_size 行)"
-        is_multi_dev=true
-    fi
-fi
-
-# 檢查是否有多個遠端分支
-if [ -d ".git" ]; then
-    remote_branches=$(git branch -r 2>/dev/null | wc -l)
-    if [ "$remote_branches" -gt 2 ]; then
-        echo "🌿 發現多個遠端分支 ($remote_branches 個)"
-        is_multi_dev=true
-    fi
-fi
-
-if [ "$is_multi_dev" = true ]; then
-    echo "⚠️ 檢測到可能的多人開發環境"
-    echo "建議保留以下檔案以供未來開發使用："
-    echo "  - .gitignore (忽略規則)"
-    echo "  - .gitattributes (檔案屬性)"
-    echo ""
-    read -p "是否要保留 Git 配置檔案? (Y/n): " keep_git_config
-    
-    if [[ ! "$keep_git_config" =~ ^[Nn]$ ]]; then
-        # 僅刪除 .git 目錄，保留配置檔案
-        if [ -d ".git" ]; then
-            sudo rm -rf .git
-            echo "✅ .git 目錄已刪除（保留配置檔案）"
-        fi
-        
-        echo "ℹ️ 已保留 .gitignore 和 .gitattributes 供未來使用"
-    else
-        # 完全清理
-        echo "🧹 完全清理 Git 相關檔案..."
-        if [ -d ".git" ]; then
-            sudo rm -rf .git
-            echo "✅ .git 目錄已刪除"
-        fi
-        
-        if [ -f ".gitignore" ]; then
-            sudo rm -f .gitignore
-            echo "✅ .gitignore 檔案已刪除"
-        fi
-        
-        if [ -f ".gitattributes" ]; then
-            sudo rm -f .gitattributes
-            echo "✅ .gitattributes 檔案已刪除"
-        fi
-        
-        # 清理其他 Git 相關檔案
-        find . -name ".git*" -type f -delete 2>/dev/null || true
-    fi
-else
-    echo "🏠 檢測到單人生產環境，執行完全清理..."
-    if [ -d ".git" ]; then
-        sudo rm -rf .git
-        echo "✅ .git 目錄已刪除"
-    fi
-    
-    if [ -f ".gitignore" ]; then
-        sudo rm -f .gitignore
-        echo "✅ .gitignore 檔案已刪除"
-    fi
-    
-    if [ -f ".gitattributes" ]; then
-        sudo rm -f .gitattributes
-        echo "✅ .gitattributes 檔案已刪除"
-    fi
-    
-    # 清理其他 Git 相關檔案
-    find . -name ".git*" -type f -delete 2>/dev/null || true
-fi
-
-echo "✅ Git 資料清理完成"
+# 保留 Git 倉庫用於後續版本管理
+echo "ℹ️ Git 倉庫已保留，可用於後續代碼更新和版本控制"
+echo "✅ 版本控制系統配置完成"
 
 echo "✅ 部署完成！"
 echo ""
