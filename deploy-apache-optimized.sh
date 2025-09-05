@@ -423,6 +423,15 @@ EOF
         Require all granted
         Options FollowSymLinks
 
+        # 安全配置 - 禁止訪問敏感文件和目錄
+        <FilesMatch "^\.(git|env|htaccess|htpasswd)">
+            Require all denied
+        </FilesMatch>
+        
+        <DirectoryMatch "^\.(git|svn|hg)">
+            Require all denied
+        </DirectoryMatch>
+
         RewriteEngine On
         RewriteBase /
         RewriteRule ^index\.html$ - [L]
@@ -440,6 +449,17 @@ EOF
         AllowOverride All
         Require all granted
         Options FollowSymLinks
+        
+        # 安全配置 - 禁止訪問敏感文件
+        <FilesMatch "^\.(env|htaccess|htpasswd|git)">
+            Require all denied
+        </FilesMatch>
+        
+        # 禁止訪問 composer 和其他配置文件
+        <FilesMatch "\.(json|lock|md|txt|yml|yaml|xml)$">
+            Require all denied
+        </FilesMatch>
+        
         <FilesMatch "\.php$">
             SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
@@ -450,6 +470,15 @@ EOF
         AllowOverride None
         Require all granted
         Options FollowSymLinks
+        
+        # 安全配置 - 禁止執行 PHP 和敏感文件
+        <FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+            Require all denied
+        </FilesMatch>
+        
+        <FilesMatch "^\.(env|htaccess|htpasswd|git)">
+            Require all denied
+        </FilesMatch>
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
@@ -475,6 +504,15 @@ else
         Require all granted
         Options FollowSymLinks
         
+        # 安全配置 - 禁止訪問敏感文件和目錄
+        <FilesMatch "^\.(git|env|htaccess|htpasswd)">
+            Require all denied
+        </FilesMatch>
+        
+        <DirectoryMatch "^\.(git|svn|hg)">
+            Require all denied
+        </DirectoryMatch>
+        
         # Vue Router 歷史模式支援
         RewriteEngine On
         RewriteBase /
@@ -495,6 +533,16 @@ else
         Require all granted
         Options FollowSymLinks
 
+        # 安全配置 - 禁止訪問敏感文件
+        <FilesMatch "^\.(env|htaccess|htpasswd|git)">
+            Require all denied
+        </FilesMatch>
+        
+        # 禁止訪問 composer 和其他配置文件
+        <FilesMatch "\.(json|lock|md|txt|yml|yaml|xml)$">
+            Require all denied
+        </FilesMatch>
+
         <FilesMatch "\.php$">
             SetHandler "$PHP_FPM_HANDLER"
         </FilesMatch>
@@ -506,6 +554,15 @@ else
         AllowOverride None
         Require all granted
         Options FollowSymLinks
+        
+        # 安全配置 - 禁止執行 PHP 和敏感文件
+        <FilesMatch "\.(php|phtml|php3|php4|php5|phar)$">
+            Require all denied
+        </FilesMatch>
+        
+        <FilesMatch "^\.(env|htaccess|htpasswd|git)">
+            Require all denied
+        </FilesMatch>
     </Directory>
 
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
