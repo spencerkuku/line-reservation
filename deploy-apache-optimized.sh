@@ -409,7 +409,7 @@ if [ "$USE_SSL" = true ]; then
 EOF
 
     # HTTPS 配置文件 (初始版本，不包含 SSL 配置)
-    APACHE_SSL_CONF="/etc/apache2/sites-available/line-reservation-ssl.conf"
+    APACHE_SSL_CONF="/etc/apache2/sites-available/line-reservation-le-ssl.conf"
     sudo tee "$APACHE_SSL_CONF" > /dev/null <<EOF
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
@@ -556,7 +556,7 @@ if [ "$USE_SSL" = true ]; then
             ls -la /etc/letsencrypt/live/$DOMAIN/
             
             # 確保我們的 SSL 配置文件也被啟用（如果 Certbot 沒有自動啟用的話）
-            if ! sudo a2ensite line-reservation-ssl.conf 2>/dev/null; then
+            if ! sudo a2ensite line-reservation-le-ssl.conf 2>/dev/null; then
                 echo "ℹ️ SSL 站台可能已由 Certbot 管理"
             fi
         else
@@ -585,7 +585,7 @@ if [ "$USE_SSL" = true ]; then
         echo "  1. 確認域名 DNS 已正確指向此伺服器"
         echo "  2. 確認防火牆已開放 80 和 443 端口"
         echo "  3. 確認 Apache 正常運行且配置正確"
-        echo "  4. 手動執行後可啟用 SSL 站台: sudo a2ensite line-reservation-ssl.conf"
+        echo "  4. 手動執行後可啟用 SSL 站台: sudo a2ensite line-reservation-le-ssl.conf"
     fi
     
     # 設置自動更新憑證
