@@ -383,6 +383,9 @@ sudo tee -a /etc/apache2/apache2.conf > /dev/null <<EOF
 ServerTokens Prod
 ServerSignature Off
 
+# 設定全域 ServerName 以避免啟動警告
+ServerName $DOMAIN
+
 # 安全標頭設定
 Header always set X-Content-Type-Options "nosniff"
 Header always set X-Frame-Options "SAMEORIGIN"
@@ -549,8 +552,25 @@ if [ "$USE_SSL" = true ]; then
         echo "✅ SSL 憑證設置成功！"
         echo "🔧 Certbot 已自動配置 Apache SSL 設定"
         
+        # 驗證憑證文件是否存在
+        if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/$DOMAIN/privkey.pem" ]; then
+            echo "✅ SSL 憑證文件驗證成功："
+            echo "   📜 憑證文件: /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+            echo "   🔑 私鑰文件: /etc/letsencrypt/live/$DOMAIN/privkey.pem"
+            ls -la /etc/letsencrypt/live/$DOMAIN/
+        else
+            echo "⚠️ SSL 憑證文件未找到，請檢查 Certbot 執行結果"
+        fi
+        
         # 重新載入 Apache 以確保所有設定生效
         sudo systemctl reload apache2
+        
+        # 檢查 Apache 配置
+        if sudo apachectl configtest; then
+            echo "✅ Apache 配置語法檢查通過"
+        else
+            echo "❌ Apache 配置有問題，請檢查"
+        fi
         
         # 顯示生成的配置文件
         echo "📄 Certbot 生成的配置文件："
@@ -559,6 +579,11 @@ if [ "$USE_SSL" = true ]; then
     else
         echo "⚠️ SSL 憑證設置失敗，網站仍可通過 HTTP 訪問"
         echo "你可以稍後手動執行: sudo certbot --apache -d $DOMAIN"
+        echo ""
+        echo "🔍 常見問題排除："
+        echo "  1. 確認域名 DNS 已正確指向此伺服器"
+        echo "  2. 確認防火牆已開放 80 和 443 端口"
+        echo "  3. 確認 Apache 正常運行且配置正確"
         
         # 如果 SSL 失敗，禁用我們創建的 SSL 配置文件
         sudo a2dissite line-reservation-ssl.conf 2>/dev/null || true
