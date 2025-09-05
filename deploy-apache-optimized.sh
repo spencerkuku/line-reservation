@@ -400,13 +400,8 @@ if [ "$USE_SSL" = true ]; then
     sudo tee "$APACHE_CONF" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $DOMAIN
-    ServerAlias www.$DOMAIN
-    
     # 所有 HTTP 流量跳轉到 HTTPS
     Redirect permanent / https://$DOMAIN/
-    
-    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
-    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 </VirtualHost>
 EOF
 
@@ -457,13 +452,12 @@ EOF
         Options FollowSymLinks
     </Directory>
 
-    ErrorLog \${APACHE_LOG_DIR}/line-reservation_ssl_error.log
-    CustomLog \${APACHE_LOG_DIR}/line-reservation_ssl_access.log combined
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 
-    # SSL 配置 - 這些文件將由 Certbot 自動生成
-    # Include /etc/letsencrypt/options-ssl-apache.conf
-    # SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
-    # SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
+    Include /etc/letsencrypt/options-ssl-apache.conf
+    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
 </VirtualHost>
 </IfModule>
 EOF
@@ -530,7 +524,7 @@ sudo a2dissite 000-default.conf || true
 if [ "$USE_SSL" = true ]; then
     echo "🔒 設定 SSL 憑證..."
     
-    # 首先重啟 Apache 以確保 HTTP 配置生效
+    # 首先重新載入 Apache 配置以應用 HTTP 配置
     echo "🔄 重新載入 Apache 配置..."
     sudo systemctl reload apache2
     
@@ -541,20 +535,32 @@ if [ "$USE_SSL" = true ]; then
         exit 1
     fi
     
-    # 獲取 SSL 憑證並自動配置 HTTPS
+    # 檢查配置文件語法
+    if ! sudo apachectl configtest; then
+        echo "❌ Apache 配置文件有語法錯誤"
+        exit 1
+    fi
+    
     echo "📜 正在獲取 SSL 憑證..."
-    if sudo certbot --apache -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --email "admin@$DOMAIN" --redirect; then
+    echo "ℹ️ Certbot 將自動修改 Apache 配置文件來啟用 SSL"
+    
+    # 獲取 SSL 憑證，Certbot 會自動處理 Apache 配置
+    if sudo certbot --apache -d "$DOMAIN" --non-interactive --agree-tos --email "admin@$DOMAIN" --redirect; then
         echo "✅ SSL 憑證設置成功！"
+        echo "🔧 Certbot 已自動配置 Apache SSL 設定"
         
-        # Certbot 會自動更新配置文件，我們需要確保它正確配置了 SSL 站點
-        echo "🔧 驗證 SSL 配置..."
+        # 重新載入 Apache 以確保所有設定生效
         sudo systemctl reload apache2
+        
+        # 顯示生成的配置文件
+        echo "📄 Certbot 生成的配置文件："
+        ls -la /etc/apache2/sites-available/*ssl* 2>/dev/null || echo "   未找到 SSL 配置文件"
         
     else
         echo "⚠️ SSL 憑證設置失敗，網站仍可通過 HTTP 訪問"
-        echo "你可以稍後手動執行: sudo certbot --apache -d $DOMAIN -d www.$DOMAIN"
+        echo "你可以稍後手動執行: sudo certbot --apache -d $DOMAIN"
         
-        # 如果 SSL 失敗，禁用 SSL 配置文件
+        # 如果 SSL 失敗，禁用我們創建的 SSL 配置文件
         sudo a2dissite line-reservation-ssl.conf 2>/dev/null || true
         sudo systemctl reload apache2
     fi
