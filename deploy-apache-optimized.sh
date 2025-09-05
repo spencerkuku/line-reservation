@@ -395,26 +395,37 @@ echo "�🖥️ 設定 Apache 虛擬主機..."
 APACHE_CONF="/etc/apache2/sites-available/line-reservation.conf"
 
 if [ "$USE_SSL" = true ]; then
-    # SSL 配置 (HTTPS)
+    # SSL 配置 - 分開的 HTTP 和 HTTPS 配置文件
+    # HTTP 配置 (重定向到 HTTPS)
     sudo tee "$APACHE_CONF" > /dev/null <<EOF
 <VirtualHost *:80>
     ServerName $DOMAIN
+    ServerAlias www.$DOMAIN
+    
     # 所有 HTTP 流量跳轉到 HTTPS
     Redirect permanent / https://$DOMAIN/
+    
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 </VirtualHost>
+EOF
 
+    # HTTPS 配置文件
+    APACHE_SSL_CONF="/etc/apache2/sites-available/line-reservation-ssl.conf"
+    sudo tee "$APACHE_SSL_CONF" > /dev/null <<EOF
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
     ServerName $DOMAIN
-    # ServerAlias 可選，讓 www 也導向同一個證書
     ServerAlias www.$DOMAIN
     DocumentRoot $PROJECT_DIR/frontend/dist
 
+    # 前端靜態檔案服務
     <Directory $PROJECT_DIR/frontend/dist>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
-
+        
+        # Vue Router 歷史模式支援
         RewriteEngine On
         RewriteBase /
         RewriteRule ^index\.html$ - [L]
@@ -425,6 +436,7 @@ if [ "$USE_SSL" = true ]; then
         RewriteRule . /index.html [L]
     </Directory>
 
+    # API 路由代理到後端
     RewriteEngine On
     RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
 
@@ -437,6 +449,7 @@ if [ "$USE_SSL" = true ]; then
         </FilesMatch>
     </Directory>
 
+    # 後端存儲檔案
     Alias /storage $PROJECT_DIR/backend/storage/app/public
     <Directory $PROJECT_DIR/backend/storage/app/public>
         AllowOverride None
@@ -444,12 +457,13 @@ if [ "$USE_SSL" = true ]; then
         Options FollowSymLinks
     </Directory>
 
-    ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
-    CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
+    ErrorLog \${APACHE_LOG_DIR}/line-reservation_ssl_error.log
+    CustomLog \${APACHE_LOG_DIR}/line-reservation_ssl_access.log combined
 
-    Include /etc/letsencrypt/options-ssl-apache.conf
-    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
+    # SSL 配置 - 這些文件將由 Certbot 自動生成
+    # Include /etc/letsencrypt/options-ssl-apache.conf
+    # SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
+    # SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
 </VirtualHost>
 </IfModule>
 EOF
@@ -507,22 +521,42 @@ fi
 
 echo "🔐 啟用站台..."
 sudo a2ensite line-reservation.conf
+if [ "$USE_SSL" = true ]; then
+    sudo a2ensite line-reservation-ssl.conf
+fi
 sudo a2dissite 000-default.conf || true
 
 # 如果使用 SSL，設置 Let's Encrypt 憑證
 if [ "$USE_SSL" = true ]; then
     echo "🔒 設定 SSL 憑證..."
     
-    # 首先重啟 Apache 以確保配置生效
+    # 首先重啟 Apache 以確保 HTTP 配置生效
+    echo "🔄 重新載入 Apache 配置..."
     sudo systemctl reload apache2
     
-    # 獲取 SSL 憑證
+    # 檢查 Apache 狀態
+    if ! sudo systemctl is-active --quiet apache2; then
+        echo "❌ Apache 未正常運行，檢查配置..."
+        sudo systemctl status apache2
+        exit 1
+    fi
+    
+    # 獲取 SSL 憑證並自動配置 HTTPS
     echo "📜 正在獲取 SSL 憑證..."
-    if sudo certbot --apache -d "$DOMAIN" --non-interactive --agree-tos --email "admin@$DOMAIN" --redirect; then
+    if sudo certbot --apache -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --email "admin@$DOMAIN" --redirect; then
         echo "✅ SSL 憑證設置成功！"
+        
+        # Certbot 會自動更新配置文件，我們需要確保它正確配置了 SSL 站點
+        echo "🔧 驗證 SSL 配置..."
+        sudo systemctl reload apache2
+        
     else
-        echo "⚠️ SSL 憑證設置失敗，但網站仍可通過 HTTP 訪問"
-        echo "您可以稍後手動執行: sudo certbot --apache -d $DOMAIN"
+        echo "⚠️ SSL 憑證設置失敗，網站仍可通過 HTTP 訪問"
+        echo "你可以稍後手動執行: sudo certbot --apache -d $DOMAIN -d www.$DOMAIN"
+        
+        # 如果 SSL 失敗，禁用 SSL 配置文件
+        sudo a2dissite line-reservation-ssl.conf 2>/dev/null || true
+        sudo systemctl reload apache2
     fi
     
     # 設置自動更新憑證
