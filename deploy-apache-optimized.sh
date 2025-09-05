@@ -408,22 +408,21 @@ if [ "$USE_SSL" = true ]; then
 </VirtualHost>
 EOF
 
-    # HTTPS 配置文件
+    # HTTPS 配置文件 (初始版本，不包含 SSL 配置)
     APACHE_SSL_CONF="/etc/apache2/sites-available/line-reservation-ssl.conf"
     sudo tee "$APACHE_SSL_CONF" > /dev/null <<EOF
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
     ServerName $DOMAIN
+    # ServerAlias 可選，讓 www 也導向同一個證書
     ServerAlias www.$DOMAIN
     DocumentRoot $PROJECT_DIR/frontend/dist
 
-    # 前端靜態檔案服務
     <Directory $PROJECT_DIR/frontend/dist>
         AllowOverride All
         Require all granted
         Options FollowSymLinks
-        
-        # Vue Router 歷史模式支援
+
         RewriteEngine On
         RewriteBase /
         RewriteRule ^index\.html$ - [L]
@@ -434,7 +433,6 @@ EOF
         RewriteRule . /index.html [L]
     </Directory>
 
-    # API 路由代理到後端
     RewriteEngine On
     RewriteRule ^/api/(.*)$ $PROJECT_DIR/backend/public/index.php [QSA,L]
 
@@ -447,7 +445,6 @@ EOF
         </FilesMatch>
     </Directory>
 
-    # 後端存儲檔案
     Alias /storage $PROJECT_DIR/backend/storage/app/public
     <Directory $PROJECT_DIR/backend/storage/app/public>
         AllowOverride None
@@ -458,9 +455,10 @@ EOF
     ErrorLog \${APACHE_LOG_DIR}/line-reservation_error.log
     CustomLog \${APACHE_LOG_DIR}/line-reservation_access.log combined
 
-    Include /etc/letsencrypt/options-ssl-apache.conf
-    SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
+    # SSL 配置將由 Certbot 自動添加
+    # Include /etc/letsencrypt/options-ssl-apache.conf
+    # SSLCertificateFile /etc/letsencrypt/live/$DOMAIN/fullchain.pem
+    # SSLCertificateKeyFile /etc/letsencrypt/live/$DOMAIN/privkey.pem
 </VirtualHost>
 </IfModule>
 EOF
@@ -518,9 +516,7 @@ fi
 
 echo "🔐 啟用站台..."
 sudo a2ensite line-reservation.conf
-if [ "$USE_SSL" = true ]; then
-    sudo a2ensite line-reservation-ssl.conf
-fi
+# SSL 站台將在 Certbot 成功後啟用
 sudo a2dissite 000-default.conf || true
 
 # 如果使用 SSL，設置 Let's Encrypt 憑證
@@ -558,6 +554,11 @@ if [ "$USE_SSL" = true ]; then
             echo "   📜 憑證文件: /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
             echo "   🔑 私鑰文件: /etc/letsencrypt/live/$DOMAIN/privkey.pem"
             ls -la /etc/letsencrypt/live/$DOMAIN/
+            
+            # 確保我們的 SSL 配置文件也被啟用（如果 Certbot 沒有自動啟用的話）
+            if ! sudo a2ensite line-reservation-ssl.conf 2>/dev/null; then
+                echo "ℹ️ SSL 站台可能已由 Certbot 管理"
+            fi
         else
             echo "⚠️ SSL 憑證文件未找到，請檢查 Certbot 執行結果"
         fi
@@ -584,10 +585,7 @@ if [ "$USE_SSL" = true ]; then
         echo "  1. 確認域名 DNS 已正確指向此伺服器"
         echo "  2. 確認防火牆已開放 80 和 443 端口"
         echo "  3. 確認 Apache 正常運行且配置正確"
-        
-        # 如果 SSL 失敗，禁用我們創建的 SSL 配置文件
-        sudo a2dissite line-reservation-ssl.conf 2>/dev/null || true
-        sudo systemctl reload apache2
+        echo "  4. 手動執行後可啟用 SSL 站台: sudo a2ensite line-reservation-ssl.conf"
     fi
     
     # 設置自動更新憑證
