@@ -54,6 +54,10 @@ class ReservationController extends Controller
                     'customer_notes' => e($reservation->customer_notes),
                     'customer_line_display_name' => e($reservation->customer->line_display_name ?? null),
                     'customer_line_user_id' => e($reservation->customer->line_user_id ?? null),
+                    // 預約快照欄位
+                    'reservation_name' => e($reservation->reservation_name),
+                    'reservation_phone' => e($reservation->reservation_phone),
+                    'reservation_notes' => e($reservation->reservation_notes),
                     'service_name' => e($reservation->service->name ?? '未指定服務'),
                     'service_price' => $reservation->service->price ?? 0,
                     'reservation_date' => $reservation->reservation_date,
