@@ -34,6 +34,8 @@ class Customer extends Model
         'preferences' => 'array',
     ];
 
+    protected $appends = ['total_reservations', 'total_spent', 'customer_level'];
+
     protected $dates = [
         'deleted_at'
     ];

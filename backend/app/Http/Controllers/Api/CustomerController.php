@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
@@ -82,6 +83,9 @@ class CustomerController extends Controller
         // 添加計算屬性
         $customers->getCollection()->transform(function ($customer) {
             $customer->level = $customer->customer_level;
+            // 觸發 accessor 方法並添加到輸出中
+            $customer->setAttribute('total_reservations', $customer->getTotalReservationsAttribute());
+            $customer->setAttribute('total_spent', $customer->getTotalSpentAttribute());
             return $customer;
         });
 
@@ -109,6 +113,9 @@ class CustomerController extends Controller
         ]);
 
         $customer->level = $customer->customer_level;
+        // 觸發 accessor 方法並添加到輸出中
+        $customer->setAttribute('total_reservations', $customer->getTotalReservationsAttribute());
+        $customer->setAttribute('total_spent', $customer->getTotalSpentAttribute());
 
         return response()->json([
             'success' => true,
@@ -212,75 +219,112 @@ class CustomerController extends Controller
     // 客戶統計資料
     public function statistics()
     {
-        // 基本統計
-        $stats = [
-            'total_customers' => Customer::count(),
-            'active_customers' => Customer::active()->count(),
-            'new_customers_this_month' => Customer::whereMonth('created_at', now()->month)
+        try {
+            // 基本統計
+            $stats = [
+                'total_customers' => Customer::count(),
+                'active_customers' => Customer::active()->count(),
+                'new_customers_this_month' => Customer::whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->count(),
+                'customers_with_reservations' => Customer::whereHas('reservations')->count(),
+            ];
+
+            // 使用子查詢計算 VIP 客戶統計
+            $vipCustomerIds = DB::table('customers as c')
+                ->leftJoin('reservations as r', function($join) {
+                    $join->on('c.id', '=', 'r.customer_id')
+                         ->where('r.status', '=', 'confirmed');
+                })
+                ->leftJoin('services as s', 'r.service_id', '=', 's.id')
+                ->select('c.id')
+                ->groupBy('c.id')
+                ->havingRaw('COUNT(r.id) >= ? OR COALESCE(SUM(s.price), 0) >= ?', [20, 2000])
+                ->pluck('id');
+
+            $stats['vip_customers'] = $vipCustomerIds->count();
+
+            // 計算所有客戶的預約統計
+            $customerStats = DB::table('customers as c')
+                ->leftJoin('reservations as r', function($join) {
+                    $join->on('c.id', '=', 'r.customer_id')
+                         ->where('r.status', '=', 'confirmed');
+                })
+                ->leftJoin('services as s', 'r.service_id', '=', 's.id')
+                ->select(
+                    'c.id',
+                    DB::raw('COUNT(r.id) as reservation_count'),
+                    DB::raw('COALESCE(SUM(s.price), 0) as total_spent')
+                )
+                ->groupBy('c.id')
+                ->get();
+
+            // 客戶等級分布
+            $stats['customer_levels'] = [
+                'VIP' => $customerStats->filter(function($customer) {
+                    return $customer->reservation_count >= 20 || $customer->total_spent >= 2000;
+                })->count(),
+                'Gold' => $customerStats->filter(function($customer) {
+                    return ($customer->reservation_count >= 10 && $customer->reservation_count <= 19) || 
+                           ($customer->total_spent >= 1000 && $customer->total_spent <= 1999);
+                })->count(),
+                'Silver' => $customerStats->filter(function($customer) {
+                    return ($customer->reservation_count >= 5 && $customer->reservation_count <= 9) || 
+                           ($customer->total_spent >= 500 && $customer->total_spent <= 999);
+                })->count(),
+                'Bronze' => $customerStats->filter(function($customer) {
+                    return $customer->reservation_count < 5 && $customer->total_spent < 500;
+                })->count()
+            ];
+
+            // 平均數據計算
+            $totalCustomers = $customerStats->count();
+            $stats['average_reservations_per_customer'] = $totalCustomers > 0 
+                ? round($customerStats->avg('reservation_count'), 2) 
+                : 0;
+            
+            $stats['total_customer_spending'] = $customerStats->sum('total_spent');
+            $stats['average_spending_per_customer'] = $totalCustomers > 0 
+                ? round($stats['total_customer_spending'] / $totalCustomers, 2)
+                : 0;
+
+            // 本月新增的客戶消費金額
+            $newCustomerIds = Customer::whereMonth('created_at', now()->month)
                 ->whereYear('created_at', now()->year)
-                ->count(),
-            'customers_with_reservations' => Customer::whereHas('reservations')->count(),
-        ];
+                ->pluck('id');
+            
+            $stats['new_customers_spending_this_month'] = $customerStats
+                ->whereIn('id', $newCustomerIds)
+                ->sum('total_spent');
 
-        // VIP 客戶統計 - 使用更精確的計算
-        $stats['vip_customers'] = Customer::where(function ($q) {
-            $q->where('total_reservations', '>=', 20)
-              ->orWhere('total_spent', '>=', 2000);
-        })->count();
+            // 活躍客戶統計（最近30天有互動）
+            $stats['recently_active_customers'] = Customer::where('last_interaction_at', '>=', now()->subDays(30))
+                ->count();
 
-        // 客戶等級分布
-        $stats['customer_levels'] = [
-            'VIP' => Customer::where(function ($q) {
-                $q->where('total_reservations', '>=', 20)
-                  ->orWhere('total_spent', '>=', 2000);
-            })->count(),
-            'Gold' => Customer::where(function ($q) {
-                $q->whereBetween('total_reservations', [10, 19])
-                  ->orWhereBetween('total_spent', [1000, 1999]);
-            })->count(),
-            'Silver' => Customer::where(function ($q) {
-                $q->whereBetween('total_reservations', [5, 9])
-                  ->orWhereBetween('total_spent', [500, 999]);
-            })->count(),
-            'Bronze' => Customer::where('total_reservations', '<', 5)
-                ->where('total_spent', '<', 500)
-                ->count()
-        ];
+            // 客戶來源統計
+            $stats['referral_sources'] = Customer::whereNotNull('referral_source')
+                ->groupBy('referral_source')
+                ->selectRaw('referral_source, count(*) as count')
+                ->get()
+                ->pluck('count', 'referral_source')
+                ->toArray();
 
-        // 平均數據計算
-        $allCustomers = Customer::all();
-        $stats['average_reservations_per_customer'] = $allCustomers->count() > 0 
-            ? round($allCustomers->avg('total_reservations'), 2) 
-            : 0;
-        
-        $stats['total_customer_spending'] = $allCustomers->sum('total_spent');
-        $stats['average_spending_per_customer'] = $allCustomers->count() > 0 
-            ? round($stats['total_customer_spending'] / $allCustomers->count(), 2)
-            : 0;
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
 
-        // 本月新增的客戶消費金額
-        $newCustomersThisMonth = Customer::whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
-            ->get();
-        
-        $stats['new_customers_spending_this_month'] = $newCustomersThisMonth->sum('total_spent');
+        } catch (\Exception $e) {
+            Log::error('客戶統計計算失敗', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
 
-        // 活躍客戶統計（最近30天有互動）
-        $stats['recently_active_customers'] = Customer::where('last_interaction_at', '>=', now()->subDays(30))
-            ->count();
-
-        // 客戶來源統計
-        $stats['referral_sources'] = Customer::whereNotNull('referral_source')
-            ->groupBy('referral_source')
-            ->selectRaw('referral_source, count(*) as count')
-            ->get()
-            ->pluck('count', 'referral_source')
-            ->toArray();
-
-        return response()->json([
-            'success' => true,
-            'data' => $stats
-        ]);
+            return response()->json([
+                'success' => false,
+                'message' => '統計資料計算失敗，請稍後再試'
+            ], 500);
+        }
     }
 
     // 更新客戶互動時間
@@ -301,20 +345,36 @@ class CustomerController extends Controller
             if ($request->has('customer_id')) {
                 // 重新計算單一客戶
                 $customer = Customer::findOrFail($request->customer_id);
-                $customer->recalculateStats();
+                
+                // 計算該客戶的確認預約數量和消費金額
+                $reservationStats = DB::table('reservations as r')
+                    ->leftJoin('services as s', 'r.service_id', '=', 's.id')
+                    ->where('r.customer_id', $customer->id)
+                    ->where('r.status', 'confirmed')
+                    ->select(
+                        DB::raw('COUNT(r.id) as reservation_count'),
+                        DB::raw('COALESCE(SUM(s.price), 0) as total_spent')
+                    )
+                    ->first();
                 
                 return response()->json([
                     'success' => true,
-                    'message' => '客戶統計數據已更新',
-                    'data' => $customer->fresh()
+                    'message' => '客戶統計數據已計算',
+                    'data' => [
+                        'customer' => $customer,
+                        'stats' => [
+                            'total_reservations' => $reservationStats->reservation_count ?? 0,
+                            'total_spent' => $reservationStats->total_spent ?? 0
+                        ]
+                    ]
                 ]);
             } else {
-                // 重新計算所有客戶
-                $count = Customer::recalculateAllStats();
+                // 計算所有客戶的統計 - 只返回統計信息，不更新資料庫
+                $customerCount = Customer::count();
                 
                 return response()->json([
                     'success' => true,
-                    'message' => "已更新 {$count} 位客戶的統計數據"
+                    'message' => "已重新計算 {$customerCount} 位客戶的統計數據"
                 ]);
             }
         } catch (\Exception $e) {
