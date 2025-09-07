@@ -643,8 +643,8 @@ class LineBotService
                 ]
             ];
             
-            // 顯示預約時填寫的姓名，優先使用 reservation 表中的 customer_name
-            $displayName = $reservation->customer_name ?: ($customer ? ($customer->line_display_name ?: $customer->name) : '');
+            // 顯示預約時填寫的姓名，使用預約快照資料
+            $displayName = $reservation->reservation_name ?: ($customer ? ($customer->line_display_name ?: $customer->name) : '');
             if ($displayName) {
                 $infoContents[] = [
                     'type' => 'box',
@@ -670,8 +670,8 @@ class LineBotService
                 ];
             }
             
-            // 顯示預約時填寫的電話，優先使用 reservation 表中的 customer_phone
-            $displayPhone = $reservation->customer_phone ?: ($customer ? $customer->phone : '');
+            // 顯示預約時填寫的電話，使用預約快照資料
+            $displayPhone = $reservation->reservation_phone ?: ($customer ? $customer->phone : '');
             if ($displayPhone) {
                 $infoContents[] = [
                     'type' => 'box',
@@ -696,8 +696,8 @@ class LineBotService
                 ];
             }
             
-            // 顯示預約時填寫的備註，優先使用 reservation 表中的 customer_notes
-            $displayNotes = $reservation->customer_notes ?: $reservation->notes;
+            // 顯示預約時填寫的備註，使用預約快照資料
+            $displayNotes = $reservation->reservation_notes ?: $reservation->notes;
             if ($displayNotes && trim($displayNotes)) {
                 $infoContents[] = [
                     'type' => 'box',
@@ -2704,6 +2704,36 @@ class LineBotService
         }
         
         try {
+            // 更新客戶資料（如果有提供的話）
+            if (!empty($context['customer_data'])) {
+                $updateData = [];
+                
+                // 更新客戶姓名（如果為空或預設值）
+                if (!empty($context['customer_data']['name']) && 
+                    (empty($customer->name) || $customer->name === '未知用戶')) {
+                    $updateData['name'] = $context['customer_data']['name'];
+                }
+                
+                // 更新客戶電話（如果為空）
+                if (!empty($context['customer_data']['phone']) && empty($customer->phone)) {
+                    $updateData['phone'] = $context['customer_data']['phone'];
+                }
+                
+                // 更新客戶備註
+                if (!empty($context['customer_data']['notes'])) {
+                    $updateData['notes'] = $context['customer_data']['notes'];
+                }
+                
+                // 執行更新
+                if (!empty($updateData)) {
+                    $customer->update($updateData);
+                    Log::info('Updated customer data in completeReservation', [
+                        'customer_id' => $customer->id,
+                        'updated_fields' => array_keys($updateData)
+                    ]);
+                }
+            }
+            
             // 使用資料庫事務來防止並發問題
             $reservation = DB::transaction(function () use ($virtualTimeSlot, $service, $customer, $context) {
                 // 在事務內再次檢查虛擬時段是否可以預約（防止並發問題）
@@ -2734,9 +2764,9 @@ class LineBotService
                     'available_time_id' => $baseTimeSlot->id,
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
-                    'customer_name' => $context['customer_data']['name'] ?? '',
-                    'customer_phone' => $context['customer_data']['phone'] ?? '',
-                    'customer_notes' => $context['customer_data']['notes'] ?? '',
+                    'reservation_name' => $context['customer_data']['name'] ?? '',
+                    'reservation_phone' => $context['customer_data']['phone'] ?? '',
+                    'reservation_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => $status,
                     'notes' => '無',
                 ]);
@@ -3032,8 +3062,8 @@ class LineBotService
                 'service_name' => $service->name,
                 'reservation_date' => $reservation->reservation_date,
                 'reservation_time' => $reservation->reservation_time,
-                'customer_name' => $reservation->customer_name,
-                'customer_phone' => $reservation->customer_phone
+                'reservation_name' => $reservation->reservation_name,
+                'reservation_phone' => $reservation->reservation_phone
             ]);
             
         } catch (\Exception $e) {
@@ -3684,6 +3714,15 @@ class LineBotService
                 }
             }
             
+            // 更新客戶備註（每次預約都更新，因為可能是新的備註）
+            if (!empty($context['customer_data']['notes'])) {
+                $customer->update(['notes' => $context['customer_data']['notes']]);
+                Log::info('Updated customer notes', [
+                    'customer_id' => $customer->id,
+                    'notes' => $context['customer_data']['notes']
+                ]);
+            }
+            
             // 獲取服務和虛擬時段資訊
             $service = Service::find($context['service_id']);
             $virtualTimeSlot = $this->findVirtualTimeSlot($context['service_id'], $context['time_id']);
@@ -3727,7 +3766,7 @@ class LineBotService
                 $confirmMode = $this->getReservationConfirmMode();
                 $status = $confirmMode === 'auto' ? 'confirmed' : 'pending';
                 
-                // 建立預約記錄，使用虛擬時段的具體時間和預約時填寫的客戶資料
+                // 建立預約記錄，使用虛擬時段的具體時間和預約時填寫的客戶資料快照
                 return Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
                     'customer_id' => $customer->id,
@@ -3735,9 +3774,9 @@ class LineBotService
                     'available_time_id' => $baseTimeSlot->id,
                     'reservation_date' => Carbon::parse($virtualTimeSlot->start_time)->toDateString(),
                     'reservation_time' => Carbon::parse($virtualTimeSlot->start_time)->format('H:i:s'),
-                    'customer_name' => $context['customer_data']['name'] ?? '',
-                    'customer_phone' => $context['customer_data']['phone'] ?? '',
-                    'customer_notes' => $context['customer_data']['notes'] ?? '',
+                    'reservation_name' => $context['customer_data']['name'] ?? '',
+                    'reservation_phone' => $context['customer_data']['phone'] ?? '',
+                    'reservation_notes' => $context['customer_data']['notes'] ?? '',
                     'status' => $status,
                     'notes' => '無',
                 ]);

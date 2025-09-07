@@ -19,6 +19,9 @@ class Reservation extends Model
      */
     protected $fillable = [
         'customer_id', // LINE 客戶關聯
+        'reservation_name', // 預約時填寫的姓名（快照）
+        'reservation_phone', // 預約時填寫的電話（快照）
+        'reservation_notes', // 預約時填寫的備註（快照）
         'service_id',
         'available_time_id',
         'reservation_date',
