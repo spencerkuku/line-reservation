@@ -617,18 +617,19 @@ show_menu() {
     echo "🔄 【版本控制與更新】"
     echo "6) 代碼更新與建置"
     echo "7) Git 倉庫恢復與同步"
+    echo "8) Git Pull 更新"
     echo ""
     echo "⚙️ 【系統服務管理】"
-    echo "8) 重啟 Web 服務"
-    echo "9) 系統狀態監控"
-    echo "10) 日誌查看與分析"
+    echo "9) 重啟 Web 服務"
+    echo "10) 系統狀態監控"
+    echo "11) 日誌查看與分析"
     echo ""
     echo "💾 【備份與恢復管理】"
-    echo "11) 環境配置備份"
-    echo "12) 專案檔案備份"
-    echo "13) 資料庫專項備份"
-    echo "14) 完整系統備份"
-    echo "15) 備份恢復控制台"
+    echo "12) 環境配置備份"
+    echo "13) 專案檔案備份"
+    echo "14) 資料庫專項備份"
+    echo "15) 完整系統備份"
+    echo "16) 備份恢復控制台"
     echo ""
     echo "0) 安全退出系統"
     echo "============================================="
@@ -1309,6 +1310,42 @@ update_and_rebuild() {
     
     echo "✅ 代碼更新並重建完成"
 }
+
+# 簡易 Git Pull 更新
+simple_git_pull() {
+    echo "📥 【簡易更新】執行 Git Pull 更新..."
+    
+    if [ ! -d ".git" ]; then
+        echo "❌ 沒有 Git 倉庫，請選擇選項 7 來恢復 Git"
+        return 1
+    fi
+    
+    # 確保權限
+    sudo chown -R $USER:$USER "$PROJECT_DIR" || { echo "❌ 無法設定權限"; return 1; }
+    
+    echo "🔍 檢查當前狀態..."
+    git status
+    
+    echo ""
+    echo "📥 拉取最新代碼..."
+    if git pull; then
+        echo "✅ Git Pull 完成"
+        
+        echo ""
+        read -p "是否要執行完整重建? (y/N): " rebuild_choice
+        if [[ "$rebuild_choice" =~ ^[Yy]$ ]]; then
+            echo "🔄 執行完整重建..."
+            rebuild_after_update
+        else
+            echo "ℹ️ 僅執行了 Git Pull，沒有重建"
+        fi
+    else
+        echo "❌ Git Pull 失敗，請檢查網路連線或手動處理衝突"
+        return 1
+    fi
+    
+    echo "✅ 簡易更新完成"
+}
 rebuild_after_update() {
     echo "🔄 執行完整重建..."
     clear_backend_cache
@@ -1398,7 +1435,7 @@ main() {
         show_menu
         read_current_settings
         echo ""
-        read -p "請選擇操作 (0-15): " CHOICE
+        read -p "請選擇操作 (0-16): " CHOICE
         
         case $CHOICE in
             1)
@@ -1423,27 +1460,30 @@ main() {
                 restore_git_and_update
                 ;;
             8)
-                restart_services
+                simple_git_pull
                 ;;
             9)
-                check_status
+                restart_services
                 ;;
             10)
-                view_logs
+                check_status
                 ;;
             11)
-                create_backup "env"
+                view_logs
                 ;;
             12)
-                create_backup "project"
+                create_backup "env"
                 ;;
             13)
-                create_backup "db"
+                create_backup "project"
                 ;;
             14)
-                create_backup "full"
+                create_backup "db"
                 ;;
             15)
+                create_backup "full"
+                ;;
+            16)
                 restore_backup
                 ;;
             0)
@@ -1451,7 +1491,7 @@ main() {
                 exit 0
                 ;;
             *)
-                echo "❌ 無效選擇，請輸入 0-15 之間的數字"
+                echo "❌ 無效選擇，請輸入 0-16 之間的數字"
                 ;;
         esac
         
