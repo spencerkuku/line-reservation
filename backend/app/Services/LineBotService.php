@@ -3714,15 +3714,6 @@ class LineBotService
                 }
             }
             
-            // 更新客戶備註（每次預約都更新，因為可能是新的備註）
-            if (!empty($context['customer_data']['notes'])) {
-                $customer->update(['notes' => $context['customer_data']['notes']]);
-                Log::info('Updated customer notes', [
-                    'customer_id' => $customer->id,
-                    'notes' => $context['customer_data']['notes']
-                ]);
-            }
-            
             // 獲取服務和虛擬時段資訊
             $service = Service::find($context['service_id']);
             $virtualTimeSlot = $this->findVirtualTimeSlot($context['service_id'], $context['time_id']);
