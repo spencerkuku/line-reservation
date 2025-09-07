@@ -1225,7 +1225,7 @@ restore_git_and_update() {
             rm -rf .git
         else
             echo "📥 使用現有 Git 拉取更新..."
-            git pull origin single-user-version || echo "⚠️ Git 更新可能失敗，請檢查"
+            git pull origin main || echo "⚠️ Git 更新可能失敗，請檢查"
             rebuild_after_update
             return
         fi
@@ -1260,9 +1260,9 @@ restore_git_and_update() {
     fi
     
     echo "🌿 選擇分支..."
-    read -p "請輸入要使用的分支名稱 (預設: single-user-version): " BRANCH_NAME
+    read -p "請輸入要使用的分支名稱 (預設: main): " BRANCH_NAME
     if [ -z "$BRANCH_NAME" ]; then
-        BRANCH_NAME="single-user-version"
+        BRANCH_NAME="main"
     fi
     
     echo "🔄 切換到分支: $BRANCH_NAME"
@@ -1300,7 +1300,7 @@ update_and_rebuild() {
     sudo chown -R $USER:$USER "$PROJECT_DIR" || { echo "❌ 無法設定權限"; return 1; }
     
     echo "📥 拉取最新代碼..."
-    if ! git pull origin single-user-version; then
+    if ! git pull origin main; then
         echo "❌ Git 更新失敗，請檢查網路連線或手動處理衝突"
         return 1
     fi

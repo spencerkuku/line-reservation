@@ -201,11 +201,11 @@ if [ -d "$PROJECT_DIR" ]; then
     sudo chown -R $USER:$USER "$PROJECT_DIR"   # 確保目錄權限
     cd "$PROJECT_DIR" || { echo "❌ 無法進入專案目錄"; exit 1; }
     git config --global --add safe.directory "$PROJECT_DIR"
-    if ! git pull origin single-user-version 2>/dev/null; then
+    if ! git pull origin main 2>/dev/null; then
         echo "⚠️ Git 更新失敗，將嘗試重新下載..."
         cd /var/www
         sudo rm -rf line-reservation
-        if ! sudo git clone -b single-user-version https://github.com/spencerkuku/line-reservation.git; then
+        if ! sudo git clone -b main https://github.com/spencerkuku/line-reservation.git; then
             echo "❌ Git 下載失敗，請檢查網路連線"
             exit 1
         fi
@@ -214,7 +214,7 @@ if [ -d "$PROJECT_DIR" ]; then
 else
     echo "📥 下載專案代碼..."
     cd /var/www || { echo "❌ 無法進入 /var/www 目錄"; exit 1; }
-    if ! sudo git clone -b single-user-version https://github.com/spencerkuku/line-reservation.git; then
+    if ! sudo git clone -b main https://github.com/spencerkuku/line-reservation.git; then
         echo "❌ Git 下載失敗，請檢查網路連線和倉庫權限"
         exit 1
     fi
