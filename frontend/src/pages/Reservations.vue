@@ -82,7 +82,7 @@
             <input
               v-model="search"
               type="text"
-              placeholder="搜尋預約姓名、服務項目、備註..."
+              placeholder="搜尋預約姓名、預約名稱、服務項目、備註..."
               class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
           </div>
@@ -248,20 +248,24 @@
                   <div class="ml-4">
                     <div class="text-sm font-medium text-gray-900">
                       {{ record.customer?.line_display_name || record.customer?.name || record.customer_name || '未指定客戶' }}
-                      <span v-if="record.customer_name && record.customer_name !== (record.customer?.line_display_name || record.customer?.name)" 
-                            class="ml-2 text-xs text-gray-500">({{ record.customer_name }})</span>
+                      <span v-if="record.reservation_name && record.reservation_name !== (record.customer?.line_display_name || record.customer?.name)" 
+                            class="ml-1 text-xs text-gray-500">
+                        ({{ record.reservation_name }})
+                      </span>
                     </div>
                     <div class="text-sm text-gray-500 flex items-center">
                       <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                         #{{ record.id }}
                       </span>
-                      <span v-if="record.customer_phone" class="ml-2 text-gray-400">{{ record.customer_phone }}</span>
+                      <span v-if="record.customer_phone || record.reservation_phone" class="ml-2 text-gray-400">
+                        {{ record.reservation_phone || record.customer_phone }}
+                      </span>
                       <span v-if="record.customer_line_user_id" class="ml-2 text-xs text-blue-500">LINE</span>
                       
                       <!-- 備註提示圖標 -->
-                      <span v-if="record.customer_notes" 
+                      <span v-if="record.reservation_notes" 
                             class="ml-2 inline-flex items-center" 
-                            :title="'客戶備註：' + record.customer_notes">
+                            :title="'預約備註：' + record.reservation_notes">
                         <svg class="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                         </svg>
@@ -286,11 +290,11 @@
               
               <!-- 備註 -->
               <td class="px-6 py-4 max-w-xs notes-column">
-                <div v-if="record.customer_notes" class="space-y-1">
-                  <!-- 客戶備註 -->
-                  <div class="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded border-l-2 border-blue-300">
-                    <span class="font-medium">客戶備註：</span>
-                    <span class="truncate">{{ record.customer_notes.length > 30 ? record.customer_notes.substring(0, 30) + '...' : record.customer_notes }}</span>
+                <div v-if="record.reservation_notes" class="space-y-1">
+                  <!-- 預約備註 -->
+                  <div class="text-xs text-green-700 bg-green-50 px-2 py-1 rounded border-l-2 border-green-300">
+                    <span class="font-medium">預約備註：</span>
+                    <span class="truncate">{{ record.reservation_notes.length > 30 ? record.reservation_notes.substring(0, 30) + '...' : record.reservation_notes }}</span>
                   </div>
                 </div>
                 <div v-else class="text-xs text-gray-400 italic">無備註</div>
@@ -416,17 +420,19 @@
                   <div>
                     <p class="text-sm font-medium text-gray-900">
                       {{ selectedRecord.customer?.line_display_name || selectedRecord.customer?.name || selectedRecord.customer_name || '未指定' }}
-                      <span v-if="selectedRecord.customer_name && selectedRecord.customer_name !== (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name)" 
-                            class="ml-2 text-xs text-gray-500">({{ selectedRecord.customer_name }})</span>
+                      <span v-if="selectedRecord.reservation_name && selectedRecord.reservation_name !== (selectedRecord.customer?.line_display_name || selectedRecord.customer?.name)" 
+                            class="ml-1 text-xs text-gray-500">
+                        ({{ selectedRecord.reservation_name }})
+                      </span>
                     </p>
                     <p class="text-sm text-gray-500">預約編號：#{{ selectedRecord.id }}</p>
                   </div>
                 </div>
-                <div v-if="selectedRecord.customer_phone" class="flex items-center text-sm text-gray-600">
+                <div v-if="selectedRecord.customer_phone || selectedRecord.reservation_phone" class="flex items-center text-sm text-gray-600">
                   <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
-                  {{ selectedRecord.customer_phone }}
+                  {{ selectedRecord.reservation_phone || selectedRecord.customer_phone }}
                 </div>
               </div>
             </div>
@@ -458,10 +464,18 @@
               </span>
             </div>
             
-            <div v-if="selectedRecord.customer_notes" class="space-y-4">
-              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">客戶備註</h4>
-              <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p class="text-sm text-blue-800">{{ selectedRecord.customer_notes }}</p>
+            <div v-if="selectedRecord.reservation_notes" class="space-y-4">
+              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">預約備註</h4>
+              
+              <!-- 預約備註 -->
+              <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex items-center mb-2">
+                  <svg class="w-4 h-4 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                  <span class="text-sm font-medium text-green-800">備註內容</span>
+                </div>
+                <p class="text-sm text-green-800">{{ selectedRecord.reservation_notes }}</p>
               </div>
             </div>
           </div>
@@ -581,10 +595,12 @@ const filteredRecords = computed(() => {
     filtered = filtered.filter(
       (r) =>
         (r.customer_name || r.name || '').toLowerCase().includes(keyword) ||
+        (r.reservation_name || '').toLowerCase().includes(keyword) ||
         (r.service_name || r.item || '').toLowerCase().includes(keyword) ||
         getStatusText(r.status).toLowerCase().includes(keyword) ||
         (r.customer_phone || r.phone || '').toLowerCase().includes(keyword) ||
-        (r.customer_notes || '').toLowerCase().includes(keyword)
+        (r.reservation_phone || '').toLowerCase().includes(keyword) ||
+        (r.reservation_notes || '').toLowerCase().includes(keyword)
     )
   }
 
