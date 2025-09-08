@@ -22,10 +22,17 @@ class DashboardController extends Controller
             'active_users' => User::where('status', 'Active')->count(),
             'total_customers' => Customer::count(),
             'active_customers' => Customer::where('status', 'active')->count(),
-            'vip_customers' => Customer::where(function ($q) {
-                $q->where('total_reservations', '>=', 20)
-                  ->orWhere('total_spent', '>=', 2000);
-            })->count(),
+            'vip_customers' => Customer::whereRaw('(
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 20 OR (
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 5000')->count(),
             'total_services' => Service::count(),
             'active_services' => Service::where('is_active', true)->count(),
             'total_reservations' => Reservation::count(),
@@ -78,23 +85,75 @@ class DashboardController extends Controller
             ->whereYear('created_at', now()->year)
             ->count();
             
-        // 客戶等級分布
+        // 客戶等級分布 - 使用子查詢計算實際統計數據
         $stats['customer_levels'] = [
-            'VIP' => Customer::where(function ($q) {
-                $q->where('total_reservations', '>=', 20)
-                  ->orWhere('total_spent', '>=', 2000);
-            })->count(),
-            'Gold' => Customer::where(function ($q) {
-                $q->whereBetween('total_reservations', [10, 19])
-                  ->orWhereBetween('total_spent', [1000, 1999]);
-            })->count(),
-            'Silver' => Customer::where(function ($q) {
-                $q->whereBetween('total_reservations', [5, 9])
-                  ->orWhereBetween('total_spent', [500, 999]);
-            })->count(),
-            'Bronze' => Customer::where('total_reservations', '<', 5)
-                ->where('total_spent', '<', 500)
-                ->count()
+            'VIP' => Customer::whereRaw('(
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 20 OR (
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 5000')->count(),
+            
+            'Gold' => Customer::whereRaw('((
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 10 AND (
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 20) OR ((
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 3000 AND (
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 5000)')->count(),
+            
+            'Silver' => Customer::whereRaw('((
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 5 AND (
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 10) OR ((
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) >= 1000 AND (
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 3000)')->count(),
+            
+            'Bronze' => Customer::whereRaw('(
+                SELECT COUNT(*) FROM reservations 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 5 AND (
+                SELECT COALESCE(SUM(services.price), 0) 
+                FROM reservations 
+                LEFT JOIN services ON reservations.service_id = services.id 
+                WHERE reservations.customer_id = customers.id 
+                AND reservations.status = "confirmed"
+            ) < 1000')->count()
         ];
 
         return response()->json([

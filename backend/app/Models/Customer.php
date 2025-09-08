@@ -34,7 +34,7 @@ class Customer extends Model
         'preferences' => 'array',
     ];
 
-    protected $appends = ['total_reservations', 'total_spent', 'customer_level'];
+    protected $appends = ['customer_level'];
 
     protected $dates = [
         'deleted_at'
@@ -77,26 +77,18 @@ class Customer extends Model
         });
     }
 
-    // 獲取總預約次數（計算型屬性）
-    public function getTotalReservationsAttribute()
-    {
-        return $this->reservations()->where('status', 'confirmed')->count();
-    }
-
-    // 獲取總消費金額（計算型屬性）
-    public function getTotalSpentAttribute()
-    {
-        return $this->reservations()
-            ->where('status', 'confirmed')
-            ->join('services', 'reservations.service_id', '=', 'services.id')
-            ->sum('services.price') ?: 0;
-    }
+    // Note: getTotalReservationsAttribute and getTotalSpentAttribute are kept for backward compatibility
+    // but are no longer auto-appended. Use explicit calculation when needed.
 
     // 獲取客戶等級
     public function getCustomerLevelAttribute()
     {
-        $totalReservations = $this->total_reservations;
-        $totalSpent = $this->total_spent;
+        // 使用數據庫中的實際統計數據
+        $totalReservations = $this->reservations()->where('status', 'confirmed')->count();
+        $totalSpent = $this->reservations()
+            ->where('status', 'confirmed')
+            ->join('services', 'reservations.service_id', '=', 'services.id')
+            ->sum('services.price') ?: 0;
         
         if ($totalReservations >= 20 || $totalSpent >= 5000) {
             return 'VIP';

@@ -43,31 +43,91 @@ class CustomerController extends Controller
             $query->where('status', $request->status);
         }
 
-        // 客戶等級篩選
+        // 客戶等級篩選 - 使用數據庫列並動態計算
         if ($request->filled('level')) {
             $level = $request->level;
             switch ($level) {
                 case 'VIP':
                     $query->where(function ($q) {
-                        $q->where('total_reservations', '>=', 20)
-                          ->orWhere('total_spent', '>=', 2000);
+                        $q->whereRaw('(
+                            SELECT COUNT(*) FROM reservations 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 20')
+                        ->orWhereRaw('(
+                            SELECT COALESCE(SUM(services.price), 0) 
+                            FROM reservations 
+                            LEFT JOIN services ON reservations.service_id = services.id 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 5000');
                     });
                     break;
                 case 'Gold':
                     $query->where(function ($q) {
-                        $q->whereBetween('total_reservations', [10, 19])
-                          ->orWhereBetween('total_spent', [1000, 1999]);
+                        $q->whereRaw('((
+                            SELECT COUNT(*) FROM reservations 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 10 AND (
+                            SELECT COUNT(*) FROM reservations 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) < 20)')
+                        ->orWhereRaw('((
+                            SELECT COALESCE(SUM(services.price), 0) 
+                            FROM reservations 
+                            LEFT JOIN services ON reservations.service_id = services.id 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 3000 AND (
+                            SELECT COALESCE(SUM(services.price), 0) 
+                            FROM reservations 
+                            LEFT JOIN services ON reservations.service_id = services.id 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) < 5000)');
                     });
                     break;
                 case 'Silver':
                     $query->where(function ($q) {
-                        $q->whereBetween('total_reservations', [5, 9])
-                          ->orWhereBetween('total_spent', [500, 999]);
+                        $q->whereRaw('((
+                            SELECT COUNT(*) FROM reservations 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 5 AND (
+                            SELECT COUNT(*) FROM reservations 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) < 10)')
+                        ->orWhereRaw('((
+                            SELECT COALESCE(SUM(services.price), 0) 
+                            FROM reservations 
+                            LEFT JOIN services ON reservations.service_id = services.id 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) >= 1000 AND (
+                            SELECT COALESCE(SUM(services.price), 0) 
+                            FROM reservations 
+                            LEFT JOIN services ON reservations.service_id = services.id 
+                            WHERE reservations.customer_id = customers.id 
+                            AND reservations.status = "confirmed"
+                        ) < 3000)');
                     });
                     break;
                 case 'Bronze':
-                    $query->where('total_reservations', '<', 5)
-                          ->where('total_spent', '<', 500);
+                    $query->whereRaw('(
+                        SELECT COUNT(*) FROM reservations 
+                        WHERE reservations.customer_id = customers.id 
+                        AND reservations.status = "confirmed"
+                    ) < 5')
+                    ->whereRaw('(
+                        SELECT COALESCE(SUM(services.price), 0) 
+                        FROM reservations 
+                        LEFT JOIN services ON reservations.service_id = services.id 
+                        WHERE reservations.customer_id = customers.id 
+                        AND reservations.status = "confirmed"
+                    ) < 1000');
                     break;
             }
         }
@@ -83,9 +143,17 @@ class CustomerController extends Controller
         // 添加計算屬性
         $customers->getCollection()->transform(function ($customer) {
             $customer->level = $customer->customer_level;
-            // 觸發 accessor 方法並添加到輸出中
-            $customer->setAttribute('total_reservations', $customer->getTotalReservationsAttribute());
-            $customer->setAttribute('total_spent', $customer->getTotalSpentAttribute());
+            
+            // 計算實際的總預約次數和總消費金額
+            $totalReservations = $customer->reservations()->where('status', 'confirmed')->count();
+            $totalSpent = $customer->reservations()
+                ->where('status', 'confirmed')
+                ->join('services', 'reservations.service_id', '=', 'services.id')
+                ->sum('services.price') ?: 0;
+            
+            $customer->setAttribute('total_reservations', $totalReservations);
+            $customer->setAttribute('total_spent', $totalSpent);
+            
             return $customer;
         });
 
@@ -113,9 +181,16 @@ class CustomerController extends Controller
         ]);
 
         $customer->level = $customer->customer_level;
-        // 觸發 accessor 方法並添加到輸出中
-        $customer->setAttribute('total_reservations', $customer->getTotalReservationsAttribute());
-        $customer->setAttribute('total_spent', $customer->getTotalSpentAttribute());
+        
+        // 計算實際的總預約次數和總消費金額
+        $totalReservations = $customer->reservations()->where('status', 'confirmed')->count();
+        $totalSpent = $customer->reservations()
+            ->where('status', 'confirmed')
+            ->join('services', 'reservations.service_id', '=', 'services.id')
+            ->sum('services.price') ?: 0;
+        
+        $customer->setAttribute('total_reservations', $totalReservations);
+        $customer->setAttribute('total_spent', $totalSpent);
 
         return response()->json([
             'success' => true,
