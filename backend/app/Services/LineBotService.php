@@ -1092,7 +1092,7 @@ class LineBotService
                 return;
             }
 
-        // 建立日期選擇的 Flex Message
+        // 建立日期選擇的 Flex Message - 使用分頁carousel方式
         $availableDates = [];
         foreach ($availableTimes as $time) {
             $date = $time->date; // 使用新格式的date屬性
@@ -1110,59 +1110,68 @@ class LineBotService
             return;
         }
         
-        $dateButtons = [];
-        $buttonRows = [];
-        $buttonsPerRow = 2; // 每行2個日期按鈕
+        // 按日期排序
+        ksort($availableDates);
         
-        foreach ($availableDates as $dateStr => $dateObj) {
-            $displayDate = $dateObj->format('m/d');
-            $dayMapping = [
-                'Monday' => '一', 'Tuesday' => '二', 'Wednesday' => '三', 
-                'Thursday' => '四', 'Friday' => '五', 'Saturday' => '六', 'Sunday' => '日'
-            ];
-            $dayOfWeek = $dayMapping[$dateObj->format('l')] ?? $dateObj->format('l');
+        // 將日期分組，每組最多12個日期（每頁6行，每行2個）
+        $dateChunks = array_chunk($availableDates, 12, true);
+        $bubbles = [];
+        
+        foreach ($dateChunks as $chunkIndex => $dateChunk) {
+            $dateButtons = [];
+            $buttonRows = [];
+            $buttonsPerRow = 2; // 每行2個日期按鈕
             
-            $dateButtons[] = [
-                'type' => 'button',
-                'height' => 'sm',
-                'color' => '#3498DB',
-                'action' => [
-                    'type' => 'postback',
-                    'label' => "{$displayDate} ({$dayOfWeek})",
-                    'data' => "action=select_date&service_id={$serviceId}&date={$dateStr}"
-                ],
-                'style' => 'primary',
-                'flex' => 1,
-                'margin' => 'sm'
-            ];
+            foreach ($dateChunk as $dateStr => $dateObj) {
+                $displayDate = $dateObj->format('m/d');
+                $dayMapping = [
+                    'Monday' => '一', 'Tuesday' => '二', 'Wednesday' => '三', 
+                    'Thursday' => '四', 'Friday' => '五', 'Saturday' => '六', 'Sunday' => '日'
+                ];
+                $dayOfWeek = $dayMapping[$dateObj->format('l')] ?? $dateObj->format('l');
+                
+                $dateButtons[] = [
+                    'type' => 'button',
+                    'height' => 'sm',
+                    'color' => '#3498DB',
+                    'action' => [
+                        'type' => 'postback',
+                        'label' => "{$displayDate} ({$dayOfWeek})",
+                        'data' => "action=select_date&service_id={$serviceId}&date={$dateStr}"
+                    ],
+                    'style' => 'primary',
+                    'flex' => 1,
+                    'margin' => 'sm'
+                ];
+                
+                // 每2個按鈕組成一行
+                if (count($dateButtons) == $buttonsPerRow) {
+                    $buttonRows[] = [
+                        'type' => 'box',
+                        'layout' => 'horizontal',
+                        'spacing' => 'md',
+                        'contents' => array_values($dateButtons)
+                    ];
+                    $dateButtons = [];
+                }
+            }
             
-            // 每2個按鈕組成一行
-            if (count($dateButtons) == $buttonsPerRow || count($dateButtons) == count($availableDates)) {
+            // 處理剩餘的按鈕
+            if (!empty($dateButtons)) {
                 $buttonRows[] = [
                     'type' => 'box',
                     'layout' => 'horizontal',
                     'spacing' => 'md',
-                    'contents' => array_values($dateButtons) // 確保索引是連續的
+                    'contents' => array_values($dateButtons)
                 ];
-                $dateButtons = [];
             }
-        }
-        
-        // 確保至少有一行按鈕
-        if (empty($buttonRows) && !empty($availableDates)) {
-            $buttonRows[] = [
-                'type' => 'text',
-                'text' => '沒有可用的日期選項',
-                'color' => '#666666',
-                'align' => 'center'
-            ];
-        }
-
-        $durationText = $service->duration . '分鐘';
-        $message = [
-            'type' => 'flex',
-            'altText' => '選擇預約日期',
-            'contents' => [
+            
+            $durationText = $service->duration . '分鐘';
+            $totalPages = count($dateChunks);
+            $currentPage = $chunkIndex + 1;
+            
+            // 建立當前頁面的bubble
+            $bubble = [
                 'type' => 'bubble',
                 'header' => [
                     'type' => 'box',
@@ -1181,6 +1190,14 @@ class LineBotService
                             'text' => "服務：{$service->name} ({$durationText})",
                             'color' => '#ffffff',
                             'size' => 'sm',
+                            'align' => 'center',
+                            'margin' => 'xs'
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => "第 {$currentPage} 頁 / 共 {$totalPages} 頁",
+                            'color' => '#ffffff',
+                            'size' => 'xs',
                             'align' => 'center',
                             'margin' => 'xs'
                         ]
@@ -1202,7 +1219,7 @@ class LineBotService
                         ],
                         [
                             'type' => 'text',
-                            'text' => '請先選擇您希望的預約日期',
+                            'text' => '請選擇您希望的預約日期',
                             'size' => 'sm',
                             'color' => '#666666',
                             'margin' => 'xs',
@@ -1225,19 +1242,54 @@ class LineBotService
                 'footer' => [
                     'type' => 'box',
                     'layout' => 'vertical',
-                    'contents' => [
-                        [
-                            'type' => 'text',
-                            'text' => '輸入「取消」可中止預約流程',
-                            'size' => 'xs',
-                            'color' => '#E74C3C',
-                            'align' => 'center'
-                        ]
-                    ],
-                    'paddingAll' => 'md'
+                    'contents' => []
                 ]
-            ]
-        ];
+            ];
+            
+            // 如果有多頁，添加導航提示
+            if ($totalPages > 1) {
+                $bubble['footer']['contents'][] = [
+                    'type' => 'text',
+                    'text' => '左右滑動查看更多日期',
+                    'size' => 'xs',
+                    'color' => '#999999',
+                    'align' => 'center',
+                    'margin' => 'sm'
+                ];
+            }
+            
+            // 添加取消提示
+            $bubble['footer']['contents'][] = [
+                'type' => 'text',
+                'text' => '輸入「取消」可中止預約流程',
+                'size' => 'xs',
+                'color' => '#E74C3C',
+                'align' => 'center',
+                'margin' => 'sm'
+            ];
+            
+            $bubble['footer']['paddingAll'] = 'md';
+            
+            $bubbles[] = $bubble;
+        }
+        
+        // 根據頁面數量決定使用單個bubble還是carousel
+        if (count($bubbles) == 1) {
+            $message = [
+                'type' => 'flex',
+                'altText' => '選擇預約日期',
+                'contents' => $bubbles[0]
+            ];
+        } else {
+            $message = [
+                'type' => 'flex',
+                'altText' => '選擇預約日期',
+                'contents' => [
+                    'type' => 'carousel',
+                    'contents' => $bubbles
+                ]
+            ];
+        }
 
         $this->replyMessage($replyToken, $message);
         
