@@ -945,6 +945,14 @@ class LineBotService
                                 'label' => '選擇這個服務',
                                 'data' => 'action=select_service&service_id=' . $service->id
                             ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => '輸入「取消」可中止預約流程',
+                            'size' => 'xs',
+                            'color' => '#E74C3C',
+                            'align' => 'center',
+                            'margin' => 'sm'
                         ]
                     ]
                 ]
@@ -1566,6 +1574,14 @@ class LineBotService
                                     'flex' => 1
                                 ]
                             ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => '輸入「取消」可中止預約流程',
+                            'size' => 'xs',
+                            'color' => '#E74C3C',
+                            'align' => 'center',
+                            'margin' => 'sm'
                         ]
                     ]
                 ]
@@ -1772,6 +1788,14 @@ class LineBotService
                                     'align' => 'center'
                                 ]
                             ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => '輸入「取消」可中止預約流程',
+                            'size' => 'xs',
+                            'color' => '#E74C3C',
+                            'align' => 'center',
+                            'margin' => 'md'
                         ]
                     ],
                     'paddingAll' => 'lg'
@@ -3321,6 +3345,14 @@ class LineBotService
                                     'align' => 'center'
                                 ]
                             ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => '輸入「取消」可中止預約流程',
+                            'size' => 'xs',
+                            'color' => '#E74C3C',
+                            'align' => 'center',
+                            'margin' => 'md'
                         ]
                     ],
                     'paddingAll' => 'lg'
@@ -3598,6 +3630,14 @@ class LineBotService
                                 'label' => '沒有備註，點擊我完成預約',
                                 'text' => 'no_notes'
                             ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => '輸入「取消」可中止預約流程',
+                            'size' => 'xs',
+                            'color' => '#E74C3C',
+                            'align' => 'center',
+                            'margin' => 'md'
                         ]
                     ],
                     'paddingAll' => 'lg'
