@@ -23,23 +23,29 @@ class ReservationController extends Controller
             $now = Carbon::now();
             $reservations = Reservation::with(['user', 'service', 'customer'])->get();
             
-            // 排序邏輯：1. 待確定預約(按時間排序) 2. 最近預約(已確定且未過期) 3. 過期預約
+            // 排序邏輯：1. 未確認預約 2. 今日預約 3. 明日預約 4. 其他預約（按時間降序）
             $reservations = $reservations->sortBy(function ($reservation) use ($now) {
                 // 使用模型方法獲取完整的預約時間，避免字串拼接問題
-                $reservationDate = $reservation->getReservationDateTime();
+                $reservationDateTime = $reservation->getReservationDateTime();
+                $reservationDate = $reservationDateTime->startOfDay();
+                $today = $now->copy()->startOfDay();
+                $tomorrow = $today->copy()->addDay();
                 
-                // 計算與現在時間的距離（秒數）
-                $diffInSeconds = abs($reservationDate->diffInSeconds($now));
+                // 計算時間戳（用於同級別內的排序）
+                $timestamp = $reservationDateTime->timestamp;
                 
                 if ($reservation->status === 'pending') {
-                    // 1. 待確定預約 - 最高優先級，按時間順序排列（最近的時間在前）
-                    return $diffInSeconds;
-                } elseif ($reservationDate->isFuture()) {
-                    // 2. 最近的預約 - 已確定且未過期，按接近度排序
-                    return 1000000 + $diffInSeconds;
+                    // 1. 未確認預約 - 最高優先級，按時間降序排列
+                    return 1000000000 - $timestamp;
+                } elseif ($reservationDate->equalTo($today)) {
+                    // 2. 今日預約 - 第二優先級，按時間降序排列
+                    return 2000000000 - $timestamp;
+                } elseif ($reservationDate->equalTo($tomorrow)) {
+                    // 3. 明日預約 - 第三優先級，按時間降序排列
+                    return 3000000000 - $timestamp;
                 } else {
-                    // 3. 過期的預約 - 最低優先級，按時間倒序（最近過期的在前）
-                    return 2000000 + $diffInSeconds;
+                    // 4. 其他預約 - 按時間降序排列
+                    return 4000000000 - $timestamp;
                 }
             });
 
