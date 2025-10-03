@@ -2449,19 +2449,26 @@ class LineBotService
                     ]);
                 }
                 
-                // 更新 LINE 資訊和狀態
+                // 更新 LINE 資訊，但不要覆蓋 blocked 狀態
                 $profile = $this->getUserProfile($userId);
-                $customer->update([
-                    'status' => 'active',
+                $updateData = [
                     'line_display_name' => $profile['displayName'] ?? $customer->line_display_name,
                     'line_picture_url' => $profile['pictureUrl'] ?? $customer->line_picture_url,
                     'line_status_message' => $profile['statusMessage'] ?? $customer->line_status_message,
                     'last_interaction_at' => now()
-                ]);
+                ];
+                
+                // 只有在客戶不是 blocked 狀態時，才將狀態設為 active
+                if ($customer->status !== 'blocked') {
+                    $updateData['status'] = 'active';
+                }
+                
+                $customer->update($updateData);
 
                 LoggingService::logCustomerEvent('customer_info_updated', [
                     'customer_id' => $customer->id,
                     'line_user_id' => $userId,
+                    'status' => $customer->status,
                     'has_display_name' => !empty($profile['displayName']),
                     'has_picture' => !empty($profile['pictureUrl'])
                 ]);
@@ -2498,7 +2505,10 @@ class LineBotService
                     if ($customer) {
                         if ($customer->trashed()) {
                             $customer->restore();
-                            $customer->update(['status' => 'active']);
+                            // 只有在客戶不是 blocked 狀態時，才將狀態設為 active
+                            if ($customer->status !== 'blocked') {
+                                $customer->update(['status' => 'active']);
+                            }
                         }
                         return $customer;
                     }
@@ -2519,7 +2529,10 @@ class LineBotService
                 if ($customer->trashed()) {
                     try {
                         $customer->restore();
-                        $customer->update(['status' => 'active']);
+                        // 只有在客戶不是 blocked 狀態時，才將狀態設為 active
+                        if ($customer->status !== 'blocked') {
+                            $customer->update(['status' => 'active']);
+                        }
                     } catch (\Exception $restoreError) {
                         Log::error('Failed to restore customer', [
                             'error' => $restoreError->getMessage(),
