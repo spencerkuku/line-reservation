@@ -31,6 +31,23 @@ const editForm = ref({
   reservations: []
 })
 
+// 用於手動時間輸入的格式化函數
+const formatDateTimeLocal = (date) => {
+  if (!date) return ''
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+const parseDateTimeLocal = (str) => {
+  if (!str) return null
+  return new Date(str)
+}
+
 // Toast 通知
 const toast = ref({ show: false, type: 'success', message: '' })
 
@@ -350,7 +367,7 @@ function handleTimeSelect(info) {
     return
   }
   
-  // 暫時移除營業時間限制，允許全天時段
+  // 暫時移除營業時間限制,允許全天時段
   // const startHour = startTime.getHours()
   // if (startHour < 8 || startHour >= 20) {
   //   showToast('error', '請選擇營業時間內 (08:00-20:00)')
@@ -364,6 +381,28 @@ function handleTimeSelect(info) {
   nextTick(() => {
     quickInput.value?.focus()
   })
+}
+
+// 手機版新增時段按鈕功能
+function openManualCreateModal() {
+  // 設定預設時間為現在時間往後1小時
+  const now = new Date()
+  const startTime = new Date(now.getTime() + 60 * 60 * 1000) // 1小時後
+  startTime.setMinutes(0, 0, 0) // 整點
+  
+  const endTime = new Date(startTime.getTime() + 60 * 60 * 1000) // 再1小時後
+  
+  editForm.value = {
+    id: null,
+    title: '可預約時段',
+    description: '',
+    start: startTime,
+    end: endTime,
+    current_bookings: 0,
+    max_capacity: 1,
+    reservations: []
+  }
+  showEditModal.value = true
 }
 
 // 編輯時段
@@ -711,6 +750,10 @@ onMounted(() => {
 
     <!-- 手機優化的快速建立氣泡 -->
     <div v-if="showQuickCreate" class="fixed bg-white border border-gray-300 rounded-xl shadow-lg p-4 md:p-5 w-[calc(100vw-2rem)] md:min-w-80 md:w-auto z-[1000] top-4 left-4 right-4 md:top-1/2 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 md:-translate-y-1/2 max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 m-0">新增時段</h3>
+        <button @click="cancelQuickCreate" class="w-10 h-10 md:w-8 md:h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
+      </div>
       <input 
         ref="quickInput"
         v-model="quickSlotTitle"
@@ -727,6 +770,15 @@ onMounted(() => {
         <button @click="showDetailModal" class="w-full md:w-auto bg-transparent text-blue-500 border border-blue-200 md:border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-50 md:hover:bg-gray-50 hover:border-blue-500 order-1 md:order-2">更多選項</button>
       </div>
     </div>
+
+    <!-- 手機版浮動新增按鈕 -->
+    <button 
+      @click="openManualCreateModal"
+      class="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center z-50 text-2xl font-light cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:shadow-xl active:scale-95"
+      style="border: none;"
+    >
+      +
+    </button>
 
     <!-- 手機優化的編輯 Modal -->
     <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-start md:items-center justify-center z-[1000] p-0 md:p-4">
@@ -750,8 +802,25 @@ onMounted(() => {
           
           <div class="mb-6 md:mb-5">
             <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">時間</label>
-            <div class="p-4 md:p-3 bg-gray-50 rounded-lg md:rounded-md text-gray-600 md:text-gray-500 text-base md:text-sm font-medium border border-gray-200 min-h-[48px] md:min-h-auto flex items-center">
-              {{ formatDateTime(editForm.start) }} - {{ formatDateTime(editForm.end) }}
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">開始時間</label>
+                <input 
+                  type="datetime-local" 
+                  :value="formatDateTimeLocal(editForm.start)"
+                  @input="editForm.start = parseDateTimeLocal($event.target.value)"
+                  class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">結束時間</label>
+                <input 
+                  type="datetime-local" 
+                  :value="formatDateTimeLocal(editForm.end)"
+                  @input="editForm.end = parseDateTimeLocal($event.target.value)"
+                  class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
+                />
+              </div>
             </div>
           </div>
           
@@ -767,18 +836,33 @@ onMounted(() => {
         </div>
         
         <!-- 手機優化的操作按鈕 -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 pb-4 md:pb-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white gap-3 md:gap-0">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 pb-4 md:pb-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white gap-3">
+          <!-- 手機版：主要操作在上，刪除在下 / 電腦版：刪除在左，操作在右 -->
+          
+          <!-- 主要操作按鈕組（手機版在上方，電腦版在右側） -->
+          <div class="flex flex-col md:flex-row gap-3 md:gap-3 md:ml-auto w-full md:w-auto order-1 md:order-2">
+            <button 
+              @click="saveSlot" 
+              class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40"
+            >
+              {{ editForm.id ? '儲存更改' : '建立時段' }}
+            </button>
+            <button 
+              @click="closeEditModal" 
+              class="w-full md:w-auto bg-transparent text-gray-500 border border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400"
+            >
+              取消
+            </button>
+          </div>
+
+          <!-- 刪除按鈕（手機版在下方，電腦版在左側） -->
           <button 
             v-if="editForm.id" 
             @click="deleteCurrentSlot" 
-            class="w-full md:w-auto bg-transparent text-red-600 border border-red-200 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600 order-3 md:order-1"
+            class="w-full md:w-auto bg-transparent text-red-600 border border-red-200 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600 order-2 md:order-1"
           >
             刪除時段
           </button>
-          <div class="flex flex-col md:flex-row gap-3 md:gap-3 md:ml-auto w-full md:w-auto">
-            <button @click="closeEditModal" class="w-full md:w-auto bg-transparent text-gray-500 border border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400 order-2">取消</button>
-            <button @click="saveSlot" class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40 order-1">{{ editForm.id ? '儲存更改' : '建立時段' }}</button>
-          </div>
         </div>
       </div>
     </div>
