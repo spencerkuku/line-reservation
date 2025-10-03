@@ -151,6 +151,25 @@ class LineBotService
             return;
         }
 
+        // 檢查客戶是否被封鎖
+        if ($customer->status === 'blocked') {
+            LoggingService::logLineBotEvent('blocked_customer_attempt', $userId, [
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'message_text' => $message['text'] ?? null
+            ]);
+            
+            Log::warning('Blocked customer attempted to use bot', [
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'line_user_id' => $userId
+            ]);
+            
+            // 發送帳號停用的 Flex Message
+            $this->sendBlockedAccountMessage($replyToken);
+            return;
+        }
+
         if ($message['type'] === 'text') {
             $text = trim($message['text']);
             LoggingService::logLineBotEvent('text_message_processing', $userId, [
@@ -201,6 +220,24 @@ class LineBotService
         $postbackData = $event['postback']['data'];
         $userId = $event['source']['userId'];
         $replyToken = $event['replyToken'];
+        
+        // 檢查客戶是否被封鎖
+        $customer = Customer::where('line_user_id', $userId)->first();
+        if ($customer && $customer->status === 'blocked') {
+            LoggingService::logLineBotEvent('blocked_customer_postback_attempt', $userId, [
+                'customer_id' => $customer->id,
+                'postback_data' => $postbackData
+            ]);
+            
+            Log::warning('Blocked customer attempted postback action', [
+                'customer_id' => $customer->id,
+                'line_user_id' => $userId,
+                'action' => $postbackData
+            ]);
+            
+            $this->sendBlockedAccountMessage($replyToken);
+            return;
+        }
         
         // 解析 postback 資料
         parse_str($postbackData, $data);
@@ -313,6 +350,124 @@ class LineBotService
             }
         }
         return false;
+    }
+
+    private function sendBlockedAccountMessage($replyToken)
+    {
+        $message = [
+            'type' => 'flex',
+            'altText' => '帳號已停用',
+            'contents' => [
+                'type' => 'bubble',
+                'size' => 'mega',
+                'header' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '⛔ 帳號已停用',
+                            'weight' => 'bold',
+                            'color' => '#ffffff',
+                            'size' => 'xl',
+                            'align' => 'center'
+                        ]
+                    ],
+                    'backgroundColor' => '#E74C3C',
+                    'paddingAll' => 'lg'
+                ],
+                'body' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => [
+                        [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'contents' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => '很抱歉',
+                                    'size' => 'lg',
+                                    'weight' => 'bold',
+                                    'color' => '#333333',
+                                    'align' => 'center'
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => '您的帳號已被停用',
+                                    'size' => 'md',
+                                    'color' => '#666666',
+                                    'align' => 'center',
+                                    'margin' => 'md'
+                                ],
+                                [
+                                    'type' => 'separator',
+                                    'margin' => 'xl'
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => '目前無法使用預約服務',
+                                    'size' => 'sm',
+                                    'color' => '#999999',
+                                    'align' => 'center',
+                                    'margin' => 'xl',
+                                    'wrap' => true
+                                ],
+                                [
+                                    'type' => 'text',
+                                    'text' => '如有任何疑問，請聯繫客服人員',
+                                    'size' => 'sm',
+                                    'color' => '#999999',
+                                    'align' => 'center',
+                                    'margin' => 'md',
+                                    'wrap' => true
+                                ]
+                            ],
+                            'spacing' => 'sm',
+                            'margin' => 'lg'
+                        ],
+                        [
+                            'type' => 'box',
+                            'layout' => 'vertical',
+                            'contents' => [
+                                [
+                                    'type' => 'box',
+                                    'layout' => 'horizontal',
+                                    'contents' => [
+                                        [
+                                            'type' => 'text',
+                                            'text' => '📞',
+                                            'size' => 'sm',
+                                            'flex' => 0
+                                        ],
+                                        [
+                                            'type' => 'text',
+                                            'text' => '請透過其他管道聯繫我們',
+                                            'size' => 'xs',
+                                            'color' => '#666666',
+                                            'flex' => 1,
+                                            'margin' => 'md'
+                                        ]
+                                    ]
+                                ]
+                            ],
+                            'backgroundColor' => '#F8F9FA',
+                            'cornerRadius' => 'md',
+                            'paddingAll' => 'md',
+                            'margin' => 'xl'
+                        ]
+                    ],
+                    'paddingAll' => 'xl'
+                ],
+                'styles' => [
+                    'footer' => [
+                        'separator' => true
+                    ]
+                ]
+            ]
+        ];
+
+        $this->replyMessage($replyToken, $message);
     }
 
     private function handleCancelCommand($replyToken, $userId)
@@ -1952,6 +2107,22 @@ class LineBotService
                 'type' => 'text',
                 'text' => '預約失敗：資料不完整，請重新開始。'
             ]);
+            return;
+        }
+
+        // 檢查客戶是否被封鎖
+        if ($customer->status === 'blocked') {
+            $this->replyMessage($replyToken, [
+                'type' => 'text',
+                'text' => '很抱歉，您的帳號已被停用，無法進行預約。如有疑問，請聯繫客服人員。'
+            ]);
+            
+            Log::warning('Blocked customer attempted to make reservation', [
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'line_user_id' => $userId
+            ]);
+            
             return;
         }
 

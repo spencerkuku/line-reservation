@@ -413,6 +413,54 @@ class CustomerController extends Controller
         ]);
     }
 
+    // 封鎖客戶
+    public function block(Customer $customer)
+    {
+        if ($customer->status === 'blocked') {
+            return response()->json([
+                'success' => false,
+                'message' => '此客戶已被封鎖'
+            ], 422);
+        }
+
+        $customer->update(['status' => 'blocked']);
+
+        Log::info('Customer blocked', [
+            'customer_id' => $customer->id,
+            'name' => $customer->name
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => '客戶已封鎖，將無法進行任何預約',
+            'data' => $customer->fresh()
+        ]);
+    }
+
+    // 解除封鎖客戶
+    public function unblock(Customer $customer)
+    {
+        if ($customer->status !== 'blocked') {
+            return response()->json([
+                'success' => false,
+                'message' => '此客戶並未被封鎖'
+            ], 422);
+        }
+
+        $customer->update(['status' => 'active']);
+
+        Log::info('Customer unblocked', [
+            'customer_id' => $customer->id,
+            'name' => $customer->name
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => '已解除客戶封鎖，可以正常進行預約',
+            'data' => $customer->fresh()
+        ]);
+    }
+
     // 重新計算客戶統計數據
     public function recalculateStats(Request $request)
     {

@@ -112,5 +112,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
         Route::delete('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'destroy']);
         Route::post('/{customer}/interaction', [App\Http\Controllers\Api\CustomerController::class, 'updateInteraction']);
         Route::post('/{customer}/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
+        Route::post('/{customer}/block', [App\Http\Controllers\Api\CustomerController::class, 'block']);
+        Route::post('/{customer}/unblock', [App\Http\Controllers\Api\CustomerController::class, 'unblock']);
     });
 });
