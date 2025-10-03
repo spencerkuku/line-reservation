@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LineWebhookController;
 use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\FrontendLogController;
+use App\Http\Controllers\Api\CheckInController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -114,5 +115,13 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
         Route::post('/{customer}/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
         Route::post('/{customer}/block', [App\Http\Controllers\Api\CustomerController::class, 'block']);
         Route::post('/{customer}/unblock', [App\Http\Controllers\Api\CustomerController::class, 'unblock']);
+    });
+
+    // 報到管理（僅管理員可訪問）
+    Route::prefix('check-in')->group(function () {
+        Route::post('/reservations/{reservation}/check-in', [CheckInController::class, 'checkIn']);
+        Route::post('/reservations/{reservation}/no-show', [CheckInController::class, 'markNoShow']);
+        Route::post('/reservations/{reservation}/payment', [CheckInController::class, 'recordPayment']);
+        Route::get('/today', [CheckInController::class, 'getTodayCheckIns']);
     });
 });

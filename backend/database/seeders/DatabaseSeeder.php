@@ -109,12 +109,24 @@ class DatabaseSeeder extends Seeder
             'type' => 'json',
         ]);
 
+        Setting::create([
+            'key' => 'check_in_reminder_enabled',
+            'value' => '0',
+            'type' => 'boolean',
+        ]);
+
+        Setting::create([
+            'key' => 'business_address',
+            'value' => '',
+            'type' => 'string',
+        ]);
+
         $this->command->info('資料庫初始化完成！');
         $this->command->info('管理員帳號：admin@example.com / password');
         $this->command->info('客戶：2 筆');
         $this->command->info('服務項目：2 筆');
         $this->command->info('可預約時段：2 筆');
         $this->command->info('預約記錄：2 筆');
-        $this->command->info('系統設定：4 筆');
+        $this->command->info('系統設定：6 筆');
     }
 }

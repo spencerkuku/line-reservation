@@ -70,6 +70,10 @@ class SettingController extends Controller
         // 加入預約確認模式的預設值
         $settings['reservation_confirm_mode'] = Setting::get('reservation_confirm_mode', 'auto');
         
+        // 加入報到提醒設定的預設值
+        $settings['check_in_reminder_enabled'] = Setting::get('check_in_reminder_enabled', '0');
+        $settings['business_address'] = Setting::get('business_address', '');
+        
         return response()->json([
             'success' => true,
             'data' => $settings

@@ -12,6 +12,7 @@ import Profile from "./pages/Profile.vue";
 import Login from "./pages/Login.vue";
 import NotFound from "./pages/NotFound.vue";
 import Customers from './pages/Customers.vue'
+import CheckIn from './pages/CheckIn.vue'
 import { validateToken } from "./utils/api.js"
 
 const routes = [
@@ -21,6 +22,7 @@ const routes = [
         children: [
             { path: '/', name: 'Dashboard', component: Dashboard },
             { path: 'customers', name: 'Customers', component: Customers },
+            { path: 'check-in', name: 'CheckIn', component: CheckIn },
             { path: 'services', name: 'Services', component: Services },
             { path: 'available-times', name: 'AvailableTimes', component: AvailableTimes },
             { path: 'reservations', name: 'Reservations', component: Reservations },
@@ -105,7 +107,7 @@ router.beforeEach(async (to, from, next) => {
     }
     
     // 檢查管理員權限 - 所有管理頁面都只允許管理員訪問
-    const adminOnlyPages = ['Dashboard', 'Services', 'AvailableTimes', 'Reservations', 'Settings']
+    const adminOnlyPages = ['Dashboard', 'Customers', 'CheckIn', 'Services', 'AvailableTimes', 'Reservations', 'Settings']
     if (adminOnlyPages.includes(to.name) && user && user.role !== 'admin') {
         // 非管理員訪問管理頁面，重定向到登入頁面並顯示錯誤
         alert('權限不足，僅限管理員訪問此系統')

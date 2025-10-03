@@ -202,6 +202,7 @@ const navigation = computed(() => {
   // 只有管理員才能看到管理功能
   if (user.value.role === 'admin') {
     baseNav.push(
+      { name: '報到管理', to: { name: 'CheckIn' } },
       { name: '預約紀錄', to: { name: 'Reservations' } },
       { name: '服務項目', to: { name: 'Services' } },
       { name: '可預約時段', to: { name: 'AvailableTimes' } },

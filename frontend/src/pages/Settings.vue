@@ -261,6 +261,134 @@
         </div>
       </div>
 
+      <!-- 報到提醒設定卡片 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+        <!-- 卡片標題 -->
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <svg class="h-8 w-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-4">
+              <h3 class="text-lg font-semibold text-gray-900">報到提醒設定</h3>
+              <p class="text-sm text-gray-600 mt-1">配置預約前的自動提醒通知</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 報到提醒設定表單 -->
+        <div class="p-6">
+          <form @submit.prevent="saveCheckInSettings" class="space-y-6">
+            <!-- 報到提醒開關 -->
+            <div>
+              <div class="flex items-center justify-between">
+                <div class="flex-1">
+                  <label class="text-sm font-medium text-gray-700 block mb-1">
+                    啟用報到提醒
+                  </label>
+                  <p class="text-sm text-gray-600">
+                    預約前30分鐘自動發送 LINE 提醒訊息，包含報到碼、預約資訊及服務地點
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="checkInReminderEnabled = !checkInReminderEnabled"
+                  :class="[
+                    checkInReminderEnabled ? 'bg-blue-600' : 'bg-gray-200',
+                    'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                  ]"
+                  :disabled="loading"
+                >
+                  <span class="sr-only">啟用報到提醒</span>
+                  <span
+                    :class="[
+                      checkInReminderEnabled ? 'translate-x-5' : 'translate-x-0',
+                      'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out'
+                    ]"
+                  />
+                </button>
+              </div>
+            </div>
+
+            <!-- 商家地址設定 -->
+            <div>
+              <label for="businessAddress" class="text-sm font-medium text-gray-700 mb-2 block">
+                商家地址
+              </label>
+              <input
+                id="businessAddress"
+                v-model="businessAddress"
+                type="text"
+                :disabled="loading"
+                placeholder="請輸入商家地址（顯示在提醒訊息中）"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                此地址將顯示在報到提醒訊息中，幫助客戶找到服務地點
+              </p>
+            </div>
+
+            <!-- 設定說明 -->
+            <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h4 class="text-sm font-semibold text-orange-800">功能說明</h4>
+                  <div class="mt-1 text-sm text-orange-700">
+                    <p>• 系統會在預約時間前30分鐘自動發送 LINE 提醒訊息</p>
+                    <p class="mt-1">• 訊息包含報到碼、服務項目、預約時間及服務地點</p>
+                    <p class="mt-1">• 需要設定 Linux Cron Job 來執行排程任務</p>
+                    <p class="mt-1 font-semibold">• 此功能預設為停用，請確認需求後再啟用</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cron 設定說明 -->
+            <div v-if="checkInReminderEnabled" class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+              <h4 class="text-sm font-semibold text-gray-900 mb-2">Cron 設定指令</h4>
+              <p class="text-xs text-gray-600 mb-2">請在伺服器執行以下指令設定排程：</p>
+              <div class="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs overflow-x-auto">
+                <div>crontab -e</div>
+                <div class="mt-2"># 添加以下行（每分鐘執行一次檢查）</div>
+                <div>* * * * * cd /home/server/projects/line-reservation/backend && php artisan schedule:run >> /dev/null 2>&1</div>
+              </div>
+            </div>
+
+            <!-- 保存按鈕 -->
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                :disabled="loading"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ loading ? '儲存中...' : '儲存設定' }}
+              </button>
+            </div>
+          </form>
+
+          <!-- 成功訊息 -->
+          <div v-if="checkInSuccessMessage" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div class="flex items-center">
+              <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              <span class="ml-2 text-sm font-medium text-green-800">{{ checkInSuccessMessage }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- LINE Bot 設定指南 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -355,6 +483,11 @@ const hasExistingSecret = ref(false)
 const reservationConfirmMode = ref('auto') // 預設為自動確認
 const reservationSuccessMessage = ref('')
 
+// 報到提醒設定
+const checkInReminderEnabled = ref(false)
+const businessAddress = ref('')
+const checkInSuccessMessage = ref('')
+
 // 顯示後端返回的遮蔽版本
 const currentAccessToken = ref('')
 const currentSecret = ref('')
@@ -396,6 +529,9 @@ async function fetchSettings() {
 
     // 獲取預約設定
     await fetchReservationSettings()
+    
+    // 獲取報到提醒設定
+    await fetchCheckInSettings()
   } catch (err) {
     console.error('Error fetching settings:', err) // 顯示所有錯誤
   } finally {
@@ -492,6 +628,62 @@ async function saveReservationSettings() {
     reservationSuccessMessage.value = `儲存失敗: ${err.message}`
     setTimeout(() => {
       reservationSuccessMessage.value = ''
+    }, 3000)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 獲取報到提醒設定
+async function fetchCheckInSettings() {
+  try {
+    const response = await apiGet('/settings')
+    if (response.success && response.data) {
+      // 獲取報到提醒開關狀態
+      if (response.data.check_in_reminder_enabled !== undefined) {
+        checkInReminderEnabled.value = response.data.check_in_reminder_enabled === '1' || response.data.check_in_reminder_enabled === true
+      }
+      
+      // 獲取商家地址
+      if (response.data.business_address !== undefined) {
+        businessAddress.value = response.data.business_address || ''
+      }
+    }
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      console.error('Error fetching check-in settings:', err)
+    }
+  }
+}
+
+// 儲存報到提醒設定
+async function saveCheckInSettings() {
+  loading.value = true
+  try {
+    // 儲存報到提醒開關
+    await apiPost('/settings', {
+      key: 'check_in_reminder_enabled',
+      value: checkInReminderEnabled.value ? '1' : '0',
+      type: 'boolean'
+    })
+    
+    // 儲存商家地址
+    await apiPost('/settings', {
+      key: 'business_address',
+      value: businessAddress.value,
+      type: 'string'
+    })
+    
+    checkInSuccessMessage.value = '報到提醒設定已儲存'
+    
+    setTimeout(() => {
+      checkInSuccessMessage.value = ''
+    }, 3000)
+    
+  } catch (err) {
+    checkInSuccessMessage.value = `儲存失敗: ${err.message}`
+    setTimeout(() => {
+      checkInSuccessMessage.value = ''
     }, 3000)
   } finally {
     loading.value = false

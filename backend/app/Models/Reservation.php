@@ -29,13 +29,28 @@ class Reservation extends Model
         'status',
         'notes',
         'confirmed_at',
-        'cancelled_at'
+        'cancelled_at',
+        // 報到相關
+        'check_in_status',
+        'check_in_time',
+        'check_in_by',
+        'no_show',
+        // 付款相關
+        'payment_status',
+        'payment_method',
+        'payment_amount',
+        'payment_time',
+        'payment_note'
     ];
 
     protected $casts = [
         'reservation_date' => 'date',
         'confirmed_at' => 'datetime',
-        'cancelled_at' => 'datetime'
+        'cancelled_at' => 'datetime',
+        'check_in_time' => 'datetime',
+        'payment_time' => 'datetime',
+        'payment_amount' => 'decimal:2',
+        'no_show' => 'boolean'
     ];
 
     /**
@@ -79,6 +94,11 @@ class Reservation extends Model
         return $this->belongsTo(AvailableTime::class);
     }
 
+    public function checkInUser()
+    {
+        return $this->belongsTo(User::class, 'check_in_by');
+    }
+
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
@@ -108,5 +128,114 @@ class Reservation extends Model
             'status' => 'cancelled',
             'cancelled_at' => now()
         ]);
+    }
+
+    /**
+     * 報到
+     */
+    public function checkIn($userId = null)
+    {
+        $reservationDateTime = $this->getReservationDateTime();
+        $now = now();
+        
+        // 判斷是否遲到（超過預約時間15分鐘）
+        $isLate = $now->diffInMinutes($reservationDateTime, false) < -15;
+        
+        $this->update([
+            'check_in_status' => $isLate ? 'late' : 'checked_in',
+            'check_in_time' => $now,
+            'check_in_by' => $userId,
+            'no_show' => false
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * 標記為爽約
+     */
+    public function markAsNoShow($userId = null)
+    {
+        $this->update([
+            'check_in_status' => 'no_show',
+            'check_in_time' => now(),
+            'check_in_by' => $userId,
+            'no_show' => true
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * 記錄付款
+     */
+    public function recordPayment($amount, $method, $note = null, $userId = null)
+    {
+        $totalAmount = $this->service->price ?? 0;
+        
+        // 計算新的付款總額
+        $newPaymentAmount = $this->payment_amount + $amount;
+        
+        // 判斷付款狀態
+        $paymentStatus = 'unpaid';
+        if ($newPaymentAmount >= $totalAmount) {
+            $paymentStatus = 'paid';
+        } elseif ($newPaymentAmount > 0) {
+            $paymentStatus = 'partial';
+        }
+
+        $this->update([
+            'payment_amount' => $newPaymentAmount,
+            'payment_method' => $method,
+            'payment_status' => $paymentStatus,
+            'payment_time' => now(),
+            'payment_note' => $note
+        ]);
+
+        return $this;
+    }
+
+    /**
+     * 報到狀態文字
+     */
+    public function getCheckInStatusTextAttribute()
+    {
+        return match($this->check_in_status) {
+            'pending' => '待報到',
+            'checked_in' => '已報到',
+            'no_show' => '爽約',
+            'late' => '遲到',
+            default => '未知'
+        };
+    }
+
+    /**
+     * 付款狀態文字
+     */
+    public function getPaymentStatusTextAttribute()
+    {
+        return match($this->payment_status) {
+            'unpaid' => '未付款',
+            'partial' => '部分付款',
+            'paid' => '已付款',
+            'refunded' => '已退款',
+            default => '未知'
+        };
+    }
+
+    /**
+     * 付款方式文字
+     */
+    public function getPaymentMethodTextAttribute()
+    {
+        return match($this->payment_method) {
+            'cash' => '現金',
+            'credit_card' => '信用卡',
+            'debit_card' => '金融卡',
+            'transfer' => '轉帳',
+            'line_pay' => 'LINE Pay',
+            'other' => '其他',
+            default => '未指定'
+        };
     }
 }

@@ -2159,7 +2159,7 @@ class LineBotService
                 $status = $confirmMode === 'auto' ? 'confirmed' : 'pending';
                 
                 // 創建預約記錄，使用基礎時段 ID
-                return Reservation::create([
+                $reservation = Reservation::create([
                     'user_id' => null, // LINE Bot 預約不需要管理員 ID
                     'customer_id' => $customer->id,
                     'service_id' => $service->id,
@@ -2169,6 +2169,8 @@ class LineBotService
                     'status' => $status,
                     'notes' => '無',
                 ]);
+                
+                return $reservation;
             });
 
             // 注意：不更新 current_bookings，因為我們基於實際預約記錄計算重疊
@@ -2613,6 +2615,43 @@ class LineBotService
         } else {
             Log::info('LINE reply message sent successfully');
         }
+    }
+
+    /**
+     * Send a push message to a LINE user
+     */
+    public function pushMessage($userId, $message)
+    {
+        Log::info('Attempting to send LINE push message', [
+            'userId' => $userId,
+            'message' => $message,
+            'accessToken' => substr($this->channelAccessToken, 0, 20) . '...'
+        ]);
+
+        $data = [
+            'to' => $userId,
+            'messages' => [$message]
+        ];
+
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->channelAccessToken,
+        ])->post('https://api.line.me/v2/bot/message/push', $data);
+
+        Log::info('LINE push API response', [
+            'status' => $response->status(),
+            'body' => $response->body(),
+            'successful' => $response->successful()
+        ]);
+
+        if (!$response->successful()) {
+            Log::error('LINE push message failed: ' . $response->body());
+            throw new \Exception('Failed to send LINE push message');
+        } else {
+            Log::info('LINE push message sent successfully');
+        }
+
+        return true;
     }
 
     private function logMessage($event)
