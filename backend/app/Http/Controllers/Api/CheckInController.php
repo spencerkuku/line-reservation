@@ -200,19 +200,36 @@ class CheckInController extends Controller
         $data = $reservations->map(function ($reservation) {
             return [
                 'id' => $reservation->id,
+                // 客戶資訊
+                'customer' => [
+                    'id' => $reservation->customer?->id,
+                    'line_display_name' => $reservation->customer?->line_display_name,
+                    'line_picture_url' => $reservation->customer?->line_picture_url,
+                    'name' => $reservation->customer?->name,
+                    'customer_level' => $reservation->customer?->customer_level,
+                ],
+                // 預約時填寫的資訊（快照）
+                'reservation_name' => $reservation->reservation_name,
+                'reservation_phone' => $reservation->reservation_phone,
+                // 為了向後兼容保留這兩個欄位
                 'customer_name' => $reservation->reservation_name,
                 'customer_phone' => $reservation->reservation_phone,
+                // 服務資訊
                 'service_name' => $reservation->service->name ?? 'N/A',
+                'service_price' => $reservation->service->price ?? 0,
+                // 預約時間
                 'reservation_time' => $reservation->reservation_time,
                 'reservation_datetime' => $reservation->getReservationDateTime()->format('Y-m-d H:i'),
+                // 報到狀態
                 'check_in_status' => $reservation->check_in_status,
                 'check_in_status_text' => $reservation->check_in_status_text,
                 'check_in_time' => $reservation->check_in_time?->format('H:i'),
                 'check_in_by_name' => $reservation->checkInUser?->name,
+                // 付款狀態
                 'payment_status' => $reservation->payment_status,
                 'payment_status_text' => $reservation->payment_status_text,
-                'payment_amount' => $reservation->payment_amount,
-                'service_price' => $reservation->service->price ?? 0,
+                'payment_amount' => $reservation->payment_amount ?? 0,
+                'payment_method' => $reservation->payment_method,
                 'payment_method_text' => $reservation->payment_method_text
             ];
         });

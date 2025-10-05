@@ -103,47 +103,112 @@
           <tbody class="bg-white divide-y divide-gray-200">
             <tr v-for="reservation in reservations" :key="reservation.id" class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {{ reservation.reservation_time }}
+                <div class="font-medium">{{ reservation.reservation_time }}</div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex items-start space-x-3">
+                  <!-- LINE 頭貼 -->
+                  <div class="flex-shrink-0">
+                    <img 
+                      v-if="reservation.customer?.line_picture_url" 
+                      :src="reservation.customer.line_picture_url" 
+                      :alt="reservation.customer.line_display_name || '客戶頭貼'"
+                      class="h-12 w-12 rounded-full object-cover border-2 border-gray-200"
+                      @error="handleImageError"
+                    />
+                    <div 
+                      v-else 
+                      class="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-lg border-2 border-gray-200"
+                    >
+                      {{ getInitials(reservation.reservation_name) }}
+                    </div>
+                  </div>
+                  
+                  <!-- 客戶詳細資訊 -->
+                  <div class="flex-1 min-w-0">
+                    <!-- LINE 帳號名稱 -->
+                    <div v-if="reservation.customer?.line_display_name" class="flex items-center space-x-2 mb-1">
+                      <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                      </svg>
+                      <span class="text-sm font-semibold text-gray-900 truncate">
+                        {{ reservation.customer.line_display_name }}
+                      </span>
+                      <span 
+                        v-if="reservation.customer.customer_level" 
+                        :class="getLevelBadgeClass(reservation.customer.customer_level)"
+                        class="px-2 py-0.5 text-xs font-bold rounded-full flex-shrink-0"
+                      >
+                        {{ reservation.customer.customer_level }}
+                      </span>
+                    </div>
+                    
+                    <!-- 預約名字 -->
+                    <div class="flex items-start space-x-1.5 mb-0.5">
+                      <svg class="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span class="text-sm text-gray-700">{{ reservation.reservation_name }}</span>
+                    </div>
+                    
+                    <!-- 電話 -->
+                    <div class="flex items-start space-x-1.5">
+                      <svg class="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <span class="text-sm text-gray-600">{{ reservation.reservation_phone }}</span>
+                    </div>
+                  </div>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ reservation.customer_name }}</div>
-                <div class="text-sm text-gray-500">{{ reservation.customer_phone }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {{ reservation.service_name }}
+                <div class="text-sm font-medium text-gray-900">{{ reservation.service_name }}</div>
+                <div class="text-xs text-gray-500">NT$ {{ formatPrice(reservation.service_price) }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getCheckInStatusClass(reservation.check_in_status)" class="px-2 py-1 text-xs font-semibold rounded-full">
-                  {{ reservation.check_in_status_text }}
-                </span>
+                <div>
+                  <span :class="getCheckInStatusClass(reservation.check_in_status)" class="px-2 py-1 text-xs font-semibold rounded-full">
+                    {{ reservation.check_in_status_text }}
+                  </span>
+                  <div v-if="reservation.check_in_time" class="text-xs text-gray-500 mt-1">
+                    {{ reservation.check_in_time }}
+                  </div>
+                </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span :class="getPaymentStatusClass(reservation.payment_status)" class="px-2 py-1 text-xs font-semibold rounded-full">
-                  {{ reservation.payment_status_text }}
-                </span>
+                <div>
+                  <span :class="getPaymentStatusClass(reservation.payment_status)" class="px-2 py-1 text-xs font-semibold rounded-full">
+                    {{ reservation.payment_status_text }}
+                  </span>
+                  <div v-if="reservation.payment_amount > 0" class="text-xs text-gray-500 mt-1">
+                    NT$ {{ formatPrice(reservation.payment_amount) }} ({{ reservation.payment_method_text }})
+                  </div>
+                </div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                <button
-                  v-if="reservation.check_in_status === 'pending'"
-                  @click="checkIn(reservation)"
-                  class="text-green-600 hover:text-green-900"
-                >
-                  報到
-                </button>
-                <button
-                  v-if="reservation.check_in_status === 'pending'"
-                  @click="markNoShow(reservation)"
-                  class="text-red-600 hover:text-red-900"
-                >
-                  爽約
-                </button>
-                <button
-                  v-if="['checked_in', 'late'].includes(reservation.check_in_status)"
-                  @click="openPaymentModal(reservation)"
-                  class="text-blue-600 hover:text-blue-900"
-                >
-                  收款
-                </button>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <div class="flex flex-col space-y-1">
+                  <button
+                    v-if="reservation.check_in_status === 'pending'"
+                    @click="checkIn(reservation)"
+                    class="text-green-600 hover:text-green-900 text-left"
+                  >
+                    報到
+                  </button>
+                  <button
+                    v-if="reservation.check_in_status === 'pending'"
+                    @click="markNoShow(reservation)"
+                    class="text-red-600 hover:text-red-900 text-left"
+                  >
+                    爽約
+                  </button>
+                  <button
+                    v-if="['checked_in', 'late'].includes(reservation.check_in_status)"
+                    @click="openPaymentModal(reservation)"
+                    class="text-blue-600 hover:text-blue-900 text-left"
+                  >
+                    收款
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="reservations.length === 0">
@@ -176,19 +241,55 @@
         </div>
         
         <div class="px-6 py-4 space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">客戶姓名</label>
-            <div class="mt-1 text-sm text-gray-900">{{ selectedReservation?.customer_name }}</div>
+          <!-- 客戶資訊 -->
+          <div class="bg-gray-50 rounded-lg p-4">
+            <div class="flex items-center space-x-3">
+              <!-- LINE 頭貼 -->
+              <div class="flex-shrink-0">
+                <img 
+                  v-if="selectedReservation?.customer?.line_picture_url" 
+                  :src="selectedReservation.customer.line_picture_url" 
+                  :alt="selectedReservation.customer.line_display_name || '客戶頭貼'"
+                  class="h-14 w-14 rounded-full object-cover border-2 border-gray-300"
+                  @error="handleImageError"
+                />
+                <div 
+                  v-else 
+                  class="h-14 w-14 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-xl border-2 border-gray-300"
+                >
+                  {{ getInitials(selectedReservation?.reservation_name) }}
+                </div>
+              </div>
+              
+              <!-- 客戶詳細資訊 -->
+              <div class="flex-1">
+                <div v-if="selectedReservation?.customer?.line_display_name" class="flex items-center space-x-2 mb-1">
+                  <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                  </svg>
+                  <span class="text-sm font-semibold text-gray-900">{{ selectedReservation.customer.line_display_name }}</span>
+                  <span 
+                    v-if="selectedReservation.customer.customer_level" 
+                    :class="getLevelBadgeClass(selectedReservation.customer.customer_level)"
+                    class="px-2 py-0.5 text-xs font-bold rounded-full"
+                  >
+                    {{ selectedReservation.customer.customer_level }}
+                  </span>
+                </div>
+                <div class="text-sm text-gray-700 font-medium">{{ selectedReservation?.reservation_name }}</div>
+                <div class="text-xs text-gray-500">{{ selectedReservation?.reservation_phone }}</div>
+              </div>
+            </div>
           </div>
           
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700">服務費用</label>
-              <div class="mt-1 text-sm font-semibold text-gray-900">NT$ {{ selectedReservation?.service_price }}</div>
+              <div class="mt-1 text-sm font-semibold text-gray-900">NT$ {{ formatPrice(selectedReservation?.service_price) }}</div>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">已付款</label>
-              <div class="mt-1 text-sm font-semibold text-green-600">NT$ {{ selectedReservation?.payment_amount || 0 }}</div>
+              <div class="mt-1 text-sm font-semibold text-green-600">NT$ {{ formatPrice(selectedReservation?.payment_amount || 0) }}</div>
             </div>
           </div>
           
@@ -196,7 +297,7 @@
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-yellow-800">尚需付款</span>
               <span class="text-lg font-bold text-yellow-900">
-                NT$ {{ Math.max(0, (selectedReservation?.service_price || 0) - (selectedReservation?.payment_amount || 0)) }}
+                NT$ {{ formatPrice(Math.max(0, (selectedReservation?.service_price || 0) - (selectedReservation?.payment_amount || 0))) }}
               </span>
             </div>
           </div>
@@ -396,6 +497,42 @@ const getPaymentStatusClass = (status) => {
     refunded: 'bg-gray-100 text-gray-800'
   };
   return classes[status] || 'bg-gray-100 text-gray-800';
+};
+
+// 格式化價格
+const formatPrice = (price) => {
+  return new Intl.NumberFormat('zh-TW').format(price || 0);
+};
+
+// 獲取客戶名字縮寫（用於頭貼）
+const getInitials = (name) => {
+  if (!name) return '?';
+  // 如果是中文名，取第一個字
+  if (/[\u4e00-\u9fa5]/.test(name)) {
+    return name.charAt(0);
+  }
+  // 如果是英文名，取首字母
+  const parts = name.split(' ');
+  if (parts.length >= 2) {
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  return name.charAt(0).toUpperCase();
+};
+
+// 處理圖片載入錯誤
+const handleImageError = (event) => {
+  event.target.style.display = 'none';
+};
+
+// 獲取等級徽章樣式
+const getLevelBadgeClass = (level) => {
+  const classes = {
+    'VIP': 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white',
+    'Gold': 'bg-gradient-to-r from-yellow-300 to-yellow-500 text-gray-900',
+    'Silver': 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-900',
+    'Bronze': 'bg-gradient-to-r from-orange-300 to-orange-400 text-gray-900'
+  };
+  return classes[level] || 'bg-gray-200 text-gray-700';
 };
 
 onMounted(() => {

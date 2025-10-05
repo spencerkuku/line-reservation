@@ -51,25 +51,17 @@ class DashboardController extends Controller
                 ->count(),
         ];
 
-        // 計算本月營收 - 使用更準確的方法
-        $this_month_revenue = Reservation::where('status', 'confirmed')
-            ->whereMonth('reservation_date', now()->month)
+        // 計算本月營收 - 基於實際收到的付款金額
+        $this_month_revenue = Reservation::whereMonth('reservation_date', now()->month)
             ->whereYear('reservation_date', now()->year)
-            ->with('service')
-            ->get()
-            ->sum(function($reservation) {
-                return $reservation->service ? $reservation->service->price : 0;
-            });
+            ->whereNotNull('payment_amount')
+            ->sum('payment_amount');
         
         $stats['this_month_revenue'] = $this_month_revenue;
         
-        // 總營收統計
-        $total_revenue = Reservation::where('status', 'confirmed')
-            ->with('service')
-            ->get()
-            ->sum(function($reservation) {
-                return $reservation->service ? $reservation->service->price : 0;
-            });
+        // 總營收統計 - 基於實際收到的付款金額
+        $total_revenue = Reservation::whereNotNull('payment_amount')
+            ->sum('payment_amount');
         
         $stats['total_revenue'] = $total_revenue;
         
@@ -180,8 +172,7 @@ class DashboardController extends Controller
     public function popularServices()
     {
         $popularServices = Service::with(['reservations' => function($query) {
-                $query->where('status', 'confirmed')
-                      ->whereMonth('reservation_date', now()->month)
+                $query->whereMonth('reservation_date', now()->month)
                       ->whereYear('reservation_date', now()->year);
             }])
             ->withCount(['reservations as month_count' => function($query) {
@@ -191,8 +182,10 @@ class DashboardController extends Controller
             }])
             ->get()
             ->map(function($service) {
-                // 計算本月營收
-                $monthRevenue = $service->reservations->count() * $service->price;
+                // 計算本月營收 - 基於實際收到的付款金額
+                $monthRevenue = $service->reservations
+                    ->whereNotNull('payment_amount')
+                    ->sum('payment_amount');
                 
                 return [
                     'id' => $service->id,
