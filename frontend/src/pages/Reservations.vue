@@ -7,7 +7,7 @@
     </div>
 
     <!-- 統計卡片區域 -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
       <!-- 今日預約 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between">
@@ -53,16 +53,31 @@
         </div>
       </div>
 
-      <!-- 總預約數 -->
+      <!-- 已完成 - 新增 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-medium text-gray-600">總預約數</p>
-            <p class="text-2xl font-bold text-gray-900 mt-2">{{ reservations.length }}</p>
+            <p class="text-sm font-medium text-gray-600">已完成</p>
+            <p class="text-2xl font-bold text-purple-600 mt-2">{{ completedReservations }}</p>
           </div>
-          <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v1M9 5a2 2 0 012 2v1M9 5V4a1 1 0 011-1h4a1 1 0 011 1v1m0 0h2a2 2 0 012 2v1m-3 0V8a1 1 0 00-1-1H9a1 1 0 00-1 1v3m0 0v3a2 2 0 002 2h6a2 2 0 002-2v-3" />
+          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 爽約記錄 - 新增 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">爽約記錄</p>
+            <p class="text-2xl font-bold text-red-600 mt-2">{{ noShowReservations }}</p>
+          </div>
+          <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
         </div>
@@ -96,6 +111,7 @@
             <option value="confirmed">已確認</option>
             <option value="completed">已完成</option>
             <option value="cancelled">已取消</option>
+            <option value="no_show">爽約</option>
           </select>
           
           <select
@@ -214,6 +230,7 @@
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">預約時間</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider notes-column">備註</th>
               <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">狀態</th>
+              <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">報到/收款</th>
               <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">操作</th>
             </tr>
           </thead>
@@ -222,7 +239,10 @@
               v-for="(record, index) in filteredRecords" 
               :key="record.id" 
               class="hover:bg-gray-50 transition-colors duration-200"
-              :class="{ 'bg-yellow-50': record.status === 'pending' }"
+              :class="{ 
+                'bg-yellow-50': record.status === 'pending',
+                'bg-red-50': record.check_in_status === 'no_show' || record.no_show
+              }"
             >
               <!-- 預約資訊 -->
               <td class="px-6 py-4 whitespace-nowrap">
@@ -308,6 +328,72 @@
                 </span>
               </td>
               
+              <!-- 報到/收款狀態 - 新增 -->
+              <td class="px-6 py-4">
+                <div class="flex flex-col space-y-2">
+                  <!-- 報到狀態 -->
+                  <div class="flex items-center justify-center">
+                    <div v-if="['checked_in', 'late'].includes(record.check_in_status)" class="flex items-center">
+                      <svg class="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs font-medium text-green-700">
+                        {{ record.check_in_status === 'late' ? '已報到(遲到)' : '已報到' }}
+                      </span>
+                    </div>
+                    <div v-else-if="record.check_in_status === 'no_show' || record.no_show" class="flex items-center">
+                      <svg class="w-4 h-4 text-red-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs font-medium text-red-700">爽約</span>
+                    </div>
+                    <div v-else class="flex items-center">
+                      <svg class="w-4 h-4 text-gray-300 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs text-gray-400">未報到</span>
+                    </div>
+                  </div>
+                  
+                  <!-- 收款狀態 -->
+                  <div class="flex items-center justify-center">
+                    <div v-if="record.payment_status === 'paid'" class="flex items-center">
+                      <svg class="w-4 h-4 text-green-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs font-medium text-green-700">
+                        已收 ${{ formatCurrency(record.payment_amount) }}
+                      </span>
+                    </div>
+                    <div v-else-if="record.payment_status === 'partial'" class="flex items-center">
+                      <svg class="w-4 h-4 text-yellow-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs font-medium text-yellow-700">
+                        部分 ${{ formatCurrency(record.payment_amount) }}
+                      </span>
+                    </div>
+                    <div v-else-if="record.payment_amount > 0" class="flex items-center">
+                      <svg class="w-4 h-4 text-blue-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs font-medium text-blue-700">
+                        已付 ${{ formatCurrency(record.payment_amount) }}
+                      </span>
+                    </div>
+                    <div v-else class="flex items-center">
+                      <svg class="w-4 h-4 text-gray-300 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="text-xs text-gray-400">未付款</span>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              
               <!-- 操作 -->
               <td class="px-6 py-4 whitespace-nowrap text-center">
                 <div class="flex items-center justify-center space-x-2">
@@ -334,7 +420,7 @@
                   </button>
                   
                   <button
-                    v-if="['pending', 'confirmed'].includes(record.status)"
+                    v-if="['pending', 'confirmed'].includes(record.status) && record.check_in_status !== 'no_show' && !record.no_show"
                     @click="cancelRecord(record)"
                     class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
                   >
@@ -498,7 +584,7 @@
           </button>
           
           <button
-            v-if="['pending', 'confirmed'].includes(selectedRecord?.status)"
+            v-if="['pending', 'confirmed'].includes(selectedRecord?.status) && selectedRecord?.check_in_status !== 'no_show' && !selectedRecord?.no_show"
             @click="cancelRecord(selectedRecord); closeDetailModal()"
             class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           >
@@ -583,6 +669,16 @@ const pendingReservations = computed(() => {
 
 const confirmedReservations = computed(() => {
   return records.value.filter(record => record.status === 'confirmed').length
+})
+
+// 新增：已完成預約統計
+const completedReservations = computed(() => {
+  return records.value.filter(record => record.status === 'completed').length
+})
+
+// 新增：爽約統計
+const noShowReservations = computed(() => {
+  return records.value.filter(record => record.check_in_status === 'no_show' || record.no_show).length
 })
 
 // 篩選邏輯

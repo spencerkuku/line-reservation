@@ -69,7 +69,15 @@ class ReservationController extends Controller
                     'reservation_time' => $reservation->reservation_time,
                     'status' => $reservation->status,
                     'notes' => e($reservation->notes),
-                    'created_at' => $reservation->created_at
+                    'created_at' => $reservation->created_at,
+                    // 新增：報到狀態
+                    'check_in_status' => $reservation->check_in_status,
+                    'check_in_time' => $reservation->check_in_time?->format('Y-m-d H:i:s'),
+                    'no_show' => $reservation->no_show,
+                    // 新增：付款狀態
+                    'payment_status' => $reservation->payment_status,
+                    'payment_amount' => $reservation->payment_amount ?? 0,
+                    'payment_method' => $reservation->payment_method,
                 ];
             })->values(); // 重要：使用 values() 確保返回數組而不是對象
 

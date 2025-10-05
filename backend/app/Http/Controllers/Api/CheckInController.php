@@ -143,17 +143,28 @@ class CheckInController extends Controller
                 $request->user()->id
             );
             
+            // 重新載入 model 以獲取最新狀態
+            $reservation->refresh();
+            
+            $message = '付款記錄成功';
+            if ($reservation->status === 'completed') {
+                $message = '付款完成！服務已結束';
+            }
+            
             Log::info('Payment recorded', [
                 'reservation_id' => $reservation->id,
                 'amount' => $paymentAmount,
                 'method' => $paymentMethod,
+                'status' => $reservation->status,
+                'payment_status' => $reservation->payment_status,
                 'recorded_by' => $request->user()->name
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => '付款記錄成功',
+                'message' => $message,
                 'data' => [
+                    'status' => $reservation->status,
                     'payment_status' => $reservation->payment_status,
                     'payment_status_text' => $reservation->payment_status_text,
                     'payment_amount' => $reservation->payment_amount,

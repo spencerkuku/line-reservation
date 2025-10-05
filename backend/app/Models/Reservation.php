@@ -184,13 +184,20 @@ class Reservation extends Model
             $paymentStatus = 'partial';
         }
 
-        $this->update([
+        $updateData = [
             'payment_amount' => $newPaymentAmount,
             'payment_method' => $method,
             'payment_status' => $paymentStatus,
             'payment_time' => now(),
             'payment_note' => $note
-        ]);
+        ];
+
+        // 如果付款完成，自動將預約狀態更新為 completed
+        if ($paymentStatus === 'paid') {
+            $updateData['status'] = 'completed';
+        }
+
+        $this->update($updateData);
 
         return $this;
     }
