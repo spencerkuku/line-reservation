@@ -144,15 +144,27 @@ class CustomerController extends Controller
         $customers->getCollection()->transform(function ($customer) {
             $customer->level = $customer->customer_level;
             
-            // 計算實際的總預約次數和總消費金額
-            $totalReservations = $customer->reservations()->where('status', 'confirmed')->count();
-            $totalSpent = $customer->reservations()
+            // 計算實際的總預約次數（排除爽約）和總消費金額（基於實際收到的付款）
+            $totalReservations = $customer->reservations()
                 ->where('status', 'confirmed')
-                ->join('services', 'reservations.service_id', '=', 'services.id')
-                ->sum('services.price') ?: 0;
+                ->where('check_in_status', '!=', 'no_show')
+                ->count();
+            $totalSpent = $customer->reservations()
+                ->whereNotNull('payment_amount')
+                ->sum('payment_amount') ?: 0;
+            
+            // 計算真實爽約次數（爽約且未收到任何款項）
+            $noShowCount = $customer->reservations()
+                ->where('check_in_status', 'no_show')
+                ->where(function($q) {
+                    $q->whereNull('payment_amount')
+                      ->orWhere('payment_amount', 0);
+                })
+                ->count();
             
             $customer->setAttribute('total_reservations', $totalReservations);
             $customer->setAttribute('total_spent', $totalSpent);
+            $customer->setAttribute('no_show_count', $noShowCount);
             
             return $customer;
         });
@@ -182,15 +194,27 @@ class CustomerController extends Controller
 
         $customer->level = $customer->customer_level;
         
-        // 計算實際的總預約次數和總消費金額
-        $totalReservations = $customer->reservations()->where('status', 'confirmed')->count();
-        $totalSpent = $customer->reservations()
+        // 計算實際的總預約次數（排除爽約）和總消費金額（基於實際收到的付款）
+        $totalReservations = $customer->reservations()
             ->where('status', 'confirmed')
-            ->join('services', 'reservations.service_id', '=', 'services.id')
-            ->sum('services.price') ?: 0;
+            ->where('check_in_status', '!=', 'no_show')
+            ->count();
+        $totalSpent = $customer->reservations()
+            ->whereNotNull('payment_amount')
+            ->sum('payment_amount') ?: 0;
+        
+        // 計算真實爽約次數（爽約且未收到任何款項）
+        $noShowCount = $customer->reservations()
+            ->where('check_in_status', 'no_show')
+            ->where(function($q) {
+                $q->whereNull('payment_amount')
+                  ->orWhere('payment_amount', 0);
+            })
+            ->count();
         
         $customer->setAttribute('total_reservations', $totalReservations);
         $customer->setAttribute('total_spent', $totalSpent);
+        $customer->setAttribute('no_show_count', $noShowCount);
 
         return response()->json([
             'success' => true,
