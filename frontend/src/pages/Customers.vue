@@ -367,6 +367,12 @@
                     </svg>
                     <span class="font-medium text-red-600">{{ customer.no_show_count }}</span> 次爽約
                   </div>
+                  <div v-if="customer.late_count > 0" class="flex items-center mb-1">
+                    <svg class="w-4 h-4 text-orange-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="font-medium text-orange-600">{{ customer.late_count }}</span> 次遲到
+                  </div>
                   <div v-if="customer.total_reservations > 0" class="text-xs text-gray-500 mt-1">
                     平均每次: NT$ {{ Math.round((customer.total_spent || 0) / (customer.total_reservations || 1)).toLocaleString() }}
                   </div>
@@ -826,15 +832,21 @@
                   </div>
                 </div>
               </div>
-              <div v-if="viewingCustomer.no_show_count > 0" class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4">
+              <div v-if="viewingCustomer.no_show_count > 0 || viewingCustomer.late_count > 0" class="bg-gradient-to-br from-yellow-50 to-orange-100 rounded-lg p-4">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="text-sm text-red-600 font-medium">爽約次數</p>
-                    <p class="text-2xl font-bold text-red-900 mt-1">{{ viewingCustomer.no_show_count || 0 }}</p>
-                    <p class="text-xs text-red-600 mt-1">需要特別注意</p>
+                    <p class="text-sm text-orange-600 font-medium">特殊記錄</p>
+                    <div class="mt-1 space-y-1">
+                      <p v-if="viewingCustomer.no_show_count > 0" class="text-lg font-bold text-red-700">
+                        爽約 {{ viewingCustomer.no_show_count }} 次
+                      </p>
+                      <p v-if="viewingCustomer.late_count > 0" class="text-lg font-bold text-orange-700">
+                        遲到 {{ viewingCustomer.late_count }} 次
+                      </p>
+                    </div>
                   </div>
-                  <div class="w-12 h-12 bg-red-200 rounded-full flex items-center justify-center">
-                    <svg class="w-6 h-6 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="w-12 h-12 bg-orange-200 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                   </div>

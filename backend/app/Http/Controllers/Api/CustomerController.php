@@ -162,9 +162,15 @@ class CustomerController extends Controller
                 })
                 ->count();
             
+            // 計算遲到次數
+            $lateCount = $customer->reservations()
+                ->where('check_in_status', 'late')
+                ->count();
+            
             $customer->setAttribute('total_reservations', $totalReservations);
             $customer->setAttribute('total_spent', $totalSpent);
             $customer->setAttribute('no_show_count', $noShowCount);
+            $customer->setAttribute('late_count', $lateCount);
             
             return $customer;
         });
@@ -212,9 +218,15 @@ class CustomerController extends Controller
             })
             ->count();
         
+        // 計算遲到次數
+        $lateCount = $customer->reservations()
+            ->where('check_in_status', 'late')
+            ->count();
+        
         $customer->setAttribute('total_reservations', $totalReservations);
         $customer->setAttribute('total_spent', $totalSpent);
         $customer->setAttribute('no_show_count', $noShowCount);
+        $customer->setAttribute('late_count', $lateCount);
 
         return response()->json([
             'success' => true,
