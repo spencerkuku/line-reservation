@@ -611,6 +611,12 @@
                 <p v-if="selectedRecord.service_price" class="text-xs text-gray-500 mt-1">
                   總額：NT$ {{ formatCurrency(selectedRecord.service_price) }}
                 </p>
+                <p v-if="selectedRecord.payment_time" class="text-xs text-blue-600 mt-1">
+                  <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ formatPaymentTime(selectedRecord.payment_time) }}
+                </p>
               </div>
             </div>
           </div>
@@ -954,6 +960,27 @@ const formatDateTime = (date, time) => {
 const formatCurrency = (amount) => {
   if (!amount) return '0'
   return new Intl.NumberFormat('zh-TW').format(amount)
+}
+
+// 格式化收款時間
+const formatPaymentTime = (paymentTime) => {
+  if (!paymentTime) return ''
+  
+  try {
+    const dateObj = new Date(paymentTime)
+    const formattedTime = dateObj.toLocaleString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+    return `收款時間：${formattedTime}`
+  } catch (err) {
+    return `收款時間：${paymentTime}`
+  }
 }
 
 // 日期判斷

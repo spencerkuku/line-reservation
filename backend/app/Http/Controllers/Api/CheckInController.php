@@ -241,7 +241,8 @@ class CheckInController extends Controller
                 'payment_status_text' => $reservation->payment_status_text,
                 'payment_amount' => $reservation->payment_amount ?? 0,
                 'payment_method' => $reservation->payment_method,
-                'payment_method_text' => $reservation->payment_method_text
+                'payment_method_text' => $reservation->payment_method_text,
+                'payment_time' => $reservation->payment_time?->format('Y-m-d H:i:s')
             ];
         });
 
