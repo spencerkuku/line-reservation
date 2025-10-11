@@ -170,7 +170,8 @@ class CheckInController extends Controller
                     'payment_amount' => $reservation->payment_amount,
                     'payment_method' => $reservation->payment_method,
                     'payment_method_text' => $reservation->payment_method_text,
-                    'payment_time' => $reservation->payment_time->format('Y-m-d H:i:s')
+                    'payment_time' => $reservation->payment_time->format('Y-m-d H:i:s'),
+                    'payment_note' => $reservation->payment_note
                 ]
             ]);
         } catch (\Exception $e) {
@@ -242,7 +243,8 @@ class CheckInController extends Controller
                 'payment_amount' => $reservation->payment_amount ?? 0,
                 'payment_method' => $reservation->payment_method,
                 'payment_method_text' => $reservation->payment_method_text,
-                'payment_time' => $reservation->payment_time?->format('Y-m-d H:i:s')
+                'payment_time' => $reservation->payment_time?->format('Y-m-d H:i:s'),
+                'payment_note' => $reservation->payment_note
             ];
         });
 

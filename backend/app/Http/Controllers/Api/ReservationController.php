@@ -79,6 +79,7 @@ class ReservationController extends Controller
                     'payment_amount' => $reservation->payment_amount ?? 0,
                     'payment_method' => $reservation->payment_method,
                     'payment_time' => $reservation->payment_time?->format('Y-m-d H:i:s'),
+                    'payment_note' => $reservation->payment_note,
                 ];
             })->values(); // 重要：使用 values() 確保返回數組而不是對象
 
