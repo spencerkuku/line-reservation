@@ -20,7 +20,7 @@ class LoggingService
     /**
      * 記錄 API 請求開始
      */
-    public static function logApiRequestStart(Request $request, string $requestId, string $action = null): void
+    public static function logApiRequestStart(Request $request, string $requestId, ?string $action = null): void
     {
         Log::channel('api')->info('API Request Started', [
             'request_id' => $requestId,
@@ -77,7 +77,7 @@ class LoggingService
     /**
      * 記錄 LINE Bot 事件
      */
-    public static function logLineBotEvent(string $eventType, string $userId, array $eventData = [], string $requestId = null): void
+    public static function logLineBotEvent(string $eventType, string $userId, array $eventData = [], ?string $requestId = null): void
     {
         Log::channel('linebot')->info('LINE Bot Event', [
             'request_id' => $requestId ?: self::generateRequestId(),
@@ -92,7 +92,7 @@ class LoggingService
     /**
      * 記錄 LINE Bot 錯誤
      */
-    public static function logLineBotError(string $action, string $userId, \Throwable $exception, array $context = [], string $requestId = null): void
+    public static function logLineBotError(string $action, string $userId, \Throwable $exception, array $context = [], ?string $requestId = null): void
     {
         Log::channel('linebot')->error('LINE Bot Error', [
             'request_id' => $requestId ?: self::generateRequestId(),
@@ -112,7 +112,7 @@ class LoggingService
     /**
      * 記錄預約相關事件
      */
-    public static function logReservationEvent(string $action, array $data = [], string $requestId = null): void
+    public static function logReservationEvent(string $action, array $data = [], ?string $requestId = null): void
     {
         Log::channel('reservations')->info('Reservation Event', [
             'request_id' => $requestId ?: self::generateRequestId(),
@@ -126,7 +126,7 @@ class LoggingService
     /**
      * 記錄客戶相關事件
      */
-    public static function logCustomerEvent(string $action, array $data = [], string $requestId = null): void
+    public static function logCustomerEvent(string $action, array $data = [], ?string $requestId = null): void
     {
         Log::channel('customers')->info('Customer Event', [
             'request_id' => $requestId ?: self::generateRequestId(),
@@ -157,7 +157,7 @@ class LoggingService
     /**
      * 記錄使用者行為
      */
-    public static function logUserAction(string $action, array $data = [], string $requestId = null): void
+    public static function logUserAction(string $action, array $data = [], ?string $requestId = null): void
     {
         Log::info('User Action', [
             'request_id' => $requestId ?: self::generateRequestId(),
