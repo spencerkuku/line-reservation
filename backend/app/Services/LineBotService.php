@@ -611,7 +611,7 @@ class LineBotService
 
         // 獲取客戶的預約記錄（最近60天）
         $allReservations = Reservation::where('customer_id', $customer->id)
-            ->whereIn('status', ['confirmed', 'pending', 'cancelled'])
+            ->whereIn('status', ['confirmed', 'pending', 'cancelled', 'completed'])
             ->where('reservation_date', '>=', now()->subDays(60))
             ->with(['service', 'availableTime'])
             ->get();
@@ -624,9 +624,10 @@ class LineBotService
             $reservationDateTime = $reservation->getReservationDateTime();
             $isExpired = $reservationDateTime->isPast();
             $isCancelled = $reservation->status === 'cancelled';
+            $isCompleted = $reservation->status === 'completed';
             
-            // 分類邏輯：未過期且未取消的是有效預約，其他都是歷史記錄
-            if (!$isExpired && !$isCancelled) {
+            // 分類邏輯：未過期且未取消且未完成的是有效預約，其他都是歷史記錄
+            if (!$isExpired && !$isCancelled && !$isCompleted) {
                 $activeReservations->push($reservation);
             } else {
                 $historyReservations->push($reservation);
@@ -831,18 +832,36 @@ class LineBotService
         // 使用模型的輔助方法獲取完整的預約日期時間
         $dateTime = $reservation->getReservationDateTime();
         
-        $statusText = match($reservation->status) {
-            'confirmed' => '已確認',
-            'pending' => '待確認',
-            'cancelled' => '已取消',
-            default => '未知狀態'
-        };
-        $statusColor = match($reservation->status) {
-            'confirmed' => '#27AE60',
-            'pending' => '#F39C12',
-            'cancelled' => '#E74C3C',
-            default => '#95A5A6'
-        };
+        // 根據報到狀態、收款狀態和預約狀態決定顯示的狀態文字
+        $statusText = '';
+        $statusColor = '';
+        
+        // 優先顯示報到和完成狀態
+        if ($reservation->status === 'completed') {
+            $statusText = '已完成';
+            $statusColor = '#8E44AD'; // 紫色
+        } elseif ($reservation->check_in_status === 'no_show') {
+            $statusText = '爽約未到';
+            $statusColor = '#E74C3C'; // 紅色
+        } elseif ($reservation->check_in_status === 'late') {
+            $statusText = '已報到（遲到）';
+            $statusColor = '#E67E22'; // 橘色
+        } elseif ($reservation->check_in_status === 'checked_in') {
+            $statusText = '已報到';
+            $statusColor = '#27AE60'; // 綠色
+        } elseif ($reservation->status === 'cancelled') {
+            $statusText = '已取消';
+            $statusColor = '#E74C3C'; // 紅色
+        } elseif ($reservation->status === 'confirmed') {
+            $statusText = '已確認';
+            $statusColor = '#27AE60'; // 綠色
+        } elseif ($reservation->status === 'pending') {
+            $statusText = '待確認';
+            $statusColor = '#F39C12'; // 黃色
+        } else {
+            $statusText = '未知狀態';
+            $statusColor = '#95A5A6'; // 灰色
+        }
         
         // 檢查預約是否已過期
         $isExpired = $dateTime->isPast();
@@ -994,10 +1013,120 @@ class LineBotService
                 ]
             ];
         }
+        
+        // 如果有報到時間且不是爽約，顯示報到時間
+        if ($reservation->check_in_time && $reservation->check_in_status !== 'no_show') {
+            $infoContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '報到時間',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $reservation->check_in_time->format('Y-m-d H:i'),
+                        'size' => 'sm',
+                        'color' => '#27AE60',
+                        'weight' => 'bold',
+                        'flex' => 3
+                    ]
+                ]
+            ];
+        }
+        
+        // 顯示收款狀態
+        if ($reservation->payment_status && $reservation->payment_status !== 'unpaid') {
+            $paymentStatusText = match($reservation->payment_status) {
+                'paid' => '已付清',
+                'partial' => '部分付款',
+                default => '未付款'
+            };
+            $paymentColor = match($reservation->payment_status) {
+                'paid' => '#27AE60',
+                'partial' => '#F39C12',
+                default => '#95A5A6'
+            };
+            
+            $infoContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '收款狀態',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $paymentStatusText,
+                        'size' => 'sm',
+                        'color' => $paymentColor,
+                        'weight' => 'bold',
+                        'flex' => 3
+                    ]
+                ]
+            ];
+            
+            // 如果有付款金額，顯示付款金額
+            if ($reservation->payment_amount > 0) {
+                $infoContents[] = [
+                    'type' => 'box',
+                    'layout' => 'horizontal',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '已付金額',
+                            'size' => 'sm',
+                            'color' => '#666666',
+                            'flex' => 2
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => 'NT$ ' . number_format($reservation->payment_amount),
+                            'size' => 'sm',
+                            'color' => '#27AE60',
+                            'weight' => 'bold',
+                            'flex' => 3
+                        ]
+                    ]
+                ];
+            }
+        }
 
-        // 根據是否為歷史記錄決定標題文字和顏色
-        $headerText = $isHistory ? ($reservation->status === 'cancelled' ? '已取消' : '已完成') : ($reservation->status === 'pending' ? '待確認' : '已確認');
-        $headerColor = $isHistory ? '#95A5A6' : ($reservation->status === 'pending' ? '#F39C12' : '#27AE60');
+        // 根據實際狀態決定標題文字和顏色
+        // 優先顯示更具體的狀態
+        if ($reservation->status === 'completed') {
+            $headerText = '已完成';
+            $headerColor = '#8E44AD'; // 紫色
+        } elseif ($reservation->check_in_status === 'no_show') {
+            $headerText = '爽約未到';
+            $headerColor = '#E74C3C'; // 紅色
+        } elseif ($reservation->check_in_status === 'late') {
+            $headerText = '已報到（遲到）';
+            $headerColor = '#E67E22'; // 橘色
+        } elseif ($reservation->check_in_status === 'checked_in') {
+            $headerText = '已報到';
+            $headerColor = '#27AE60'; // 綠色
+        } elseif ($reservation->status === 'cancelled') {
+            $headerText = '已取消';
+            $headerColor = '#E74C3C'; // 紅色
+        } elseif ($isHistory) {
+            $headerText = '歷史記錄';
+            $headerColor = '#95A5A6'; // 灰色
+        } elseif ($reservation->status === 'pending') {
+            $headerText = '待確認';
+            $headerColor = '#F39C12'; // 黃色
+        } else {
+            $headerText = '已確認';
+            $headerColor = '#27AE60'; // 綠色
+        }
 
         $bubble = [
             'type' => 'bubble',
