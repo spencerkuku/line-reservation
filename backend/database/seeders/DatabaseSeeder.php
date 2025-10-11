@@ -58,7 +58,6 @@ class DatabaseSeeder extends Seeder
             'start_time' => $today->copy()->setTime(9, 0),
             'end_time' => $today->copy()->setTime(12, 0),
             'max_capacity' => 3,
-            'current_bookings' => 0,
             'is_active' => true,
         ]);
 
@@ -68,7 +67,6 @@ class DatabaseSeeder extends Seeder
             'start_time' => $tomorrow->copy()->setTime(14, 0),
             'end_time' => $tomorrow->copy()->setTime(18, 0),
             'max_capacity' => 2,
-            'current_bookings' => 0,
             'is_active' => true,
         ]);
 
