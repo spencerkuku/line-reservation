@@ -265,6 +265,104 @@
 </div>
 ```
 
+### 10. Tab 篩選組件（推薦用於列表頁面）
+
+```vue
+<!-- 雙層 Tab 設計 -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+  <!-- 第一層：狀態篩選 -->
+  <div class="px-6 py-4 border-b border-gray-200">
+    <div class="flex flex-wrap gap-2">
+      <button
+        v-for="status in statusTabs"
+        :key="status.value"
+        @click="activeStatus = status.value"
+        :class="[
+          'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex items-center',
+          activeStatus === status.value
+            ? 'bg-blue-600 text-white shadow-sm'
+            : 'text-gray-600 hover:bg-gray-100'
+        ]"
+      >
+        {{ status.label }}
+        <span
+          v-if="status.count !== undefined"
+          :class="[
+            'ml-2 px-2 py-0.5 text-xs rounded-full font-semibold',
+            activeStatus === status.value
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-200 text-gray-700'
+          ]"
+        >
+          {{ status.count }}
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 第二層：時間篩選 -->
+  <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <div class="flex flex-wrap gap-2">
+      <button
+        v-for="period in timePeriods"
+        :key="period.value"
+        @click="activePeriod = period.value"
+        :class="[
+          'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+          activePeriod === period.value
+            ? 'bg-gray-900 text-white'
+            : 'text-gray-600 hover:bg-gray-200'
+        ]"
+      >
+        {{ period.label }}
+        <span
+          v-if="period.date"
+          class="ml-2 text-xs opacity-75"
+        >
+          ({{ period.date }})
+        </span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 可選：進階搜尋（摺疊式）-->
+  <div v-if="showAdvancedSearch" class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input
+        v-model="searchForm.field1"
+        type="text"
+        placeholder="搜尋條件 1"
+        class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+      />
+      <!-- 更多搜尋欄位 -->
+    </div>
+  </div>
+
+  <!-- 工具列 -->
+  <div class="px-6 py-3 bg-white">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <button
+        @click="showAdvancedSearch = !showAdvancedSearch"
+        class="text-sm text-gray-600 hover:text-gray-900 font-medium"
+      >
+        {{ showAdvancedSearch ? '隱藏' : '顯示' }}進階搜尋
+      </button>
+      
+      <div class="text-sm text-gray-600">
+        顯示 {{ filteredCount }} 筆
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+**Tab 設計最佳實踐**：
+- 第一層（主要篩選）：使用藍色高亮（`bg-blue-600`）
+- 第二層（次要篩選）：使用深灰色高亮（`bg-gray-900`）
+- 顯示數量徽章：活躍時白底藍字，非活躍時灰底灰字
+- 支援響應式：手機版可改用下拉選單
+- 進階搜尋摺疊：不干擾主要操作流程
+
 ---
 
 ## 🎯 狀態配色標準

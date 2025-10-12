@@ -84,82 +84,156 @@
       </div>
     </div>
 
-    <!-- 搜尋與篩選區域 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 w-full lg:w-auto">
-          <div class="relative w-full sm:w-80">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
+    <!-- 篩選卡片 -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+      <!-- 狀態篩選（第一層）-->
+      <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="status in statusTabs"
+            :key="status.value"
+            @click="activeStatus = status.value"
+            :class="[
+              'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 flex items-center',
+              activeStatus === status.value
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100'
+            ]"
+          >
+            {{ status.label }}
+            <span
+              v-if="status.count !== undefined"
+              :class="[
+                'ml-2 px-2 py-0.5 text-xs rounded-full font-semibold',
+                activeStatus === status.value
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700'
+              ]"
+            >
+              {{ status.count }}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 時間篩選（第二層）-->
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="period in timePeriods"
+            :key="period.value"
+            @click="activePeriod = period.value"
+            :class="[
+              'px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200',
+              activePeriod === period.value
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-600 hover:bg-gray-200'
+            ]"
+          >
+            {{ period.label }}
+            <span
+              v-if="period.date"
+              class="ml-2 text-xs opacity-75"
+            >
+              ({{ period.date }})
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 進階搜尋（可摺疊）-->
+      <div v-if="showAdvancedSearch" class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">客戶姓名</label>
             <input
-              v-model="search"
+              v-model="advancedSearch.customerName"
               type="text"
-              placeholder="搜尋預約姓名、預約名稱、服務項目、備註..."
-              class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              placeholder="搜尋姓名"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
-          
-          <select
-            v-model="statusFilter"
-            class="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors w-full sm:w-auto"
-          >
-            <option value="">所有狀態</option>
-            <option value="pending">待確認</option>
-            <option value="confirmed">已確認</option>
-            <option value="completed">已完成</option>
-            <option value="cancelled">已取消</option>
-            <option value="no_show">爽約</option>
-          </select>
-          
-          <select
-            v-model="dateFilter"
-            class="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors w-full sm:w-auto"
-          >
-            <option value="">所有時間</option>
-            <option value="today">今天</option>
-            <option value="week">本週</option>
-            <option value="month">本月</option>
-          </select>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">電話</label>
+            <input
+              v-model="advancedSearch.phone"
+              type="text"
+              placeholder="搜尋電話"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">備註</label>
+            <input
+              v-model="advancedSearch.notes"
+              type="text"
+              placeholder="搜尋備註"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+          </div>
         </div>
-        
-        <div class="flex items-center space-x-3">
-          <!-- 自動刷新控制 -->
+        <div class="flex justify-end gap-2">
           <button
-            @click="toggleAutoRefresh"
-            :class="{
-              'bg-green-100 text-green-700 border-green-200': autoRefreshEnabled,
-              'bg-gray-100 text-gray-600 border-gray-200': !autoRefreshEnabled
-            }"
-            class="inline-flex items-center px-3 py-2 border rounded-lg text-sm font-medium transition-colors hover:shadow-sm"
-            title="切換自動刷新"
+            @click="resetAdvancedSearch"
+            class="px-4 py-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
           >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {{ autoRefreshEnabled ? '自動刷新' : '手動刷新' }}
+            清除
           </button>
-          
-          <!-- 手動刷新按鈕 -->
+        </div>
+      </div>
+
+      <!-- 工具列 -->
+      <div class="px-6 py-3 bg-white">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <!-- 左側：進階搜尋切換 -->
           <button
-            @click="fetchReservations"
-            :disabled="loading"
-            class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="立即刷新"
+            @click="showAdvancedSearch = !showAdvancedSearch"
+            class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 font-medium"
           >
-            <svg class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            刷新
+            {{ showAdvancedSearch ? '隱藏' : '顯示' }}進階搜尋
           </button>
-          
-          <div class="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            顯示 {{ filteredRecords.length }} 筆，共 {{ reservations.length }} 筆預約
+
+          <!-- 右側：自動刷新和結果統計 -->
+          <div class="flex items-center gap-3">
+            <!-- 自動刷新控制 -->
+            <button
+              @click="toggleAutoRefresh"
+              :class="{
+                'bg-green-100 text-green-700 border-green-200': autoRefreshEnabled,
+                'bg-gray-100 text-gray-600 border-gray-200': !autoRefreshEnabled
+              }"
+              class="inline-flex items-center px-3 py-2 border rounded-lg text-sm font-medium transition-colors hover:shadow-sm"
+              title="切換自動刷新"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span class="hidden sm:inline">{{ autoRefreshEnabled ? '自動刷新' : '手動刷新' }}</span>
+            </button>
+            
+            <!-- 手動刷新按鈕 -->
+            <button
+              @click="fetchReservations"
+              :disabled="loading"
+              class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="立即刷新"
+            >
+              <svg class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新
+            </button>
+            
+            <!-- 結果統計 -->
+            <div class="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span class="hidden sm:inline">顯示</span> {{ filteredReservations.length }} <span class="hidden sm:inline">筆</span>
+            </div>
           </div>
         </div>
       </div>
@@ -199,24 +273,24 @@
       </div>
 
       <!-- 空狀態 -->
-      <div v-else-if="filteredRecords.length === 0" class="p-12 text-center">
+      <div v-else-if="filteredReservations.length === 0" class="p-12 text-center">
         <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
           <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v1M9 5a2 2 0 012 2v1M9 5V4a1 1 0 011-1h4a1 1 0 011 1v1m0 0h2a2 2 0 012 2v1m-3 0V8a1 1 0 00-1-1H9a1 1 0 00-1 1v3m0 0v3a2 2 0 002 2h6a2 2 0 002-2v-3" />
           </svg>
         </div>
         <p class="text-gray-600 font-medium mb-2">
-          {{ search || statusFilter || dateFilter ? '沒有符合條件的預約' : '尚無預約紀錄' }}
+          {{ advancedSearch.customerName || advancedSearch.phone || advancedSearch.notes ? '沒有符合條件的預約' : '此篩選條件下無預約記錄' }}
         </p>
         <p class="text-gray-500 text-sm mb-4">
-          {{ search || statusFilter || dateFilter ? '請嘗試調整搜尋或篩選條件' : '系統中還沒有任何預約' }}
+          {{ advancedSearch.customerName || advancedSearch.phone || advancedSearch.notes ? '請嘗試調整搜尋條件' : '請選擇其他篩選條件或時間範圍' }}
         </p>
         <button 
-          v-if="search || statusFilter || dateFilter"
-          @click="clearFilters" 
+          v-if="advancedSearch.customerName || advancedSearch.phone || advancedSearch.notes"
+          @click="resetAdvancedSearch" 
           class="text-blue-600 hover:text-blue-800 font-medium text-sm"
         >
-          清除篩選條件
+          清除搜尋條件
         </button>
       </div>
 
@@ -236,7 +310,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <tr 
-              v-for="(record, index) in filteredRecords" 
+              v-for="(record, index) in filteredReservations" 
               :key="record.id" 
               class="hover:bg-gray-50 transition-colors duration-200"
               :class="{ 
@@ -437,11 +511,11 @@
       </div>
       
       <!-- 分頁控制 -->
-      <div v-if="filteredRecords.length > 0" class="bg-white px-6 py-4 border-t border-gray-200">
+      <div v-if="filteredReservations.length > 0" class="bg-white px-6 py-4 border-t border-gray-200">
         <div class="flex items-center justify-between">
           <div class="text-sm text-gray-700">
-            顯示第 {{ ((currentPage - 1) * itemsPerPage) + 1 }} 到 {{ Math.min(currentPage * itemsPerPage, filteredRecords.length) }} 筆，
-            共 {{ filteredRecords.length }} 筆預約
+            顯示第 {{ ((currentPage - 1) * itemsPerPage) + 1 }} 到 {{ Math.min(currentPage * itemsPerPage, filteredReservations.length) }} 筆，
+            共 {{ filteredReservations.length }} 筆預約
           </div>
           <div class="flex items-center space-x-2">
             <button
@@ -676,11 +750,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { apiGet, apiPut } from '../utils/api.js'
+import { useReservationFilter } from '../composables/useReservationFilter.js'
 
 // 響應式數據
-const search = ref('')
-const statusFilter = ref('')
-const dateFilter = ref('')
 const records = ref([])
 const reservations = computed(() => records.value)
 const loading = ref(false)
@@ -691,21 +763,45 @@ const currentPage = ref(1)
 const autoRefreshEnabled = ref(true)
 const autoRefreshInterval = ref(null)
 
-// 啟動自動刷新
+// 使用篩選 composable
+const {
+  activeStatus,
+  activePeriod,
+  advancedSearch,
+  showAdvancedSearch,
+  statusTabs,
+  timePeriods,
+  filteredReservations,
+  statistics,
+  resetFilters,
+  resetAdvancedSearch,
+} = useReservationFilter(reservations)
+
+// Modal 相關
+const itemsPerPage = ref(20)
+const showDetailModal = ref(false)
+const selectedRecord = ref(null)
+
+// 統計數據（從 composable 獲取）
+const todayReservations = computed(() => statistics.value.today)
+const pendingReservations = computed(() => statistics.value.pending)
+const confirmedReservations = computed(() => statistics.value.confirmed)
+const completedReservations = computed(() => statistics.value.completed)
+const noShowReservations = computed(() => statistics.value.noShow)
+
+// 自動刷新功能
 function startAutoRefresh() {
   if (autoRefreshInterval.value) {
     clearInterval(autoRefreshInterval.value)
   }
   
-  
   autoRefreshInterval.value = setInterval(() => {
     if (autoRefreshEnabled.value && !loading.value) {
       fetchReservations()
     }
-  }, 5000) // 每5秒刷新一次，確保即時更新
+  }, 5000) // 每5秒刷新一次
 }
 
-// 停止自動刷新
 function stopAutoRefresh() {
   if (autoRefreshInterval.value) {
     clearInterval(autoRefreshInterval.value)
@@ -713,7 +809,6 @@ function stopAutoRefresh() {
   }
 }
 
-// 切換自動刷新
 function toggleAutoRefresh() {
   autoRefreshEnabled.value = !autoRefreshEnabled.value
   
@@ -723,119 +818,9 @@ function toggleAutoRefresh() {
     stopAutoRefresh()
   }
 }
-const itemsPerPage = ref(20)
-const showDetailModal = ref(false)
-const selectedRecord = ref(null)
-
-// 統計數據
-const todayReservations = computed(() => {
-  const today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' }) // 本地日期
-  return records.value.filter(record => {
-    const recordDateStr = record.reservation_date || record.time
-    if (!recordDateStr) return false
-    const recordDate = new Date(recordDateStr)
-    const recordDay = recordDate.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })
-    return recordDay === today
-  }).length
-})
-
-
-const pendingReservations = computed(() => {
-  return records.value.filter(record => record.status === 'pending').length
-})
-
-const confirmedReservations = computed(() => {
-  return records.value.filter(record => record.status === 'confirmed').length
-})
-
-// 新增：已完成預約統計
-const completedReservations = computed(() => {
-  return records.value.filter(record => record.status === 'completed').length
-})
-
-// 新增：爽約統計
-const noShowReservations = computed(() => {
-  return records.value.filter(record => record.check_in_status === 'no_show' || record.no_show).length
-})
-
-// 篩選邏輯
-const filteredRecords = computed(() => {
-  let filtered = records.value
-
-  // 搜尋篩選
-  if (search.value.trim()) {
-    const keyword = search.value.toLowerCase()
-    filtered = filtered.filter(
-      (r) =>
-        (r.customer_name || r.name || '').toLowerCase().includes(keyword) ||
-        (r.reservation_name || '').toLowerCase().includes(keyword) ||
-        (r.service_name || r.item || '').toLowerCase().includes(keyword) ||
-        getStatusText(r.status).toLowerCase().includes(keyword) ||
-        (r.customer_phone || r.phone || '').toLowerCase().includes(keyword) ||
-        (r.reservation_phone || '').toLowerCase().includes(keyword) ||
-        (r.reservation_notes || '').toLowerCase().includes(keyword)
-    )
-  }
-
-  // 狀態篩選
-  if (statusFilter.value) {
-    filtered = filtered.filter(record => record.status === statusFilter.value)
-  }
-
-  // 日期篩選
-  if (dateFilter.value) {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    
-    filtered = filtered.filter(record => {
-      const recordDate = new Date(record.reservation_date || record.time)
-      
-      switch (dateFilter.value) {
-        case 'today':
-          return recordDate.toDateString() === today.toDateString()
-        case 'week':
-          const weekStart = new Date(today)
-          weekStart.setDate(today.getDate() - today.getDay())
-          const weekEnd = new Date(weekStart)
-          weekEnd.setDate(weekStart.getDate() + 6)
-          return recordDate >= weekStart && recordDate <= weekEnd
-        case 'month':
-          return recordDate.getMonth() === today.getMonth() && 
-                 recordDate.getFullYear() === today.getFullYear()
-        default:
-          return true
-      }
-    })
-  }
-
-return filtered.sort((a, b) => {
-    const now = new Date()
-    const dateA = new Date(a.reservation_date || a.time)
-    const dateB = new Date(b.reservation_date || b.time)
-
-    // pending 最優先
-    if (a.status === 'pending' && b.status !== 'pending') return -1
-    if (b.status === 'pending' && a.status !== 'pending') return 1
-
-    // 都不是 pending，接下來比時間
-    const aFuture = dateA > now
-    const bFuture = dateB > now
-
-    // 未來的預約排前面，按時間升序
-    if (aFuture && bFuture) return dateA - dateB
-    // 過期的預約排後面，按時間降序
-    if (!aFuture && !bFuture) return dateB - dateA
-    // 一個未來一個過期 → 未來排前
-    if (aFuture && !bFuture) return -1
-    if (!aFuture && bFuture) return 1
-
-    return 0
-  })
-
-})
 
 // 分頁邏輯
-const totalPages = computed(() => Math.ceil(filteredRecords.value.length / itemsPerPage.value))
+const totalPages = computed(() => Math.ceil(filteredReservations.value.length / itemsPerPage.value))
 
 // 獲取預約列表
 async function fetchReservations() {
@@ -1015,14 +1000,6 @@ function viewRecord(record) {
 function closeDetailModal() {
   showDetailModal.value = false
   selectedRecord.value = null
-}
-
-// 清除篩選條件
-function clearFilters() {
-  search.value = ''
-  statusFilter.value = ''
-  dateFilter.value = ''
-  currentPage.value = 1
 }
 
 // 通知功能（簡化版）
