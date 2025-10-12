@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -253,6 +254,9 @@ class CustomerController extends Controller
                 'name' => $customer->name
             ]);
 
+            // 記錄操作到資料庫
+            ActivityLogger::created($customer, 'customers');
+
             return response()->json([
                 'success' => true,
                 'message' => '客戶建立成功',
@@ -264,6 +268,9 @@ class CustomerController extends Controller
                 'error' => $e->getMessage(),
                 'request_data' => $request->only(['name', 'phone', 'email'])
             ]);
+
+            // 記錄失敗操作
+            ActivityLogger::failed('create', 'customers', '建立客戶失敗', $e);
 
             return response()->json([
                 'success' => false,
@@ -277,13 +284,19 @@ class CustomerController extends Controller
     {
         try {
             $validatedData = $request->validated();
-
+            
+            // 保存舊值用於日誌
+            $oldValues = $customer->only(array_keys($validatedData));
+            
             $customer->update($validatedData);
 
             Log::info('Customer updated successfully', [
                 'customer_id' => $customer->id,
                 'name' => $customer->name
             ]);
+
+            // 記錄操作到資料庫
+            ActivityLogger::updated($customer, 'customers', $oldValues);
 
             return response()->json([
                 'success' => true,
@@ -296,6 +309,9 @@ class CustomerController extends Controller
                 'error' => $e->getMessage(),
                 'customer_id' => $customer->id
             ]);
+
+            // 記錄失敗操作
+            ActivityLogger::failed('update', 'customers', '更新客戶資料失敗', $e);
 
             return response()->json([
                 'success' => false,
@@ -318,6 +334,9 @@ class CustomerController extends Controller
                 'message' => '此客戶還有未完成的預約，無法刪除'
             ], 422);
         }
+
+        // 記錄操作到資料庫（刪除前記錄）
+        ActivityLogger::deleted($customer, 'customers');
 
         $customer->delete();
 
@@ -466,6 +485,14 @@ class CustomerController extends Controller
             'name' => $customer->name
         ]);
 
+        // 記錄操作到資料庫
+        ActivityLogger::custom(
+            'blocked',
+            'customers',
+            "封鎖客戶: {$customer->name}",
+            ['customer_id' => $customer->id, 'old_status' => 'active', 'new_status' => 'blocked']
+        );
+
         return response()->json([
             'success' => true,
             'message' => '客戶已封鎖，將無法進行任何預約',
@@ -489,6 +516,14 @@ class CustomerController extends Controller
             'customer_id' => $customer->id,
             'name' => $customer->name
         ]);
+
+        // 記錄操作到資料庫
+        ActivityLogger::custom(
+            'unblocked',
+            'customers',
+            "解除封鎖客戶: {$customer->name}",
+            ['customer_id' => $customer->id, 'old_status' => 'blocked', 'new_status' => 'active']
+        );
 
         return response()->json([
             'success' => true,

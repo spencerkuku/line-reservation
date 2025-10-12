@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AvailableTime;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -151,6 +152,9 @@ class AvailableTimeController extends Controller
             'is_active' => true
         ]);
 
+        // 記錄操作到資料庫
+        ActivityLogger::created($availableTime, 'available_times');
+
         return response()->json([
             'success' => true,
             'message' => '可預約時段創建成功',
@@ -181,9 +185,15 @@ class AvailableTimeController extends Controller
             }
         }
 
+        // 保存舊值用於日誌
+        $oldValues = $availableTime->only(['title', 'description', 'start_time', 'end_time', 'max_capacity', 'is_active']);
+
         $availableTime->update($request->only([
             'title', 'description', 'start_time', 'end_time', 'max_capacity', 'is_active'
         ]));
+
+        // 記錄操作到資料庫
+        ActivityLogger::updated($availableTime, 'available_times', $oldValues);
 
         return response()->json([
             'success' => true,
@@ -204,6 +214,9 @@ class AvailableTimeController extends Controller
                 'message' => '此時段已有預約，無法刪除'
             ], 422);
         }
+
+        // 記錄操作到資料庫（刪除前記錄）
+        ActivityLogger::deleted($availableTime, 'available_times');
 
         $availableTime->delete();
 

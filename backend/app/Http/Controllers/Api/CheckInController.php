@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -39,6 +40,18 @@ class CheckInController extends Controller
                 'check_in_status' => $reservation->check_in_status,
                 'check_in_by' => $request->user()->name
             ]);
+
+            // 記錄操作到資料庫
+            ActivityLogger::custom(
+                'checked_in',
+                'reservations',
+                "客戶報到: {$reservation->reservation_name} - {$reservation->service->name}",
+                [
+                    'reservation_id' => $reservation->id,
+                    'check_in_status' => $reservation->check_in_status,
+                    'check_in_time' => $reservation->check_in_time->format('Y-m-d H:i:s')
+                ]
+            );
 
             return response()->json([
                 'success' => true,
@@ -90,6 +103,19 @@ class CheckInController extends Controller
                 'reservation_id' => $reservation->id,
                 'marked_by' => $request->user()->name
             ]);
+
+            // 記錄操作到資料庫
+            ActivityLogger::custom(
+                'marked_no_show',
+                'reservations',
+                "標記爽約: {$reservation->reservation_name} - {$reservation->service->name}",
+                [
+                    'reservation_id' => $reservation->id,
+                    'customer_name' => $reservation->reservation_name,
+                    'reservation_date' => $reservation->reservation_date,
+                    'reservation_time' => $reservation->reservation_time
+                ]
+            );
 
             return response()->json([
                 'success' => true,
@@ -159,6 +185,20 @@ class CheckInController extends Controller
                 'payment_status' => $reservation->payment_status,
                 'recorded_by' => $request->user()->name
             ]);
+
+            // 記錄操作到資料庫
+            ActivityLogger::custom(
+                'payment_recorded',
+                'reservations',
+                "記錄付款: {$reservation->reservation_name} - {$reservation->service->name}",
+                [
+                    'reservation_id' => $reservation->id,
+                    'payment_amount' => $paymentAmount,
+                    'payment_method' => $paymentMethod,
+                    'payment_status' => $reservation->payment_status,
+                    'status' => $reservation->status
+                ]
+            );
 
             return response()->json([
                 'success' => true,
