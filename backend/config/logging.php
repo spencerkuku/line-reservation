@@ -108,6 +108,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
+            'formatter' => App\Logging\CustomFormatter::class,
         ],
 
         // API 請求專用日誌頻道

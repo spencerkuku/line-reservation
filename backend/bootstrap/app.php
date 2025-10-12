@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\Auth;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -40,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // 記錄所有異常到錯誤日誌
         $exceptions->report(function (\Throwable $e) {
+            $user = Auth::user();
             \Illuminate\Support\Facades\Log::channel('error')->error($e->getMessage(), [
                 'exception' => get_class($e),
                 'file' => $e->getFile(),
@@ -48,7 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 'url' => request()->fullUrl(),
                 'method' => request()->method(),
                 'ip' => request()->ip(),
-                'user_id' => auth()->id(),
+                'user_id' => $user?->id ?? null,
             ]);
         });
 
@@ -78,7 +80,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // API 其他異常統一處理
         $exceptions->render(function (\Throwable $e, $request) {
             if ($request->expectsJson() || $request->is('api/*')) {
-                $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+                // 根據異常類型決定狀態碼
+                $statusCode = 500;
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                    $statusCode = $e->getStatusCode();
+                } elseif ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                    $statusCode = 404;
+                } elseif ($e instanceof \Illuminate\Auth\Access\AuthorizationException) {
+                    $statusCode = 403;
+                }
                 
                 return response()->json([
                     'success' => false,

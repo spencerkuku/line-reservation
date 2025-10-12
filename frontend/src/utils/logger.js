@@ -14,6 +14,10 @@ class LoggingService {
         this.debugMode = this.isDebugMode();
         this.logHistory = [];
         this.maxHistorySize = 100;
+        this.backendEnabled = true; // 啟用後端日誌發送
+        this.backendQueue = [];
+        this.maxQueueSize = 20;
+        this.batchInterval = 5000; // 5秒批次發送一次
         
         // 綁定方法
         this.log = this.log.bind(this);
@@ -23,9 +27,15 @@ class LoggingService {
         this.debug = this.debug.bind(this);
         this.trace = this.trace.bind(this);
         
+        // 啟動批次發送定時器
+        if (this.backendEnabled) {
+            this.startBatchSender();
+        }
+        
         // 在控制台輸出當前環境信息（始終顯示）
         const envInfo = {
             debugMode: this.debugMode,
+            backendLogging: this.backendEnabled,
             NODE_ENV: import.meta.env?.NODE_ENV,
             VITE_NODE_ENV: import.meta.env?.VITE_NODE_ENV,
             DEV: import.meta.env?.DEV,
@@ -34,7 +44,7 @@ class LoggingService {
             mode: import.meta.env?.MODE
         };
         console.log('[Logger] Environment Info:', envInfo);
-        console.log('[Logger] Pure frontend logging - No API requests will be sent');
+        console.log('[Logger] Frontend logging with backend integration enabled');
     }
 
     /**
@@ -133,6 +143,143 @@ class LoggingService {
     }
 
     /**
+     * 啟動批次發送定時器
+     */
+    startBatchSender() {
+        setInterval(() => {
+            this.sendBatchToBackend();
+        }, this.batchInterval);
+    }
+
+    /**
+     * 獲取瀏覽器資訊
+     */
+    getBrowserInfo() {
+        if (typeof window === 'undefined') return {};
+        
+        return {
+            user_agent: navigator.userAgent,
+            screen_resolution: `${screen.width}x${screen.height}`,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            url: window.location.href,
+            referrer: document.referrer
+        };
+    }
+
+    /**
+     * 發送日誌到後端
+     */
+    async sendToBackend(level, message, category = 'general', context = {}) {
+        if (!this.backendEnabled) return;
+
+        const logData = {
+            level,
+            message,
+            category,
+            context: {
+                ...context,
+                ...this.getBrowserInfo()
+            },
+            timestamp: new Date().toISOString()
+        };
+
+        // 加入隊列
+        this.backendQueue.push(logData);
+
+        // 如果隊列太大，立即發送
+        if (this.backendQueue.length >= this.maxQueueSize) {
+            await this.sendBatchToBackend();
+        }
+    }
+
+    /**
+     * 批次發送日誌到後端
+     */
+    async sendBatchToBackend() {
+        if (this.backendQueue.length === 0) return;
+
+        const logsToSend = [...this.backendQueue];
+        this.backendQueue = [];
+
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+            const token = localStorage.getItem('token');
+            
+            const response = await fetch(`${apiUrl}/frontend-logs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                },
+                body: JSON.stringify({
+                    logs: logsToSend
+                })
+            });
+
+            if (!response.ok) {
+                console.warn('[Logger] Failed to send logs to backend:', response.statusText);
+            }
+        } catch (error) {
+            // 靜默失敗，不干擾用戶體驗
+            if (this.debugMode) {
+                console.warn('[Logger] Error sending logs to backend:', error.message);
+            }
+            
+            // 如果發送失敗，將日誌放回隊列（但限制數量避免無限增長）
+            if (this.backendQueue.length < this.maxQueueSize) {
+                this.backendQueue.unshift(...logsToSend.slice(0, this.maxQueueSize - this.backendQueue.length));
+            }
+        }
+    }
+
+    /**
+     * 發送錯誤詳情到後端
+     */
+    async sendErrorToBackend(message, error = null, context = {}) {
+        if (!this.backendEnabled) return;
+
+        try {
+            const errorData = {
+                message,
+                stack: error?.stack || null,
+                component: context.component || null,
+                context,
+                ...this.getBrowserInfo(),
+                timestamp: new Date().toISOString()
+            };
+
+            // 解析堆疊資訊
+            if (error?.stack) {
+                const stackLines = error.stack.split('\n');
+                if (stackLines.length > 1) {
+                    const match = stackLines[1].match(/:(\d+):(\d+)/);
+                    if (match) {
+                        errorData.line = parseInt(match[1]);
+                        errorData.column = parseInt(match[2]);
+                    }
+                }
+            }
+
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+            const token = localStorage.getItem('token');
+            
+            await fetch(`${apiUrl}/frontend-logs/error`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                },
+                body: JSON.stringify(errorData)
+            });
+        } catch (err) {
+            // 靜默失敗
+            if (this.debugMode) {
+                console.warn('[Logger] Error sending error details to backend:', err.message);
+            }
+        }
+    }
+
+    /**
      * 一般日誌 - 僅在開發模式顯示
      */
     log(message, ...args) {
@@ -158,22 +305,39 @@ class LoggingService {
 
     /**
      * 警告日誌 - 始終顯示（開發和生產模式）
+     * 同時發送到後端
      */
     warn(message, ...args) {
         this.addToHistory('warn', message, ...args);
         
         const formatted = this.formatMessage('warn', message, ...args);
         console.warn(formatted.prefix, formatted.message, ...formatted.args);
+        
+        // 發送到後端
+        const context = args.length > 0 ? { data: args } : {};
+        this.sendToBackend('warn', message, 'general', context);
     }
 
     /**
      * 錯誤日誌 - 始終顯示（開發和生產模式）
+     * 同時發送到後端（帶詳細堆疊資訊）
      */
     error(message, ...args) {
         this.addToHistory('error', message, ...args);
         
         const formatted = this.formatMessage('error', message, ...args);
         console.error(formatted.prefix, formatted.message, ...formatted.args);
+        
+        // 檢查是否有 Error 對象
+        const errorObj = args.find(arg => arg instanceof Error);
+        const context = args.filter(arg => !(arg instanceof Error));
+        
+        // 發送詳細錯誤到後端
+        if (errorObj) {
+            this.sendErrorToBackend(message, errorObj, context.length > 0 ? { data: context } : {});
+        } else {
+            this.sendToBackend('error', message, 'error', context.length > 0 ? { data: context } : {});
+        }
     }
 
     /**
@@ -293,6 +457,18 @@ class LoggingService {
     }
 
     /**
+     * 啟用/停用後端日誌發送
+     */
+    setBackendLogging(enabled) {
+        this.backendEnabled = enabled;
+        console.log(`[Logger] Backend logging ${enabled ? 'enabled' : 'disabled'}`);
+        
+        if (enabled && !this.batchTimer) {
+            this.startBatchSender();
+        }
+    }
+
+    /**
      * 獲取當前調試模式狀態
      */
     getDebugMode() {
@@ -305,6 +481,7 @@ class LoggingService {
     getEnvironmentInfo() {
         return {
             debugMode: this.debugMode,
+            backendLogging: this.backendEnabled,
             isProduction: this.isProductionMode(),
             NODE_ENV: import.meta.env?.NODE_ENV,
             VITE_NODE_ENV: import.meta.env?.VITE_NODE_ENV,
@@ -321,6 +498,11 @@ class LoggingService {
     apiRequest(method, url, data = null) {
         const message = `API ${method.toUpperCase()}: ${url}`;
         this.debug(message, this.debugMode ? data : null);
+        
+        // API 請求也記錄到後端
+        if (this.debugMode) {
+            this.sendToBackend('debug', message, 'api_request', { method, url, data });
+        }
     }
 
     /**
@@ -330,6 +512,8 @@ class LoggingService {
         const message = `API ${method.toUpperCase()} ${status}: ${url}`;
         if (status >= 400) {
             this.error(message, this.debugMode ? data : null);
+            // API 錯誤發送到後端
+            this.sendToBackend('error', message, 'api_error', { method, url, status, data });
         } else {
             this.debug(message, this.debugMode ? data : null);
         }
@@ -364,6 +548,12 @@ class LoggingService {
      */
     errorBoundary(error, errorInfo) {
         this.error('Error Boundary Caught:', error, this.debugMode ? errorInfo : null);
+        
+        // 錯誤邊界捕獲的錯誤發送到後端
+        this.sendErrorToBackend('Error Boundary Caught', error, { 
+            errorInfo,
+            component: errorInfo?.component || 'Unknown'
+        });
     }
 
     /**
@@ -401,10 +591,18 @@ if (typeof window !== 'undefined') {
     if (logger.getDebugMode()) {
         window.enableDebug = () => logger.setDebugMode(true);
         window.disableDebug = () => logger.setDebugMode(false);
+        window.enableBackendLogging = () => logger.setBackendLogging(true);
+        window.disableBackendLogging = () => logger.setBackendLogging(false);
         window.getLogHistory = () => logger.getHistory();
         window.clearLogHistory = () => logger.clearHistory();
         window.getEnvInfo = () => logger.getEnvironmentInfo();
+        window.flushLogs = () => logger.sendBatchToBackend();
         
-        console.log('[Logger] Debug commands available: enableDebug(), disableDebug(), getLogHistory(), clearLogHistory(), getEnvInfo()');
+        console.log('[Logger] Debug commands available:');
+        console.log('  - enableDebug() / disableDebug()');
+        console.log('  - enableBackendLogging() / disableBackendLogging()');
+        console.log('  - getLogHistory() / clearLogHistory()');
+        console.log('  - getEnvInfo()');
+        console.log('  - flushLogs() - Immediately send queued logs to backend');
     }
 }

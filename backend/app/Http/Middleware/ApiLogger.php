@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class ApiLogger
@@ -19,7 +20,7 @@ class ApiLogger
             'url' => $request->fullUrl(),
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
             'request_body' => $this->sanitizeData($request->all()),
         ]);
 

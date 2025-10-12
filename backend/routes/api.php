@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\LineWebhookController;
 use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\FrontendLogController;
 use App\Http\Controllers\Api\CheckInController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\AdminActivityLogController;
 
 // 公開路由
@@ -22,10 +23,10 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
     // ->middleware('verify.line.signature'); // 暫時註解
 
-// 前端日誌路由已完全移除，防止任何日誌請求
-// 返回 404 如果有人嘗試訪問 logs 端點
-Route::any('/logs', function () {
-    return response()->json(['error' => 'Endpoint not found'], 404);
+// 前端日誌路由 - 允許前端發送日誌到後端
+Route::middleware('throttle:60,1')->group(function () {
+    Route::post('/frontend-logs', [FrontendLogController::class, 'store']);
+    Route::post('/frontend-logs/error', [FrontendLogController::class, 'storeError']);
 });
 
 // 公開的可預約時段查詢（允許前端查看可用時段） - 添加 Rate Limiting
@@ -105,17 +106,17 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
     // 客戶管理（僅管理員可訪問）
     Route::prefix('customers')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\CustomerController::class, 'index']);
-        Route::post('/', [App\Http\Controllers\Api\CustomerController::class, 'store']);
-        Route::get('/statistics', [App\Http\Controllers\Api\CustomerController::class, 'statistics']);
-        Route::post('/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
-        Route::get('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'show']);
-        Route::put('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'update']);
-        Route::delete('/{customer}', [App\Http\Controllers\Api\CustomerController::class, 'destroy']);
-        Route::post('/{customer}/interaction', [App\Http\Controllers\Api\CustomerController::class, 'updateInteraction']);
-        Route::post('/{customer}/recalculate-stats', [App\Http\Controllers\Api\CustomerController::class, 'recalculateStats']);
-        Route::post('/{customer}/block', [App\Http\Controllers\Api\CustomerController::class, 'block']);
-        Route::post('/{customer}/unblock', [App\Http\Controllers\Api\CustomerController::class, 'unblock']);
+        Route::get('/', [CustomerController::class, 'index']);
+        Route::post('/', [CustomerController::class, 'store']);
+        Route::get('/statistics', [CustomerController::class, 'statistics']);
+        Route::post('/recalculate-stats', [CustomerController::class, 'recalculateStats']);
+        Route::get('/{customer}', [CustomerController::class, 'show']);
+        Route::put('/{customer}', [CustomerController::class, 'update']);
+        Route::delete('/{customer}', [CustomerController::class, 'destroy']);
+        Route::post('/{customer}/interaction', [CustomerController::class, 'updateInteraction']);
+        Route::post('/{customer}/recalculate-stats', [CustomerController::class, 'recalculateStats']);
+        Route::post('/{customer}/block', [CustomerController::class, 'block']);
+        Route::post('/{customer}/unblock', [CustomerController::class, 'unblock']);
     });
 
     // 報到管理（僅管理員可訪問）

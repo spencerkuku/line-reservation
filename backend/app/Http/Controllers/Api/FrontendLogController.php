@@ -3,139 +3,242 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\LoggingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class FrontendLogController extends Controller
 {
+    /**
+     * 接收前端日誌（單筆或批次）
+     */
     public function store(Request $request)
     {
-        // 只在開發環境允許前端日誌記錄
-        if (!config('app.debug') || config('app.env') === 'production') {
-            return response()->json(['success' => false, 'message' => 'Log endpoint disabled in production'], 403);
-        }
-        
         try {
-            $logs = $request->input('logs', []);
-            $sessionId = $request->input('session_id');
-            
-            if (empty($logs) || !is_array($logs)) {
-                return response()->json(['success' => false, 'message' => 'No logs provided'], 400);
+            // 檢查是否為批次日誌
+            if ($request->has('logs') && is_array($request->input('logs'))) {
+                return $this->storeBatch($request);
             }
-            
-            // 限制批量日誌數量以防止濫用
-            $logs = array_slice($logs, 0, 50);
-            
-            foreach ($logs as $logEntry) {
-                $this->processLogEntry($logEntry, $sessionId);
-            }
-            
+
+            // 單筆日誌驗證
+            $validated = $request->validate([
+                'level' => 'required|in:error,warn,info,debug',
+                'message' => 'required|string|max:1000',
+                'category' => 'sometimes|string|max:50',
+                'context' => 'sometimes|array',
+            ]);
+
+            $this->logEntry($validated, $request);
+
             return response()->json([
                 'success' => true,
-                'processed' => count($logs)
+                'message' => 'Log recorded successfully'
             ]);
-            
+
         } catch (\Exception $e) {
-            Log::error('Failed to process frontend logs', [
+            Log::channel('error')->error('Failed to process frontend log', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'request_data' => $request->all()
             ]);
-            
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to process logs'
+                'message' => 'Failed to process log'
             ], 500);
         }
     }
-    
-    private function processLogEntry(array $logEntry, string $sessionId = null)
+
+    /**
+     * 批次接收前端日誌
+     */
+    private function storeBatch(Request $request)
     {
-        $level = $logEntry['level'] ?? 'info';
-        $message = $logEntry['message'] ?? 'Frontend log';
-        $category = $logEntry['category'] ?? 'frontend';
-        $data = $logEntry['data'] ?? [];
-        
-        // 添加前端特定的元數據
-        $frontendData = [
-            'frontend_log' => true,
-            'session_id' => $sessionId,
-            'timestamp' => $logEntry['timestamp'] ?? now()->toISOString(),
-            'url' => $logEntry['url'] ?? null,
-            'user_agent' => $logEntry['user_agent'] ?? null,
-            'memory_usage' => $logEntry['memory_usage'] ?? null,
-            'user_id' => $logEntry['user_id'] ?? null,
-            'data' => $data
-        ];
-        
-        switch ($category) {
-            case 'api_request':
-            case 'api_response':
-            case 'api_error':
-            case 'api_network':
-            case 'api_auth':
-            case 'api_rate_limit':
-            case 'api_security':
-                // 記錄到 API 日誌頻道
-                $this->logToChannel('api', $level, $message, $frontendData);
-                break;
-                
-            case 'user_action':
-                // 記錄用戶操作
-                LoggingService::logUserAction($data['action'] ?? 'unknown', array_merge($data, [
-                    'source' => 'frontend',
-                    'session_id' => $sessionId
-                ]));
-                break;
-                
-            case 'page_view':
-                // 記錄頁面訪問
-                $this->logToChannel('frontend', 'info', $message, $frontendData);
-                break;
-                
-            case 'performance':
-                // 記錄性能數據
-                $this->logToChannel('frontend', 'info', $message, $frontendData);
-                break;
-                
-            case 'component':
-                // 記錄組件生命週期
-                $this->logToChannel('frontend', $level, $message, $frontendData);
-                break;
-                
-            case 'vue_error':
-            case 'vue_warning':
-            case 'error':
-                // 記錄前端錯誤
-                $this->logToChannel('frontend', 'error', $message, $frontendData);
-                break;
-                
-            default:
-                // 一般前端日誌
-                $this->logToChannel('frontend', $level, $message, $frontendData);
-                break;
+        $validated = $request->validate([
+            'logs' => 'required|array|max:50', // 最多一次 50 筆
+            'logs.*.level' => 'required|in:error,warn,info,debug',
+            'logs.*.message' => 'required|string|max:1000',
+            'logs.*.category' => 'sometimes|string|max:50',
+            'logs.*.context' => 'sometimes|array',
+            'logs.*.timestamp' => 'sometimes|string',
+        ]);
+
+        $recordedCount = 0;
+
+        foreach ($validated['logs'] as $log) {
+            try {
+                $this->logEntry($log, $request);
+                $recordedCount++;
+            } catch (\Exception $e) {
+                // 繼續處理其他日誌
+                continue;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Recorded {$recordedCount} logs successfully",
+            'count' => $recordedCount
+        ]);
+    }
+
+    /**
+     * 記錄前端錯誤（帶完整堆疊資訊）
+     */
+    public function storeError(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'message' => 'required|string|max:1000',
+                'stack' => 'sometimes|string|max:5000',
+                'component' => 'sometimes|string|max:255',
+                'url' => 'sometimes|string|max:2000',
+                'line' => 'sometimes|integer',
+                'column' => 'sometimes|integer',
+                'user_agent' => 'sometimes|string',
+                'screen_resolution' => 'sometimes|string',
+                'viewport' => 'sometimes|string',
+                'context' => 'sometimes|array',
+            ]);
+
+            $errorContext = [
+                'error_details' => [
+                    'message' => $validated['message'],
+                    'stack' => $validated['stack'] ?? null,
+                    'component' => $validated['component'] ?? null,
+                    'url' => $validated['url'] ?? null,
+                    'line' => $validated['line'] ?? null,
+                    'column' => $validated['column'] ?? null,
+                ],
+                'browser_info' => [
+                    'user_agent' => $validated['user_agent'] ?? $request->userAgent(),
+                    'screen_resolution' => $validated['screen_resolution'] ?? null,
+                    'viewport' => $validated['viewport'] ?? null,
+                ],
+                'request_info' => [
+                    'ip' => $request->ip(),
+                    'user_id' => Auth::id(),
+                    'referer' => $request->header('referer'),
+                ],
+                'additional_context' => $validated['context'] ?? [],
+                'timestamp' => now()->toIso8601String(),
+            ];
+
+            // 記錄詳細錯誤到前端日誌
+            Log::channel('frontend')->error(
+                '[Frontend Error] ' . $validated['message'],
+                $errorContext
+            );
+
+            // 如果是嚴重錯誤，也記錄到錯誤日誌
+            if ($this->isCriticalError($validated['message'])) {
+                Log::channel('error')->error(
+                    '[Frontend Critical] ' . $validated['message'],
+                    $errorContext
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Error recorded successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::channel('error')->error('Failed to process frontend error', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process error'
+            ], 500);
         }
     }
-    
-    private function logToChannel(string $channel, string $level, string $message, array $data)
+
+    /**
+     * 處理單筆日誌記錄
+     */
+    private function logEntry(array $log, Request $request)
     {
-        $logData = [
-            'message' => $message,
-            'data' => $data,
-            'timestamp' => now()->toISOString()
+        $level = $log['level'];
+        $message = $log['message'];
+        $category = $log['category'] ?? 'general';
+        $context = $log['context'] ?? [];
+
+        // 建立日誌上下文
+        $logContext = [
+            'category' => $category,
+            'frontend_context' => $context,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'user_id' => Auth::id(),
+            'referer' => $request->header('referer'),
+            'frontend_timestamp' => $log['timestamp'] ?? null,
+            'server_timestamp' => now()->toIso8601String(),
         ];
-        
-        switch ($level) {
-            case 'error':
-                Log::channel($channel)->error($message, $logData);
-                break;
-            case 'warning':
-                Log::channel($channel)->warning($message, $logData);
-                break;
-            case 'info':
-            default:
-                Log::channel($channel)->info($message, $logData);
-                break;
+
+        // 根據類別選擇日誌頻道
+        $channel = $this->getChannelByCategory($category);
+
+        // 記錄日誌
+        Log::channel($channel)->log(
+            $level,
+            "[Frontend:{$category}] {$message}",
+            $logContext
+        );
+    }
+
+    /**
+     * 根據類別取得日誌頻道
+     */
+    private function getChannelByCategory(string $category): string
+    {
+        $categoryChannelMap = [
+            'api_request' => 'api',
+            'api_response' => 'api',
+            'api_error' => 'api',
+            'api_network' => 'api',
+            'api_auth' => 'api',
+            'api_rate_limit' => 'api',
+            'api_security' => 'security',
+            'vue_error' => 'frontend',
+            'vue_warning' => 'frontend',
+            'error' => 'frontend',
+            'performance' => 'frontend',
+            'user_action' => 'frontend',
+            'page_view' => 'frontend',
+            'component' => 'frontend',
+        ];
+
+        return $categoryChannelMap[$category] ?? 'frontend';
+    }
+
+    /**
+     * 判斷是否為嚴重錯誤
+     */
+    private function isCriticalError(string $message): bool
+    {
+        $criticalKeywords = [
+            'cannot read',
+            'undefined is not',
+            'null is not',
+            'network error',
+            'failed to fetch',
+            'timeout',
+            'security',
+            'permission denied',
+            'cors',
+            'unauthorized',
+        ];
+
+        $lowerMessage = strtolower($message);
+
+        foreach ($criticalKeywords as $keyword) {
+            if (str_contains($lowerMessage, $keyword)) {
+                return true;
+            }
         }
+
+        return false;
     }
 }

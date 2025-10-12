@@ -4,6 +4,7 @@ namespace App\Logging;
 
 use Monolog\Formatter\LineFormatter;
 use Monolog\LogRecord;
+use Illuminate\Support\Facades\Auth;
 
 class CustomFormatter extends LineFormatter
 {
@@ -20,7 +21,7 @@ class CustomFormatter extends LineFormatter
     {
         // 加入自訂欄位
         $record->extra['ip'] = request()->ip() ?? 'CLI';
-        $record->extra['user_id'] = auth()->id() ?? 'guest';
+        $record->extra['user_id'] = Auth::id() ?? 'guest';
         $record->extra['url'] = request()->fullUrl() ?? 'N/A';
         $record->extra['method'] = request()->method() ?? 'N/A';
 
