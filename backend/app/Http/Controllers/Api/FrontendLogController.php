@@ -116,7 +116,7 @@ class FrontendLogController extends Controller
                 ],
                 'request_info' => [
                     'ip' => $request->ip(),
-                    'user_id' => Auth::id(),
+                    'user_id' => Auth::id() ?? null,
                     'referer' => $request->header('referer'),
                 ],
                 'additional_context' => $validated['context'] ?? [],
@@ -171,7 +171,7 @@ class FrontendLogController extends Controller
             'frontend_context' => $context,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
-            'user_id' => Auth::id(),
+            'user_id' => Auth::id() ?? null,
             'referer' => $request->header('referer'),
             'frontend_timestamp' => $log['timestamp'] ?? null,
             'server_timestamp' => now()->toIso8601String(),

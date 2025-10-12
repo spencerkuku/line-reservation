@@ -148,7 +148,6 @@ class AvailableTimeController extends Controller
             'start_time' => $request->start_time,
             'end_time' => $request->end_time,
             'max_capacity' => $request->max_capacity,
-            'current_bookings' => 0,
             'is_active' => true
         ]);
 
@@ -171,12 +170,15 @@ class AvailableTimeController extends Controller
             'is_active' => 'sometimes|boolean'
         ]);
 
-        // 如果有預約且要修改容量，檢查新容量是否足夠
-        if ($request->has('max_capacity') && $request->max_capacity < $availableTime->current_bookings) {
-            return response()->json([
-                'success' => false,
-                'message' => '新容量不能小於現有預約數量'
-            ], 422);
+        // 如果有預約且要修改容量，檢查新容量是否足夠（使用 accessor）
+        if ($request->has('max_capacity')) {
+            $currentBookings = $availableTime->current_bookings;
+            if ($request->max_capacity < $currentBookings) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '新容量不能小於現有預約數量'
+                ], 422);
+            }
         }
 
         $availableTime->update($request->only([
@@ -193,8 +195,10 @@ class AvailableTimeController extends Controller
     // 刪除可預約時段
     public function destroy(AvailableTime $availableTime)
     {
-        // 檢查是否有預約
-        if ($availableTime->current_bookings > 0) {
+        // 檢查是否有預約（使用 accessor）
+        $currentBookings = $availableTime->current_bookings;
+        
+        if ($currentBookings > 0) {
             return response()->json([
                 'success' => false,
                 'message' => '此時段已有預約，無法刪除'
