@@ -23,8 +23,30 @@
 
     <!-- 管理員儀表板 -->
     <div v-if="isAdmin" class="space-y-8">
+      <!-- 錯誤提示 -->
+      <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+        <div class="flex items-center">
+          <svg class="h-5 w-5 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-sm font-medium text-red-800">{{ error }}</p>
+          <button @click="fetchDashboardData" class="ml-auto text-sm text-red-600 hover:text-red-800 font-medium">
+            重試
+          </button>
+        </div>
+      </div>
+
+      <!-- 加載骨架屏 -->
+      <div v-if="loading && !stats.total_reservations" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div v-for="i in 4" :key="i" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+          <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+          <div class="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
+          <div class="h-3 bg-gray-200 rounded w-1/3"></div>
+        </div>
+      </div>
+
       <!-- 關鍵指標卡片 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- 今日預約 -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div class="flex items-center justify-between">
@@ -387,10 +409,14 @@ const getStatusClass = (status) => {
   switch (status) {
     case 'confirmed':
       return 'bg-green-100 text-green-800'
+    case 'completed':
+      return 'bg-blue-100 text-blue-800'
     case 'pending':
       return 'bg-yellow-100 text-yellow-800'
     case 'cancelled':
       return 'bg-red-100 text-red-800'
+    case 'no_show':
+      return 'bg-gray-100 text-gray-800'
     default:
       return 'bg-gray-100 text-gray-800'
   }
@@ -401,10 +427,14 @@ const getStatusText = (status) => {
   switch (status) {
     case 'confirmed':
       return '已確認'
+    case 'completed':
+      return '已完成'
     case 'pending':
       return '待確認'
     case 'cancelled':
       return '已取消'
+    case 'no_show':
+      return '爽約'
     default:
       return '未知'
   }
@@ -464,20 +494,23 @@ const fetchDashboardData = async () => {
   try {
     // 並行獲取所有數據
     const [statsRes, reservationsRes, servicesRes, noticesRes] = await Promise.all([
-      apiGet('/dashboard/stats').catch(() => ({ success: false })),
-      apiGet('/dashboard/reservations').catch(() => ({ success: false })),
-      apiGet('/dashboard/popular-services').catch(() => ({ success: false })),
-      apiGet('/dashboard/notices').catch(() => ({ success: false }))
+      apiGet('/dashboard/stats'),
+      apiGet('/dashboard/reservations'),
+      apiGet('/dashboard/popular-services'),
+      apiGet('/dashboard/notices')
     ])
 
-    if (statsRes.success) {
+    if (statsRes?.success) {
       stats.value = statsRes.data || {}
+    } else {
+      throw new Error(statsRes?.message || '獲取統計資料失敗')
     }
 
-    if (reservationsRes.success) {
+    if (reservationsRes?.success) {
       recentReservations.value = (reservationsRes.data || []).slice(0, 10)
       
       // 生成圖表數據（最近7天的預約趨勢）
+      // 使用本地計算以確保完整的 7 天數據
       const chartMap = new Map()
       const today = new Date()
       
@@ -501,20 +534,37 @@ const fetchDashboardData = async () => {
       })
       
       chartData.value = Array.from(chartMap.values())
+    } else {
+      console.warn('獲取預約資料失敗:', reservationsRes?.message)
+      // 不拋出錯誤，使用空數據
+      recentReservations.value = []
+      chartData.value = []
     }
 
-    if (servicesRes.success) {
+    if (servicesRes?.success) {
       topServicesData.value = (servicesRes.data || []).slice(0, 5)
+    } else {
+      console.warn('獲取熱門服務失敗:', servicesRes?.message)
+      topServicesData.value = []
     }
 
-    if (noticesRes.success) {
+    if (noticesRes?.success) {
       notices.value = (noticesRes.data || []).slice(0, 5)
+    } else {
+      console.warn('獲取通知失敗:', noticesRes?.message)
+      notices.value = []
     }
 
   } catch (err) {
     error.value = err.message || '獲取儀表板數據失敗'
+    console.error('獲取儀表板數據失敗:', err)
+    
+    // 顯示錯誤提示（可選：使用 toast 通知）
     if (import.meta.env.DEV) {
-      console.error('獲取儀表板數據失敗:', err)
+      console.error('Dashboard error details:', {
+        message: err.message,
+        stack: err.stack
+      })
     }
   } finally {
     loading.value = false
