@@ -9,7 +9,7 @@ export function useReservationFilter(reservations) {
   const activeStatus = ref('all')
   
   // 當前選中的時間篩選
-  const activePeriod = ref('today')
+  const activePeriod = ref('all')
   
   // 進階搜尋表單
   const advancedSearch = ref({
@@ -71,6 +71,11 @@ export function useReservationFilter(reservations) {
     
     return [
       {
+        value: 'all',
+        label: '全部時間',
+        date: null,
+      },
+      {
         value: 'today',
         label: '今天',
         date: formatDate(today),
@@ -83,11 +88,6 @@ export function useReservationFilter(reservations) {
       {
         value: 'upcoming',
         label: '未來 7 天',
-        date: null,
-      },
-      {
-        value: 'all',
-        label: '全部時間',
         date: null,
       },
     ]
@@ -211,7 +211,7 @@ export function useReservationFilter(reservations) {
    */
   const resetFilters = () => {
     activeStatus.value = 'all'
-    activePeriod.value = 'today'
+    activePeriod.value = 'all'
     advancedSearch.value = {
       customerName: '',
       phone: '',
