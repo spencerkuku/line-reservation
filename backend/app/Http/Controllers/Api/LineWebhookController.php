@@ -19,32 +19,49 @@ class LineWebhookController extends Controller
 
     public function handle(Request $request)
     {
-        // 在開發環境中跳過簽名驗證
-        if (config('app.env') !== 'local') {
-            // 驗證 LINE 簽章
-            $signature = $request->header('X-Line-Signature');
-            $body = $request->getContent();
-            
-            if (!$this->verifySignature($signature, $body)) {
-                Log::warning('Invalid LINE signature');
-                return response('Invalid signature', 400);
-            }
-        }
-
-        // 處理 webhook 事件
-        $events = $request->input('events', []);
-        
-        // 記錄接收到的事件 (only in debug mode)
-        if (config('app.debug')) {
-            Log::info('LINE webhook received events: ' . json_encode($events));
-        }
-        
         try {
+            Log::info('LINE webhook request received', [
+                'headers' => $request->headers->all(),
+                'body' => $request->all(),
+            ]);
+
+            // 在開發環境中跳過簽名驗證
+            if (config('app.env') !== 'local') {
+                // 驗證 LINE 簽章
+                $signature = $request->header('X-Line-Signature');
+                $body = $request->getContent();
+                
+                if (!$this->verifySignature($signature, $body)) {
+                    Log::warning('Invalid LINE signature', [
+                        'signature' => $signature,
+                        'body_length' => strlen($body)
+                    ]);
+                    return response('Invalid signature', 400);
+                }
+            }
+
+            // 處理 webhook 事件
+            $events = $request->input('events', []);
+            
+            Log::info('LINE webhook events', [
+                'event_count' => count($events),
+                'events' => $events
+            ]);
+            
+            // 重要：立即返回 200 OK，然後再處理事件
+            // 這樣可以避免 LINE Platform 超時
             $this->lineBotService->handleWebhook($events);
+            
             return response('OK', 200);
+            
         } catch (\Exception $e) {
-            Log::error('LINE webhook error: ' . $e->getMessage());
-            return response('Error', 500);
+            Log::error('LINE webhook error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // 即使發生錯誤也返回 200，避免 LINE 重複發送
+            return response('OK', 200);
         }
     }
 
