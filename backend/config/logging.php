@@ -71,6 +71,7 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            'formatter' => App\Logging\CustomFormatter::class,
         ],
 
         // LINE Bot 專用日誌頻道
@@ -116,6 +117,27 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
+            'formatter' => App\Logging\CustomFormatter::class,
+        ],
+
+        // 錯誤日誌頻道
+        'error' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/error.log'),
+            'level' => 'error',
+            'days' => 90,
+            'replace_placeholders' => true,
+            'formatter' => App\Logging\CustomFormatter::class,
+        ],
+
+        // 系統操作日誌頻道
+        'activity' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/activity.log'),
+            'level' => 'info',
+            'days' => 90,
+            'replace_placeholders' => true,
+            'formatter' => App\Logging\CustomFormatter::class,
         ],
 
         // 安全事件專用日誌頻道

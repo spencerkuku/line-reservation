@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnhancedSecurityHeadersMiddleware::class,
             \App\Http\Middleware\ApiRateLimitMiddleware::class,
             \App\Http\Middleware\ApiLoggingMiddleware::class,
+            \App\Http\Middleware\ApiLogger::class,
         ]);
 
         $middleware->alias([
@@ -37,13 +38,54 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // 記錄所有異常到錯誤日誌
+        $exceptions->report(function (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::channel('error')->error($e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'url' => request()->fullUrl(),
+                'method' => request()->method(),
+                'ip' => request()->ip(),
+                'user_id' => auth()->id(),
+            ]);
+        });
+
         // API 認證異常處理
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
-                    'message' => '未經授權的訪問'
+                    'message' => '未經授權的訪問',
+                    'timestamp' => now()->toIso8601String(),
                 ], 401);
+            }
+        });
+
+        // API 驗證異常處理
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '驗證失敗',
+                    'errors' => $e->errors(),
+                    'timestamp' => now()->toIso8601String(),
+                ], 422);
+            }
+        });
+
+        // API 其他異常統一處理
+        $exceptions->render(function (\Throwable $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage() ?: '伺服器內部錯誤',
+                    'error_code' => $e->getCode(),
+                    'timestamp' => now()->toIso8601String(),
+                ], $statusCode);
             }
         });
     })->create();

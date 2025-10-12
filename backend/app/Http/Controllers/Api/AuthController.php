@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\SecurityLoggingService;
 use App\Services\CryptographyService;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -53,6 +54,7 @@ class AuthController extends Controller
 
         // 記錄登入成功
         SecurityLoggingService::logLoginSuccess($user, $request);
+        ActivityLogger::login($user);
 
         return response()->json([
             'success' => true,
@@ -76,6 +78,7 @@ class AuthController extends Controller
             'info',
             $request
         );
+        ActivityLogger::logout();
 
         $request->user()->currentAccessToken()->delete();
 

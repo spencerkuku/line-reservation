@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Services\LoggingService;
+use App\Services\ActivityLogger;
 use App\Http\Requests\ReservationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +129,9 @@ class ReservationController extends Controller
             
             LoggingService::logApiRequestSuccess($requestId, ['reservation_id' => $reservation->id]);
             
+            // 記錄操作
+            ActivityLogger::created($reservation, 'reservations');
+            
             return response()->json([
                 'success' => true,
                 'data' => $reservation,
@@ -143,6 +147,8 @@ class ReservationController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'input' => $request->except(['customer_phone']) // 不記錄敏感資訊
             ]);
+            
+            ActivityLogger::failed('create', 'reservations', '建立預約失敗', $e);
             
             return response()->json([
                 'success' => false,
@@ -169,6 +175,7 @@ class ReservationController extends Controller
             ], 422);
         }
 
+        $oldStatus = $reservation->status;
         $reservation->confirm();
 
         LoggingService::logReservationEvent('confirmed', [
@@ -180,6 +187,14 @@ class ReservationController extends Controller
         ], $requestId);
 
         LoggingService::logApiRequestSuccess($requestId, ['reservation_id' => $reservation->id]);
+
+        // 記錄操作
+        ActivityLogger::custom(
+            'confirmed',
+            'reservations',
+            "確認預約: {$reservation->customer_name} - {$reservation->service->name}",
+            ['old_status' => $oldStatus, 'new_status' => 'confirmed']
+        );
 
         return response()->json([
             'success' => true,
@@ -205,6 +220,7 @@ class ReservationController extends Controller
             ], 422);
         }
 
+        $oldStatus = $reservation->status;
         $reservation->cancel();
 
         LoggingService::logReservationEvent('cancelled', [
@@ -217,6 +233,14 @@ class ReservationController extends Controller
         ], $requestId);
 
         LoggingService::logApiRequestSuccess($requestId, ['reservation_id' => $reservation->id]);
+
+        // 記錄操作
+        ActivityLogger::custom(
+            'cancelled',
+            'reservations',
+            "取消預約: {$reservation->customer_name} - {$reservation->service->name}",
+            ['old_status' => $oldStatus, 'new_status' => 'cancelled']
+        );
 
         return response()->json([
             'success' => true,
