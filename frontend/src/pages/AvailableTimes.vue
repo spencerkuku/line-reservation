@@ -252,7 +252,14 @@ const calendarOptions = computed(() => ({
   slotDuration: '00:30:00',
   slotLabelInterval: '01:00:00',
   height: 'auto',
-  aspectRatio: window.innerWidth <= 768 ? 0.8 : 1.35,
+  // 響應式 aspect ratio - 針對不同裝置優化
+  aspectRatio: (() => {
+    const width = window.innerWidth
+    if (width <= 390) return 0.7  // 極小手機
+    if (width <= 767) return 0.85 // 手機
+    if (width <= 1024) return 1.1 // 平板
+    return 1.35 // 桌面
+  })(),
   
   // 簡化功能
   weekNumbers: false,
@@ -666,6 +673,11 @@ function handleKeydown(e) {
 document.addEventListener('keydown', handleKeydown)
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
+// 偵測裝置類型
+const isMobile = computed(() => window.innerWidth <= 767)
+const isTablet = computed(() => window.innerWidth > 767 && window.innerWidth <= 1024)
+const isTouchDevice = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0)
+
 // 組件載入時獲取數據並導航到今天
 onMounted(() => {
   fetchAvailableTimes()
@@ -676,6 +688,23 @@ onMounted(() => {
       goToToday()
     }, 100)
   })
+
+  // 針對觸控裝置優化
+  if (isTouchDevice.value) {
+    // 禁用雙擊縮放
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault()
+      }
+    }, { passive: false })
+
+    // 改善觸控滾動
+    const scrollElements = document.querySelectorAll('.fc-scroller')
+    scrollElements.forEach(el => {
+      el.style.webkitOverflowScrolling = 'touch'
+      el.style.overflowY = 'auto'
+    })
+  }
 })
 </script>
 
@@ -689,22 +718,22 @@ onMounted(() => {
       <!-- 日曆導航 - 手機版優化 -->
       <div class="flex items-center justify-between md:justify-start gap-1 md:gap-2">
         <div class="flex items-center gap-1 md:gap-2">
-          <button @click="goToToday" class="px-2 py-2 md:px-4 md:py-2 text-xs md:text-sm font-medium text-gray-700 bg-transparent border-0 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900 min-h-[40px] md:min-h-auto">今天</button>
-          <button @click="navigatePrev" class="flex items-center justify-center w-9 h-9 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-lg md:text-sm hover:bg-gray-100">‹</button>
-          <button @click="navigateNext" class="flex items-center justify-center w-9 h-9 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-colors duration-200 text-lg md:text-sm hover:bg-gray-100">›</button>
+          <button @click="goToToday" class="px-3 py-2.5 md:px-4 md:py-2 text-sm md:text-sm font-semibold text-gray-700 bg-transparent border-0 rounded-lg cursor-pointer transition-all duration-150 hover:bg-gray-100 hover:text-gray-900 min-h-[44px] md:min-h-auto active:scale-95 touch-manipulation">今天</button>
+          <button @click="navigatePrev" class="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-all duration-150 text-xl md:text-sm hover:bg-gray-100 active:scale-95 touch-manipulation">‹</button>
+          <button @click="navigateNext" class="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-all duration-150 text-xl md:text-sm hover:bg-gray-100 active:scale-95 touch-manipulation">›</button>
         </div>
-        <h2 class="text-sm md:text-lg font-semibold text-gray-900 mx-1 md:mx-4">{{ currentPeriod }}</h2>
+        <h2 class="text-base md:text-lg font-bold text-gray-900 mx-2 md:mx-4">{{ currentPeriod }}</h2>
       </div>
       
       <!-- 檢視切換 - 手機版優化 -->
-      <div class="flex border border-gray-300 rounded-lg overflow-hidden w-full md:w-auto">
+      <div class="flex border-2 border-gray-300 rounded-xl overflow-hidden w-full md:w-auto shadow-sm">
         <button 
           @click="changeView('timeGridWeek')"
           :class="[
-            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
+            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95',
             currentView === 'timeGridWeek' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              ? 'bg-blue-500 text-white shadow-inner' 
+              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
           ]"
         >
           週
@@ -712,10 +741,10 @@ onMounted(() => {
         <button 
           @click="changeView('timeGridDay')"
           :class="[
-            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
+            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95 border-l-2 border-gray-300',
             currentView === 'timeGridDay' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              ? 'bg-blue-500 text-white shadow-inner' 
+              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
           ]"
         >
           日
@@ -723,10 +752,10 @@ onMounted(() => {
         <button 
           @click="changeView('dayGridMonth')"
           :class="[
-            'flex-1 md:flex-none px-3 py-2 md:px-4 md:py-2 border-0 text-xs md:text-sm font-medium cursor-pointer transition-all duration-200 min-h-[40px] md:min-h-auto',
+            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95 border-l-2 border-gray-300',
             currentView === 'dayGridMonth' 
-              ? 'bg-blue-500 text-white' 
-              : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              ? 'bg-blue-500 text-white shadow-inner' 
+              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
           ]"
         >
           月
@@ -771,85 +800,99 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 手機版浮動新增按鈕 -->
+    <!-- 手機和平板版浮動新增按鈕 - 優化觸控體驗 -->
     <button 
       @click="openManualCreateModal"
-      class="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center z-50 text-2xl font-light cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:shadow-xl active:scale-95"
-      style="border: none;"
+      class="lg:hidden fixed bottom-8 right-6 w-16 h-16 bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center z-50 text-3xl font-light cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:shadow-xl active:scale-90 touch-manipulation"
+      style="border: none; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.5);"
     >
-      +
+      <span class="relative" style="top: -1px;">+</span>
     </button>
 
     <!-- 手機優化的編輯 Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-start md:items-center justify-center z-[1000] p-0 md:p-4">
-      <div class="bg-white rounded-t-xl md:rounded-xl shadow-2xl w-full md:w-full md:max-w-lg max-h-screen md:max-h-[90vh] overflow-hidden mt-auto md:mt-0">
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-end md:items-center justify-center z-[1000] p-0 md:p-4 backdrop-blur-sm">
+      <div class="bg-white rounded-t-3xl md:rounded-2xl shadow-2xl w-full md:w-full md:max-w-lg max-h-[92vh] md:max-h-[90vh] overflow-hidden animate-slide-up md:animate-none">
         <!-- 手機優化的標題列 -->
-        <div class="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h3 class="text-lg md:text-lg font-semibold text-gray-900 m-0">{{ editForm.id ? '編輯' : '新增' }}可預約時段</h3>
-          <button @click="closeEditModal" class="w-10 h-10 md:w-8 md:h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
+        <div class="flex items-center justify-between px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <!-- 手機版拖動指示器 -->
+          <div class="absolute top-2 left-1/2 transform -translate-x-1/2 w-12 h-1.5 bg-gray-300 rounded-full md:hidden"></div>
+          <h3 class="text-xl md:text-lg font-bold text-gray-900 m-0 mt-3 md:mt-0">{{ editForm.id ? '編輯' : '新增' }}時段</h3>
+          <button @click="closeEditModal" class="w-11 h-11 md:w-8 md:h-8 border-0 rounded-full bg-gray-100 text-gray-600 text-2xl md:text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800 active:scale-90 touch-manipulation">×</button>
         </div>
         
         <!-- 手機優化的表單內容 -->
-        <div class="p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-8rem)] md:max-h-none">
-          <div class="mb-6 md:mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">時段名稱</label>
+        <div class="p-5 md:p-6 overflow-y-auto max-h-[calc(92vh-12rem)] md:max-h-none space-y-6 md:space-y-5">
+          <!-- 時段名稱 -->
+          <div>
+            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
+              時段名稱
+              <span class="text-red-500 ml-1">*</span>
+            </label>
             <input 
               v-model="editForm.title" 
               placeholder="例如：諮詢服務"
-              class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
+              class="w-full border-2 border-gray-300 rounded-xl md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium placeholder:text-gray-400"
             />
           </div>
           
-          <div class="mb-6 md:mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">時間</label>
-            <div class="space-y-3">
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">開始時間</label>
+          <!-- 時間設定 -->
+          <div>
+            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
+              時間設定
+              <span class="text-red-500 ml-1">*</span>
+            </label>
+            <div class="space-y-4">
+              <div class="bg-gray-50 p-4 rounded-xl md:rounded-md">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">開始時間</label>
                 <input 
                   type="datetime-local" 
                   :value="formatDateTimeLocal(editForm.start)"
                   @input="editForm.start = parseDateTimeLocal($event.target.value)"
-                  class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
+                  class="w-full border-2 border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium"
                 />
               </div>
-              <div>
-                <label class="block text-xs text-gray-600 mb-1">結束時間</label>
+              <div class="bg-gray-50 p-4 rounded-xl md:rounded-md">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">結束時間</label>
                 <input 
                   type="datetime-local" 
                   :value="formatDateTimeLocal(editForm.end)"
                   @input="editForm.end = parseDateTimeLocal($event.target.value)"
-                  class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 min-h-[48px] md:min-h-auto"
+                  class="w-full border-2 border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium"
                 />
               </div>
             </div>
           </div>
           
-          <div class="mb-6 md:mb-5">
-            <label class="block text-sm font-medium text-gray-900 mb-3 md:mb-2">備註 <span class="font-normal text-gray-500">(選填)</span></label>
+          <!-- 備註 -->
+          <div>
+            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
+              備註
+              <span class="text-sm font-normal text-gray-500 ml-2">(選填)</span>
+            </label>
             <textarea 
               v-model="editForm.description"
-              rows="3"
-              placeholder="額外說明..."
-              class="w-full border border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white resize-y min-h-[80px] md:min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
+              rows="4"
+              placeholder="新增額外說明或注意事項..."
+              class="w-full border-2 border-gray-300 rounded-xl md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white resize-none min-h-[100px] md:min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-medium placeholder:text-gray-400"
             ></textarea>
           </div>
         </div>
         
         <!-- 手機優化的操作按鈕 -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-4 md:px-6 pb-4 md:pb-6 pt-4 border-t border-gray-200 sticky bottom-0 bg-white gap-3">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-5 md:px-6 pb-6 md:pb-6 pt-5 border-t-2 border-gray-100 sticky bottom-0 bg-white gap-3 shadow-2xl md:shadow-none">
           <!-- 手機版：主要操作在上，刪除在下 / 電腦版：刪除在左，操作在右 -->
           
           <!-- 主要操作按鈕組（手機版在上方，電腦版在右側） -->
           <div class="flex flex-col md:flex-row gap-3 md:gap-3 md:ml-auto w-full md:w-auto order-1 md:order-2">
             <button 
               @click="saveSlot" 
-              class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40"
+              class="w-full md:w-auto bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-xl hover:shadow-blue-500/40 active:scale-95 touch-manipulation min-h-[52px] md:min-h-auto flex items-center justify-center"
             >
               {{ editForm.id ? '儲存更改' : '建立時段' }}
             </button>
             <button 
               @click="closeEditModal" 
-              class="w-full md:w-auto bg-transparent text-gray-500 border border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-400"
+              class="w-full md:w-auto bg-gray-100 text-gray-700 border-2 border-gray-200 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:bg-gray-200 hover:border-gray-300 active:scale-95 touch-manipulation min-h-[52px] md:min-h-auto flex items-center justify-center"
             >
               取消
             </button>
@@ -859,7 +902,7 @@ onMounted(() => {
           <button 
             v-if="editForm.id" 
             @click="deleteCurrentSlot" 
-            class="w-full md:w-auto bg-transparent text-red-600 border border-red-200 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-red-50 hover:border-red-600 order-2 md:order-1"
+            class="w-full md:w-auto bg-red-50 text-red-600 border-2 border-red-200 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:bg-red-100 hover:border-red-300 active:scale-95 touch-manipulation order-2 md:order-1 min-h-[52px] md:min-h-auto flex items-center justify-center"
           >
             刪除時段
           </button>
@@ -897,6 +940,123 @@ onMounted(() => {
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* 觸控優化 - 全局 */
+@media (max-width: 1024px) {
+  /* 所有按鈕最小觸控區域 44x44px (Apple HIG 建議) */
+  button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* 輸入框最小高度 */
+  input[type="text"],
+  input[type="datetime-local"],
+  input[type="date"],
+  input[type="time"],
+  textarea {
+    min-height: 48px !important;
+    font-size: 16px !important; /* 防止 iOS Safari 自動縮放 */
+  }
+
+  /* 改善觸控回饋 */
+  button:active,
+  .cursor-pointer:active {
+    opacity: 0.7 !important;
+    transform: scale(0.98) !important;
+    transition: all 0.1s ease !important;
+  }
+
+  /* Modal 底部固定操作欄 */
+  .sticky.bottom-0 {
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* 改善滾動體驗 */
+  * {
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 滾動條樣式（Webkit） */
+  ::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border-radius: 4px !important;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: transparent !important;
+  }
+}
+
+/* 平板橫向模式優化 */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+  :deep(.fc-timegrid-slot) {
+    height: 50px !important;
+  }
+
+  :deep(.available-slot) {
+    min-height: 48px !important;
+  }
+
+  :deep(.event-time),
+  :deep(.event-title) {
+    line-height: 1.2 !important;
+  }
+
+  /* 充分利用橫向空間 */
+  .min-h-screen {
+    min-height: 100vh !important;
+  }
+}
+
+/* 手機橫向模式優化 */
+@media (max-width: 767px) and (orientation: landscape) {
+  :deep(.fc-timegrid-slot) {
+    height: 55px !important;
+  }
+
+  :deep(.available-slot) {
+    min-height: 52px !important;
+    padding: 5px 6px !important;
+  }
+
+  :deep(.event-time) {
+    font-size: 10px !important;
+  }
+
+  :deep(.event-title) {
+    font-size: 11px !important;
+  }
+
+  /* 減少上下邊距以充分利用空間 */
+  .p-2 {
+    padding: 0.25rem !important;
+  }
+
+  .mb-2 {
+    margin-bottom: 0.25rem !important;
+  }
 }
 
 /* FullCalendar 客製化 - 無法用 Tailwind 替代的樣式 */
@@ -1081,111 +1241,169 @@ onMounted(() => {
   border-radius: 6px !important;
 }
 
-/* 響應式設計 - 修復手機版顯示問題 */
-@media (max-width: 768px) {
-  :deep(.fc) {
-    min-height: 500px !important;
-    height: auto !important;
-  }
-
-  :deep(.fc-timegrid-slot-label) {
-    font-size: 10px;
-    font-weight: 500;
-    padding: 4px 2px;
-    width: 45px !important;
+/* 平板版優化 (768px - 1024px) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  :deep(.fc-timegrid-slot) {
+    height: 55px !important;
   }
 
   :deep(.available-slot) {
+    min-height: 52px !important;
+    padding: 7px 6px !important;
+  }
+
+  :deep(.event-time) {
+    font-size: 11px !important;
+  }
+
+  :deep(.event-title) {
     font-size: 12px !important;
-    padding: 6px 4px !important;
-    min-height: 60px !important;
-    border-radius: 6px !important;
-    line-height: 1.2 !important;
+  }
+
+  :deep(.event-desc) {
+    font-size: 10px !important;
+  }
+
+  /* 平板版日曆頭部 */
+  :deep(.fc-col-header-cell) {
+    padding: 10px 6px !important;
+    font-size: 12px !important;
+  }
+
+  /* 平板版時間軸 */
+  :deep(.fc-timegrid-slot-label) {
+    font-size: 11px;
+    width: 50px !important;
+  }
+
+  :deep(.fc-timegrid-axis) {
+    width: 50px !important;
+  }
+}
+
+/* 響應式設計 - 手機版優化 (< 768px) */
+@media (max-width: 767px) {
+  /* 日曆基礎設定 */
+  :deep(.fc) {
+    min-height: 500px !important;
+    height: auto !important;
+    font-size: 14px !important;
+  }
+
+  /* 時間軸標籤 - 加大可讀性 */
+  :deep(.fc-timegrid-slot-label) {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 6px 2px !important;
+    width: 50px !important;
+  }
+
+  /* 事件卡片 - 加大觸控區域 */
+  :deep(.available-slot) {
+    font-size: 13px !important;
+    padding: 8px 6px !important;
+    min-height: 70px !important;
+    border-radius: 8px !important;
+    line-height: 1.3 !important;
+    cursor: pointer !important;
+    /* 加大點擊區域 */
+    touch-action: manipulation !important;
   }
   
+  /* 事件內容 - 更清晰的層次 */
   :deep(.event-time) {
-    font-size: 10px !important;
-    font-weight: 600 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
     opacity: 1 !important;
-    margin-bottom: 1px !important;
+    margin-bottom: 2px !important;
     white-space: normal !important;
     word-wrap: break-word !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
   }
   
   :deep(.event-title) {
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
-    line-height: 1.1 !important;
-    margin-top: 1px !important;
-    margin-bottom: 0px !important;
+    line-height: 1.2 !important;
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
     white-space: normal !important;
     word-wrap: break-word !important;
     overflow: visible !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
   }
   
   :deep(.event-desc) {
-    font-size: 9px !important;
-    opacity: 0.9 !important;
-    margin-top: 1px !important;
+    font-size: 10px !important;
+    opacity: 0.95 !important;
+    margin-top: 2px !important;
     white-space: normal !important;
     word-wrap: break-word !important;
     overflow: visible !important;
+    line-height: 1.3 !important;
   }
 
-  /* 手機版日曆格子優化 */
+  /* 日曆格子 - 加大高度便於操作 */
   :deep(.fc-timegrid-slot) {
-    height: 60px !important;
+    height: 70px !important;
     border-color: #e5e7eb;
   }
 
+  /* 日曆頭部 - 更清晰 */
   :deep(.fc-col-header-cell) {
-    padding: 8px 4px !important;
-    font-size: 11px !important;
+    padding: 10px 4px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
   }
 
   :deep(.fc-scrollgrid) {
-    border-radius: 8px !important;
+    border-radius: 12px !important;
   }
 
-  /* 手機版事件內容優化 */
+  /* 事件內容容器 - 優化排版 */
   :deep(.event-content) {
-    padding: 4px 6px !important;
-    gap: 1px !important;
+    padding: 6px 7px !important;
+    gap: 2px !important;
     justify-content: flex-start !important;
-    min-height: 56px !important;
+    min-height: 66px !important;
     overflow: visible !important;
     white-space: normal !important;
     word-wrap: break-word !important;
   }
 
-  /* 手機版選擇區域優化 */
+  /* 選擇區域 - 更明顯的視覺回饋 */
   :deep(.fc-highlight) {
-    background-color: rgba(59, 130, 246, 0.15) !important;
-    border-radius: 6px !important;
+    background-color: rgba(59, 130, 246, 0.2) !important;
+    border-radius: 8px !important;
   }
 
   :deep(.fc-select-mirror) {
-    background-color: rgba(59, 130, 246, 0.4) !important;
-    border-radius: 6px !important;
-    border: 2px solid #3b82f6 !important;
+    background-color: rgba(59, 130, 246, 0.5) !important;
+    border-radius: 8px !important;
+    border: 3px solid #3b82f6 !important;
   }
 
-  /* 手機版時間軸優化 */
+  /* 時間軸 */
   :deep(.fc-timegrid-axis) {
-    width: 45px !important;
+    width: 50px !important;
   }
 
-  /* 確保手機版正常顯示 */
+  /* 確保手機版滾動流暢 */
   :deep(.fc-view-harness) {
     height: auto !important;
     min-height: 500px !important;
+  }
+
+  :deep(.fc-scroller) {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   :deep(.fc-scroller-harness) {
     overflow: visible !important;
   }
 
-  /* 確保事件文字不截斷 */
+  /* 事件容器 - 防止截斷 */
   :deep(.fc-event-title) {
     white-space: normal !important;
     word-wrap: break-word !important;
@@ -1194,49 +1412,71 @@ onMounted(() => {
   
   :deep(.fc-event) {
     overflow: visible !important;
+    margin-bottom: 2px !important;
   }
   
   :deep(.fc-event-main) {
     overflow: visible !important;
   }
+
+  /* 觸控優化 - 避免誤觸 */
+  :deep(.fc-daygrid-event) {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
 }
 
-/* 極小螢幕特別優化 (320-390px) */
-@media (max-width: 390px) {
+/* 極小螢幕特別優化 (< 390px) */
+@media (max-width: 389px) {
+  /* 時間軸 - 縮小但保持可讀 */
   :deep(.fc-timegrid-slot-label) {
-    font-size: 9px;
-    width: 40px !important;
-    padding: 2px 1px;
+    font-size: 10px !important;
+    width: 45px !important;
+    padding: 5px 2px !important;
+    font-weight: 700 !important;
   }
 
+  /* 事件卡片 - 保持足夠大小便於點擊 */
   :deep(.available-slot) {
-    font-size: 11px !important;
-    padding: 4px 3px !important;
-    min-height: 50px !important;
+    font-size: 12px !important;
+    padding: 6px 5px !important;
+    min-height: 65px !important;
   }
   
   :deep(.event-time) {
-    font-size: 9px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
   }
   
   :deep(.event-title) {
-    font-size: 10px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
   }
 
+  :deep(.event-desc) {
+    font-size: 9px !important;
+  }
+
+  /* 日曆格子 */
   :deep(.fc-timegrid-slot) {
-    height: 50px !important;
+    height: 65px !important;
   }
 
   :deep(.fc-timegrid-axis) {
-    width: 40px !important;
+    width: 45px !important;
   }
 
+  /* 事件內容 */
   :deep(.event-content) {
-    padding: 3px 4px !important;
-    min-height: 46px !important;
-    overflow: visible !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
+    padding: 5px 5px !important;
+    min-height: 61px !important;
+    gap: 1px !important;
+  }
+
+  /* 日曆頭部 */
+  :deep(.fc-col-header-cell) {
+    padding: 8px 2px !important;
+    font-size: 11px !important;
   }
 }
 </style>
