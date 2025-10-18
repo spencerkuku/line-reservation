@@ -21,7 +21,7 @@
             <div class="flex items-center space-x-6">
               <div class="flex-shrink-0">
                 <img 
-                  :src="profileForm.avatar || currentUser.imageUrl || currentUser.avatar ? `http://127.0.0.1:8000/storage/${currentUser.avatar}` : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'" 
+                  :src="getAvatarUrl()" 
                   alt="用戶頭像"
                   class="w-20 h-20 rounded-full object-cover border-4 border-gray-200"
                   @error="handleImageError"
@@ -250,7 +250,7 @@ const currentUser = ref({
   name: 'Loading...',
   email: '',
   role: 'user',
-  imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
+  avatar: null
 })
 
 const profileForm = ref({
@@ -293,6 +293,19 @@ const passwordStrengthText = computed(() => {
 })
 
 // 方法
+const getAvatarUrl = () => {
+  if (profileForm.value.avatar) {
+    return profileForm.value.avatar
+  }
+  if (currentUser.value.avatar) {
+    return `http://127.0.0.1:8000/storage/${currentUser.value.avatar}`
+  }
+  // 使用用戶名稱的第一個字元生成預設頭像
+  const name = currentUser.value.name || 'User'
+  const firstChar = encodeURIComponent(name.charAt(0).toUpperCase())
+  return `https://ui-avatars.com/api/?name=${firstChar}&background=3b82f6&color=fff&size=128&bold=true`
+}
+
 const showMessage = (message, isError = false) => {
   if (isError) {
     errorMessage.value = message
@@ -348,7 +361,10 @@ const removeAvatar = () => {
 }
 
 const handleImageError = (event) => {
-  event.target.src = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
+  // 當圖片載入失敗時，使用預設頭像
+  const name = currentUser.value.name || 'User'
+  const firstChar = encodeURIComponent(name.charAt(0).toUpperCase())
+  event.target.src = `https://ui-avatars.com/api/?name=${firstChar}&background=3b82f6&color=fff&size=128&bold=true`
 }
 
 const updateProfile = async () => {

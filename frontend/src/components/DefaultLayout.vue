@@ -189,7 +189,6 @@ const user = ref({
   name: 'Loading...',
   email: '',
   role: 'user',
-  imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
   avatar: null
 })
 
@@ -219,7 +218,10 @@ const userAvatarUrl = computed(() => {
   if (user.value.avatar) {
     return `http://127.0.0.1:8000/storage/${user.value.avatar}`
   }
-  return user.value.imageUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80'
+  // 使用用戶名稱的第一個字元生成預設頭像
+  const name = user.value.name || 'User'
+  const firstChar = encodeURIComponent(name.charAt(0).toUpperCase())
+  return `https://ui-avatars.com/api/?name=${firstChar}&background=3b82f6&color=fff&size=128&bold=true`
 })
 
 // 載入用戶資料
