@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
+  <div class="bg-gray-50 p-6">
     <!-- 頁面標題 -->
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-gray-900">客戶管理</h1>
@@ -111,11 +111,10 @@
 
     <!-- 搜尋和篩選控制台 -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
-        <div>
-          <h2 class="text-lg font-semibold text-gray-900">客戶搜尋與篩選</h2>
-          <p class="text-sm text-gray-600">快速找到您需要的客戶資料</p>
-        </div>
+      <div class="mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">客戶搜尋與篩選</h2>
+        <p class="text-sm text-gray-600">快速找到您需要的客戶資料</p>
+      </div>
         <!-- 新增客戶按鈕已暫時停用 -->
         <!-- <button
           @click="showAddModal = true"
@@ -129,7 +128,7 @@
 
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div class="space-y-2">
           <label class="text-sm font-medium text-gray-700">搜尋客戶</label>
           <div class="relative">
@@ -175,16 +174,13 @@
         </div>
         
         <div class="space-y-2">
-          <label class="text-sm font-medium text-gray-700">&nbsp;</label>
-          <button
-            @click="searchCustomers"
-            class="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200"
-          >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <label class="text-sm font-medium text-gray-700 ">&nbsp;</label>
+          <div class="w-full flex items-center justify-center px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 text-sm font-medium rounded-lg border border-gray-300">
+            <svg class="w-4 h-4 mr-2 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            搜尋
-          </button>
+            即時搜尋
+          </div>
         </div>
       </div>
     </div>
@@ -299,10 +295,27 @@
                     </div>
                   </div>
                   <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">
+                    <div class="text-sm font-medium text-gray-900 flex items-center">
                       {{ customer.line_display_name || customer.name || '未知客戶' }}
                       <span v-if="customer.line_display_name && customer.line_display_name !== customer.name && customer.name" 
                             class="ml-2 text-xs text-gray-500">({{ customer.name }})</span>
+                      <!-- 高風險警告標記 -->
+                      <span v-if="customer.no_show_count >= 3" 
+                            class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse"
+                            title="高風險客戶：多次爽約">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        高風險
+                      </span>
+                      <span v-else-if="customer.late_count >= 5" 
+                            class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300"
+                            title="經常遲到客戶">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        常遲到
+                      </span>
                     </div>
                     <div class="text-sm text-gray-500">
                       <span>ID: {{ customer.id || '無' }}</span>
@@ -340,8 +353,8 @@
                     {{ getLevelText(customer.level) }}
                   </span>
                   <div>
-                    <span :class="getStatusBadgeClass(customer.status)" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
-                      {{ getStatusText(customer.status) }}
+                    <span :class="getStatusBadgeClass(getCustomerActivityStatus(customer))" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                      {{ getStatusText(getCustomerActivityStatus(customer)) }}
                     </span>
                   </div>
                 </div>
@@ -415,15 +428,6 @@
                     </svg>
                     <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                  </button>
-                  <button
-                    @click="recalculateCustomerStats(customer.id)"
-                    class="inline-flex items-center p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                    title="重新計算統計"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>
                   <button
@@ -637,6 +641,198 @@
       </div>
     </div>
 
+    <!-- 刪除客戶確認 Modal -->
+    <div v-if="showDeleteModal && deletingCustomer" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl max-w-lg w-full">
+        <div class="px-6 py-4 border-b border-gray-200 bg-red-50 rounded-t-xl">
+          <div class="flex items-center space-x-3">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-bold text-red-900">危險操作</h3>
+              <p class="text-sm text-red-700">刪除後將無法恢復</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="p-6">
+          <div class="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+            <p class="font-semibold text-red-900 mb-3">刪除客戶將同時刪除以下資料：</p>
+            <ul class="space-y-2 text-sm">
+              <li class="flex items-center text-red-800">
+                <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">{{ deletingCustomer.total_reservations || 0 }} 筆預約記錄</span>
+              </li>
+              <li class="flex items-center text-red-800">
+                <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+                <span class="font-medium">NT$ {{ Number(deletingCustomer.total_spent || 0).toLocaleString() }} 消費記錄</span>
+              </li>
+              <li class="flex items-center text-red-800">
+                <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span class="font-medium">所有 LINE 互動記錄</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="mb-4">
+            <p class="text-gray-700 mb-4 font-medium">
+              如果您確定要刪除客戶「<span class="text-red-600 font-bold">{{ deletingCustomer.line_display_name || deletingCustomer.name }}</span>」，
+              請在下方輸入框中輸入客戶姓名以確認：
+            </p>
+            <input
+              v-model="deleteConfirmText"
+              type="text"
+              :placeholder="`請輸入：${deletingCustomer.line_display_name || deletingCustomer.name}`"
+              class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors text-lg"
+              @keyup.enter="deleteConfirmText === (deletingCustomer.line_display_name || deletingCustomer.name) && confirmDeleteCustomer()"
+            />
+          </div>
+
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+            <p class="text-sm text-yellow-800 flex items-start">
+              <svg class="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>
+                <strong>建議：</strong>如果只是暫時停止服務，建議使用「封鎖」功能而非刪除，可隨時恢復。
+              </span>
+            </p>
+          </div>
+        </div>
+        
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl flex justify-end space-x-3">
+          <button
+            @click="showDeleteModal = false; deletingCustomer = null; deleteConfirmText = ''"
+            class="px-5 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmDeleteCustomer"
+            :disabled="deleteConfirmText !== (deletingCustomer.line_display_name || deletingCustomer.name) || submitting"
+            class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center font-medium"
+          >
+            <svg v-if="submitting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg v-else class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            {{ submitting ? '刪除中...' : '確認刪除' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 封鎖客戶 Modal -->
+    <div v-if="showBlockModal && blockingCustomer" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl max-w-md w-full">
+        <div class="px-6 py-4 border-b border-gray-200 bg-red-50 rounded-t-xl">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-red-900">封鎖客戶</h3>
+                <p class="text-sm text-red-700">此操作將限制客戶預約功能</p>
+              </div>
+            </div>
+            <button
+              @click="showBlockModal = false; blockingCustomer = null"
+              class="p-2 text-gray-400 hover:text-gray-600 hover:bg-white hover:bg-opacity-50 rounded-lg transition-colors"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="p-6">
+          <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p class="text-sm text-yellow-800 flex items-start">
+              <svg class="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                封鎖客戶「<strong>{{ blockingCustomer.line_display_name || blockingCustomer.name }}</strong>」後：
+                <br>• 客戶將無法透過 LINE 或網頁進行任何預約
+                <br>• 現有未完成的預約不受影響
+                <br>• 可隨時解除封鎖恢復功能
+              </span>
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                封鎖原因 <span class="text-red-500">*</span>
+              </label>
+              <select
+                v-model="blockForm.reason"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
+              >
+                <option value="">請選擇封鎖原因</option>
+                <option value="no_show">多次爽約（未到場）</option>
+                <option value="late">經常遲到</option>
+                <option value="rude">態度不佳或言行不當</option>
+                <option value="payment">付款問題</option>
+                <option value="spam">疑似濫用或騷擾</option>
+                <option value="other">其他原因</option>
+              </select>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                詳細說明
+                <span class="text-gray-500 text-xs">（選填，建議填寫以備查詢）</span>
+              </label>
+              <textarea
+                v-model="blockForm.notes"
+                rows="3"
+                placeholder="請描述封鎖的具體原因，例如：連續 3 次爽約、遲到超過 30 分鐘..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors resize-none"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl flex justify-end space-x-3">
+          <button
+            @click="showBlockModal = false; blockingCustomer = null"
+            class="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmBlockCustomer"
+            :disabled="!blockForm.reason || submitting"
+            class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center"
+          >
+            <svg v-if="submitting" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            {{ submitting ? '處理中...' : '確認封鎖' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 查看客戶詳情 Modal -->
     <div v-if="showViewModal && viewingCustomer" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
       <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -673,8 +869,8 @@
                   <span v-if="viewingCustomer.line_user_id" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                     LINE
                   </span>
-                  <span :class="getStatusBadgeClass(viewingCustomer.status)" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
-                    {{ getStatusText(viewingCustomer.status) }}
+                  <span :class="getStatusBadgeClass(getCustomerActivityStatus(viewingCustomer))" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
+                    {{ getStatusText(getCustomerActivityStatus(viewingCustomer)) }}
                   </span>
                   <span :class="getLevelBadgeClass(viewingCustomer.level)" class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium">
                     {{ getLevelText(viewingCustomer.level) }}
@@ -855,48 +1051,224 @@
             </div>
           </div>
 
+          <!-- 查看預約歷史按鈕 -->
+          <div class="bg-white rounded-xl border border-gray-200 p-4">
+            <button
+              @click="openReservationHistory(viewingCustomer)"
+              class="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 shadow-sm"
+            >
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              <span class="font-medium">查看預約歷史記錄</span>
+              <span class="ml-2 px-2 py-0.5 bg-white bg-opacity-20 rounded text-xs">
+                {{ viewingCustomer.total_reservations || 0 }} 筆
+              </span>
+            </button>
+          </div>
+
           <!-- 快速操作按鈕 -->
-          <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              @click="toggleBlockCustomer(viewingCustomer); showViewModal = false"
-              :class="[
-                'px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 flex items-center',
-                viewingCustomer.status === 'blocked'
-                  ? 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-500'
-                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200 focus:ring-orange-500'
-              ]"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path v-if="viewingCustomer.status === 'blocked'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              {{ viewingCustomer.status === 'blocked' ? '解除封鎖' : '封鎖客戶' }}
-            </button>
-            <button
-              @click="editCustomer(viewingCustomer); showViewModal = false"
-              class="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              編輯資料
-            </button>
-            <button
-              @click="showViewModal = false; viewingCustomer = null"
-              class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
-            >
-              關閉
-            </button>
+          <div class="flex justify-end items-center pt-4 border-t border-gray-200">
+            <div class="flex space-x-3">
+              <button
+                @click="toggleBlockCustomer(viewingCustomer); showViewModal = false"
+                :class="[
+                  'px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 flex items-center',
+                  viewingCustomer.status === 'blocked'
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-500'
+                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200 focus:ring-orange-500'
+                ]"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path v-if="viewingCustomer.status === 'blocked'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                {{ viewingCustomer.status === 'blocked' ? '解除封鎖' : '封鎖客戶' }}
+              </button>
+              <button
+                @click="editCustomer(viewingCustomer); showViewModal = false"
+                class="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 flex items-center"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                編輯資料
+              </button>
+              <button
+                @click="showViewModal = false; viewingCustomer = null"
+                class="px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
+              >
+                關閉
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- 預約歷史 Modal -->
+    <div v-if="showReservationHistoryModal && viewingCustomer" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- Modal 標題 -->
+        <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-xl sticky top-0 z-10">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-gray-900">預約歷史記錄</h3>
+                <p class="text-sm text-gray-600 mt-0.5">
+                  {{ viewingCustomer.line_display_name || viewingCustomer.name }} 的所有預約記錄
+                </p>
+              </div>
+            </div>
+            <button
+              @click="showReservationHistoryModal = false; customerReservations = []"
+              class="p-2 text-gray-400 hover:text-gray-600 hover:bg-white hover:bg-opacity-50 rounded-lg transition-colors"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Modal 內容 -->
+        <div class="p-6">
+          <!-- 載入中 -->
+          <div v-if="loadingReservations" class="text-center py-12">
+            <div class="inline-flex items-center justify-center w-12 h-12">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+            <p class="mt-4 text-sm text-gray-500">載入預約記錄中...</p>
+          </div>
+          
+          <!-- 無預約記錄 -->
+          <div v-else-if="!customerReservations || customerReservations.length === 0" class="text-center py-12">
+            <div class="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">尚無預約記錄</h3>
+            <p class="text-sm text-gray-500">此客戶目前還沒有任何預約記錄</p>
+          </div>
+          
+          <!-- 預約列表 -->
+          <div v-else class="space-y-4">
+            <div
+              v-for="reservation in customerReservations"
+              :key="reservation.id"
+              class="border-l-4 pl-5 py-4 rounded-r-lg hover:shadow-md transition-all duration-200"
+              :class="{
+                'border-green-500 bg-green-50': reservation.status === 'confirmed' && reservation.check_in_status !== 'no_show',
+                'border-yellow-500 bg-yellow-50': reservation.status === 'pending',
+                'border-gray-500 bg-gray-50': reservation.status === 'cancelled',
+                'border-red-500 bg-red-50': reservation.check_in_status === 'no_show'
+              }"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <!-- 日期時間 -->
+                  <div class="flex items-center space-x-2 mb-3">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-lg font-semibold text-gray-900">
+                      {{ reservation.date }}
+                    </span>
+                    <span class="text-gray-500">{{ reservation.available_time?.start_time }}</span>
+                  </div>
+                  
+                  <!-- 服務資訊 -->
+                  <div class="flex items-center space-x-2 mb-2">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-base text-gray-700 font-medium">
+                      {{ reservation.service?.name || '未指定服務' }}
+                    </span>
+                  </div>
+                  
+                  <!-- 金額 -->
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                    <span class="text-base font-semibold text-green-700">
+                      NT$ {{ reservation.payment_amount ? Number(reservation.payment_amount).toLocaleString() : (reservation.service?.price ? Number(reservation.service.price).toLocaleString() : '0') }}
+                    </span>
+                  </div>
+                  
+                  <!-- 備註 -->
+                  <div v-if="reservation.notes" class="mt-3 pt-3 border-t border-gray-200">
+                    <div class="flex items-start space-x-2">
+                      <svg class="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      <p class="text-sm text-gray-600">{{ reservation.notes }}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 狀態標籤 -->
+                <div class="flex flex-col items-end space-y-2 ml-4">
+                  <span
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                    :class="{
+                      'bg-green-100 text-green-800': reservation.status === 'confirmed',
+                      'bg-yellow-100 text-yellow-800': reservation.status === 'pending',
+                      'bg-gray-100 text-gray-800': reservation.status === 'cancelled'
+                    }"
+                  >
+                    {{ reservation.status === 'confirmed' ? '已確認' : reservation.status === 'pending' ? '待確認' : '已取消' }}
+                  </span>
+                  
+                  <span
+                    v-if="reservation.check_in_status"
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                    :class="{
+                      'bg-blue-100 text-blue-800': reservation.check_in_status === 'checked_in',
+                      'bg-orange-100 text-orange-800': reservation.check_in_status === 'late',
+                      'bg-red-100 text-red-800': reservation.check_in_status === 'no_show'
+                    }"
+                  >
+                    {{ reservation.check_in_status === 'checked_in' ? '✓ 已報到' : reservation.check_in_status === 'late' ? '⏰ 遲到' : '✗ 爽約' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Modal 底部 -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl flex justify-end">
+          <button
+            @click="showReservationHistoryModal = false; customerReservations = []"
+            class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
+          >
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api.js'
+
+// Debounce 函數
+function debounce(fn, delay) {
+  let timeoutId
+  return function (...args) {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn.apply(this, args), delay)
+  }
+}
 
 // API 基礎設定
 
@@ -924,9 +1296,16 @@ const searchForm = reactive({
 // Modal 狀態
 const showAddModal = ref(false)
 const showEditModal = ref(false)
+const showBlockModal = ref(false)
+const showDeleteModal = ref(false)
+const blockingCustomer = ref(null)
+const deletingCustomer = ref(null)
+const deleteConfirmText = ref('')
 const currentCustomer = ref(null)
 const submitting = ref(false)
 const calculatingStats = ref(false)
+const lastRecalculateTime = ref({}) // 記錄每個客戶的上次計算時間
+const recalculateCooldown = 30 // 冷卻時間（秒）
 
 // 客戶表單
 const customerForm = reactive({
@@ -936,6 +1315,12 @@ const customerForm = reactive({
   gender: '',
   birthday: '',
   address: '',
+  notes: ''
+})
+
+// 封鎖表單
+const blockForm = reactive({
+  reason: '',
   notes: ''
 })
 
@@ -994,6 +1379,19 @@ function searchCustomers() {
   searchForm.page = 1
   fetchCustomers()
 }
+
+// 建立 debounced 搜尋函數
+const debouncedSearch = debounce(() => {
+  searchCustomers()
+}, 500)
+
+// 監聽搜尋表單變化，自動觸發搜尋
+watch(
+  () => [searchForm.search, searchForm.status, searchForm.level],
+  () => {
+    debouncedSearch()
+  }
+)
 
 // 換頁
 function changePage(page) {
@@ -1085,30 +1483,42 @@ async function updateCustomer() {
   }
 }
 
-// 刪除客戶
-async function deleteCustomer(customer) {
-  const customerName = customer.line_display_name || customer.name || '未知客戶'
-  if (!confirm(`確定要刪除客戶「${customerName}」嗎？`)) return
+// 刪除客戶 - 顯示確認 Modal
+function deleteCustomer(customer) {
+  deletingCustomer.value = customer
+  deleteConfirmText.value = ''
+  showDeleteModal.value = true
+}
+
+// 確認刪除客戶
+async function confirmDeleteCustomer() {
+  const customerName = deletingCustomer.value.line_display_name || deletingCustomer.value.name || '未知客戶'
+  
+  if (deleteConfirmText.value !== customerName) {
+    alert('輸入的客戶姓名不符，請重新確認')
+    return
+  }
+  
+  submitting.value = true
   
   try {
-    await apiDelete(`/customers/${customer.id}`)
-    // 成功刪除後刷新數據
+    await apiDelete(`/customers/${deletingCustomer.value.id}`)
+    
+    showDeleteModal.value = false
+    deletingCustomer.value = null
+    deleteConfirmText.value = ''
+    
     await fetchCustomers()
     await fetchStatistics()
     
-    // 顯示成功訊息
-    if (import.meta.env.DEV) {
-      console.log(`客戶「${customerName}」已成功刪除`)
-    }
+    alert(`客戶「${customerName}」已成功刪除`)
   } catch (err) {
-    // 處理不同類型的錯誤
     if (err.message.includes('No query results for model') || err.message.includes('404')) {
-      // 客戶已不存在，直接刷新列表
+      showDeleteModal.value = false
       alert(`客戶「${customerName}」已不存在，將自動刷新列表`)
       await fetchCustomers()
       await fetchStatistics()
     } else {
-      // 其他錯誤
       error.value = err.message
       alert(`刪除客戶失敗：${err.message}`)
     }
@@ -1116,6 +1526,8 @@ async function deleteCustomer(customer) {
     if (import.meta.env.DEV) {
       console.error('刪除客戶失敗:', err)
     }
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -1123,49 +1535,94 @@ async function deleteCustomer(customer) {
 async function toggleBlockCustomer(customer) {
   const customerName = customer.line_display_name || customer.name || '未知客戶'
   const isBlocked = customer.status === 'blocked'
-  const action = isBlocked ? '解除封鎖' : '封鎖'
   
-  const confirmMessage = isBlocked 
-    ? `確定要解除封鎖客戶「${customerName}」嗎？解除後該客戶可以正常進行預約。`
-    : `確定要封鎖客戶「${customerName}」嗎？封鎖後該客戶將無法進行任何預約（包括LINE預約）。`
+  if (isBlocked) {
+    // 解除封鎖 - 直接確認
+    if (!confirm(`確定要解除封鎖客戶「${customerName}」嗎？解除後該客戶可以正常進行預約。`)) return
+    
+    try {
+      await apiPost(`/customers/${customer.id}/unblock`)
+      await fetchCustomers()
+      await fetchStatistics()
+      alert(`已成功解除封鎖客戶「${customerName}」`)
+    } catch (err) {
+      handleApiError(err, '解除封鎖', customerName)
+    }
+  } else {
+    // 封鎖客戶 - 顯示封鎖 Modal
+    blockingCustomer.value = customer
+    blockForm.reason = ''
+    blockForm.notes = ''
+    showBlockModal.value = true
+  }
+}
+
+// 確認封鎖客戶
+async function confirmBlockCustomer() {
+  if (!blockForm.reason) {
+    alert('請選擇封鎖原因')
+    return
+  }
   
-  if (!confirm(confirmMessage)) return
+  submitting.value = true
+  const customerName = blockingCustomer.value.line_display_name || blockingCustomer.value.name || '未知客戶'
   
   try {
-    const endpoint = isBlocked 
-      ? `/customers/${customer.id}/unblock`
-      : `/customers/${customer.id}/block`
+    await apiPost(`/customers/${blockingCustomer.value.id}/block`, {
+      reason: blockForm.reason,
+      notes: blockForm.notes
+    })
     
-    await apiPost(endpoint)
-    
-    // 成功後刷新數據
+    showBlockModal.value = false
+    blockingCustomer.value = null
     await fetchCustomers()
     await fetchStatistics()
     
-    alert(`已成功${action}客戶「${customerName}」`)
+    alert(`已成功封鎖客戶「${customerName}」`)
   } catch (err) {
-    if (err.message.includes('No query results for model') || err.message.includes('404')) {
-      alert(`客戶「${customerName}」已不存在，將自動刷新列表`)
-      await fetchCustomers()
-      await fetchStatistics()
-    } else {
-      error.value = err.message
-      alert(`${action}客戶失敗：${err.message}`)
-    }
-    
-    if (import.meta.env.DEV) {
-      console.error(`${action}客戶失敗:`, err)
-    }
+    handleApiError(err, '封鎖', customerName)
+  } finally {
+    submitting.value = false
   }
 }
 
 // 查看客戶詳情
 const showViewModal = ref(false)
+const showReservationHistoryModal = ref(false)
 const viewingCustomer = ref(null)
+const customerReservations = ref([])
+const loadingReservations = ref(false)
 
-function viewCustomer(customer) {
+async function viewCustomer(customer) {
   viewingCustomer.value = customer
   showViewModal.value = true
+  
+  // 載入客戶的預約歷史
+  await fetchCustomerReservations(customer.id)
+}
+
+// 獲取客戶預約歷史
+async function fetchCustomerReservations(customerId) {
+  loadingReservations.value = true
+  
+  try {
+    const data = await apiGet(`/customers/${customerId}`)
+    if (data && data.data && data.data.reservations) {
+      customerReservations.value = data.data.reservations
+    }
+  } catch (err) {
+    console.error('載入預約歷史失敗:', err)
+    customerReservations.value = []
+  } finally {
+    loadingReservations.value = false
+  }
+}
+
+// 打開預約歷史 Modal
+async function openReservationHistory(customer) {
+  viewingCustomer.value = customer
+  showReservationHistoryModal.value = true
+  await fetchCustomerReservations(customer.id)
 }
 
 // 通用錯誤處理函數
@@ -1230,9 +1687,27 @@ function getStatusText(status) {
   const texts = {
     'active': '活躍',
     'inactive': '非活躍',
-      'blocked': '已封鎖'
+    'blocked': '已封鎖'
   }
   return texts[status] || status
+}
+
+// 根據最後互動時間動態判斷活躍狀態
+function getCustomerActivityStatus(customer) {
+  if (customer.status === 'blocked') {
+    return 'blocked'
+  }
+  
+  if (!customer.last_interaction_at) {
+    return 'inactive'
+  }
+  
+  const lastInteraction = new Date(customer.last_interaction_at)
+  const now = new Date()
+  const daysDiff = Math.floor((now - lastInteraction) / (1000 * 60 * 60 * 24))
+  
+  // 30 天內有互動視為活躍
+  return daysDiff <= 30 ? 'active' : 'inactive'
 }
 
 function formatDate(dateString) {
@@ -1268,13 +1743,53 @@ async function recalculateAllStats() {
   }
 }
 
+// 檢查是否可以重新計算統計（冷卻時間檢查）
+function canRecalculateStats(customerId) {
+  const lastTime = lastRecalculateTime.value[customerId]
+  if (!lastTime) return true
+  
+  const now = Date.now()
+  const timePassed = (now - lastTime) / 1000 // 轉換為秒
+  return timePassed >= recalculateCooldown
+}
+
+// 獲取剩餘冷卻時間
+function getRemainingCooldown(customerId) {
+  const lastTime = lastRecalculateTime.value[customerId]
+  if (!lastTime) return 0
+  
+  const now = Date.now()
+  const timePassed = (now - lastTime) / 1000
+  const remaining = recalculateCooldown - timePassed
+  return Math.max(0, Math.ceil(remaining))
+}
+
 // 重新計算單一客戶統計數據
 async function recalculateCustomerStats(customerId) {
+  // 檢查冷卻時間
+  if (!canRecalculateStats(customerId)) {
+    const remaining = getRemainingCooldown(customerId)
+    alert(`請稍後再試，冷卻時間剩餘 ${remaining} 秒`)
+    return
+  }
+  
+  calculatingStats.value = true
+  
   try {
     const response = await apiPost(`/customers/${customerId}/recalculate-stats`)
     if (response.success) {
-      // 刷新客戶列表
+      // 記錄計算時間
+      lastRecalculateTime.value[customerId] = Date.now()
+      
+      // 刷新客戶列表和詳情
       await fetchCustomers()
+      
+      // 如果正在查看該客戶的詳情，也刷新預約歷史
+      if (viewingCustomer.value && viewingCustomer.value.id === customerId) {
+        await fetchCustomerReservations(customerId)
+      }
+      
+      alert('統計數據已更新成功')
       
       if (import.meta.env.DEV) {
         console.log('客戶統計數據更新成功:', response.message)
@@ -1295,6 +1810,8 @@ async function recalculateCustomerStats(customerId) {
     if (import.meta.env.DEV) {
       console.error('重新計算客戶統計數據失敗:', err)
     }
+  } finally {
+    calculatingStats.value = false
   }
 }
 

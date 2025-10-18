@@ -469,7 +469,7 @@ class CustomerController extends Controller
     }
 
     // 封鎖客戶
-    public function block(Customer $customer)
+    public function block(Request $request, Customer $customer)
     {
         if ($customer->status === 'blocked') {
             return response()->json([
@@ -478,11 +478,34 @@ class CustomerController extends Controller
             ], 422);
         }
 
+        // 驗證封鎖原因
+        $request->validate([
+            'reason' => 'required|string|in:no_show,late,rude,payment,spam,other',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
         $customer->update(['status' => 'blocked']);
+
+        $blockReason = $request->input('reason');
+        $blockNotes = $request->input('notes', '');
+        
+        // 封鎖原因對照
+        $reasonTexts = [
+            'no_show' => '多次爽約（未到場）',
+            'late' => '經常遲到',
+            'rude' => '態度不佳或言行不當',
+            'payment' => '付款問題',
+            'spam' => '疑似濫用或騷擾',
+            'other' => '其他原因'
+        ];
+        
+        $reasonText = $reasonTexts[$blockReason] ?? $blockReason;
 
         Log::info('Customer blocked', [
             'customer_id' => $customer->id,
-            'name' => $customer->name
+            'name' => $customer->name,
+            'reason' => $blockReason,
+            'notes' => $blockNotes
         ]);
 
         // 記錄操作到資料庫
@@ -490,12 +513,19 @@ class CustomerController extends Controller
             'blocked',
             'customers',
             "封鎖客戶: {$customer->name}",
-            ['customer_id' => $customer->id, 'old_status' => 'active', 'new_status' => 'blocked']
+            [
+                'customer_id' => $customer->id,
+                'old_status' => 'active',
+                'new_status' => 'blocked',
+                'reason' => $reasonText,
+                'notes' => $blockNotes,
+                'blocked_at' => now()->toDateTimeString()
+            ]
         );
 
         return response()->json([
             'success' => true,
-            'message' => '客戶已封鎖，將無法進行任何預約',
+            'message' => "客戶已封鎖（原因：{$reasonText}），將無法進行任何預約",
             'data' => $customer->fresh()
         ]);
     }
