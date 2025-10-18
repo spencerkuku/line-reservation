@@ -261,9 +261,9 @@
         </div>
       </div>
 
-      <!-- 報到提醒設定卡片 -->
+      <!-- 報到提醒設定卡片 - 暫時停用此功能 -->
+      <!--
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-        <!-- 卡片標題 -->
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div class="flex items-center">
             <div class="flex-shrink-0">
@@ -278,10 +278,8 @@
           </div>
         </div>
 
-        <!-- 報到提醒設定表單 -->
         <div class="p-6">
           <form @submit.prevent="saveCheckInSettings" class="space-y-6">
-            <!-- 報到提醒開關 -->
             <div>
               <div class="flex items-center justify-between">
                 <div class="flex-1">
@@ -312,7 +310,6 @@
               </div>
             </div>
 
-            <!-- 商家地址設定 -->
             <div>
               <label for="businessAddress" class="text-sm font-medium text-gray-700 mb-2 block">
                 商家地址
@@ -330,7 +327,6 @@
               </p>
             </div>
 
-            <!-- 設定說明 -->
             <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <div class="flex items-start">
                 <div class="flex-shrink-0">
@@ -350,7 +346,6 @@
               </div>
             </div>
 
-            <!-- Cron 設定說明 -->
             <div v-if="checkInReminderEnabled" class="bg-gray-50 border border-gray-300 rounded-lg p-4">
               <h4 class="text-sm font-semibold text-gray-900 mb-2">Cron 設定指令</h4>
               <p class="text-xs text-gray-600 mb-2">請在伺服器執行以下指令設定排程：</p>
@@ -361,7 +356,6 @@
               </div>
             </div>
 
-            <!-- 保存按鈕 -->
             <div class="flex justify-end">
               <button
                 type="submit"
@@ -377,7 +371,6 @@
             </div>
           </form>
 
-          <!-- 成功訊息 -->
           <div v-if="checkInSuccessMessage" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <div class="flex items-center">
               <svg class="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -388,6 +381,7 @@
           </div>
         </div>
       </div>
+      -->
 
       <!-- LINE Bot 設定指南 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -483,10 +477,12 @@ const hasExistingSecret = ref(false)
 const reservationConfirmMode = ref('auto') // 預設為自動確認
 const reservationSuccessMessage = ref('')
 
-// 報到提醒設定
+// 報到提醒設定 - 暫時停用此功能
+/*
 const checkInReminderEnabled = ref(false)
 const businessAddress = ref('')
 const checkInSuccessMessage = ref('')
+*/
 
 // 顯示後端返回的遮蔽版本
 const currentAccessToken = ref('')
@@ -530,8 +526,8 @@ async function fetchSettings() {
     // 獲取預約設定
     await fetchReservationSettings()
     
-    // 獲取報到提醒設定
-    await fetchCheckInSettings()
+    // 獲取報到提醒設定 - 暫時停用此功能
+    // await fetchCheckInSettings()
   } catch (err) {
     console.error('Error fetching settings:', err) // 顯示所有錯誤
   } finally {
@@ -634,7 +630,8 @@ async function saveReservationSettings() {
   }
 }
 
-// 獲取報到提醒設定
+// 獲取報到提醒設定 - 暫時停用此功能
+/*
 async function fetchCheckInSettings() {
   try {
     const response = await apiGet('/settings')
@@ -689,6 +686,7 @@ async function saveCheckInSettings() {
     loading.value = false
   }
 }
+*/
 
 
 // 頁面載入時獲取設定
