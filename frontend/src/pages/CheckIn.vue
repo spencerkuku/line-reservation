@@ -139,7 +139,7 @@
                         :class="getLevelBadgeClass(reservation.customer.customer_level)"
                         class="px-2 py-0.5 text-xs font-bold rounded-full flex-shrink-0"
                       >
-                        {{ reservation.customer.customer_level }}
+                        {{ getLevelText(reservation.customer.customer_level) }}
                       </span>
                     </div>
                     
@@ -273,7 +273,7 @@
                     :class="getLevelBadgeClass(selectedReservation.customer.customer_level)"
                     class="px-2 py-0.5 text-xs font-bold rounded-full"
                   >
-                    {{ selectedReservation.customer.customer_level }}
+                    {{ getLevelText(selectedReservation.customer.customer_level) }}
                   </span>
                 </div>
                 <div class="text-sm text-gray-700 font-medium">{{ selectedReservation?.reservation_name }}</div>
@@ -533,6 +533,17 @@ const getLevelBadgeClass = (level) => {
     'Bronze': 'bg-gradient-to-r from-orange-300 to-orange-400 text-gray-900'
   };
   return classes[level] || 'bg-gray-200 text-gray-700';
+};
+
+// 將英文等級轉換為中文
+const getLevelText = (level) => {
+  const levelTexts = {
+    'VIP': 'VIP會員',
+    'Gold': '金牌會員',
+    'Silver': '銀牌會員',
+    'Bronze': '銅牌會員'
+  };
+  return levelTexts[level] || level;
 };
 
 onMounted(() => {
