@@ -201,6 +201,9 @@ class CustomerController extends Controller
 
         $customer->level = $customer->customer_level;
         
+        // 計算所有預約記錄的總筆數（用於顯示歷史記錄數量）
+        $allReservationsCount = $customer->reservations()->count();
+        
         // 計算實際的總預約次數（排除爽約）和總消費金額（基於實際收到的付款）
         $totalReservations = $customer->reservations()
             ->where('status', 'confirmed')
@@ -224,6 +227,7 @@ class CustomerController extends Controller
             ->where('check_in_status', 'late')
             ->count();
         
+        $customer->setAttribute('all_reservations_count', $allReservationsCount);
         $customer->setAttribute('total_reservations', $totalReservations);
         $customer->setAttribute('total_spent', $totalSpent);
         $customer->setAttribute('no_show_count', $noShowCount);

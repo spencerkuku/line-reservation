@@ -991,7 +991,7 @@
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm text-blue-600 font-medium">總預約次數</p>
-                    <p class="text-2xl font-bold text-blue-900 mt-1">{{ viewingCustomer.total_reservations || 0 }}</p>
+                    <p class="text-2xl font-bold text-blue-900 mt-1">{{ viewingCustomer.all_reservations_count || viewingCustomer.total_reservations || 0 }}</p>
                   </div>
                   <div class="w-12 h-12 bg-blue-200 rounded-full flex items-center justify-center">
                     <svg class="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1061,9 +1061,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
               <span class="font-medium">查看預約歷史記錄</span>
-              <span class="ml-2 px-2 py-0.5 bg-white bg-opacity-20 rounded text-xs">
-                {{ viewingCustomer.total_reservations || 0 }} 筆
-              </span>
             </button>
           </div>
 
@@ -1164,10 +1161,13 @@
               :key="reservation.id"
               class="border-l-4 pl-5 py-4 rounded-r-lg hover:shadow-md transition-all duration-200"
               :class="{
-                'border-green-500 bg-green-50': reservation.status === 'confirmed' && reservation.check_in_status !== 'no_show',
-                'border-yellow-500 bg-yellow-50': reservation.status === 'pending',
                 'border-gray-500 bg-gray-50': reservation.status === 'cancelled',
-                'border-red-500 bg-red-50': reservation.check_in_status === 'no_show'
+                'border-red-500 bg-red-50': reservation.check_in_status === 'no_show' && reservation.status !== 'cancelled',
+                'border-orange-500 bg-orange-50': reservation.check_in_status === 'late' && reservation.status !== 'cancelled',
+                'border-purple-500 bg-purple-50': reservation.status === 'completed',
+                'border-blue-500 bg-blue-50': reservation.check_in_status === 'checked_in' && reservation.status !== 'completed' && reservation.status !== 'cancelled',
+                'border-green-500 bg-green-50': reservation.status === 'confirmed' && !reservation.check_in_status,
+                'border-yellow-500 bg-yellow-50': reservation.status === 'pending'
               }"
             >
               <div class="flex items-start justify-between">
@@ -1204,31 +1204,41 @@
                   </div>
                   
                   <!-- 備註 -->
-                  <div v-if="reservation.notes" class="mt-3 pt-3 border-t border-gray-200">
+                  <div v-if="reservation.reservation_notes || reservation.notes" class="mt-3 pt-3 border-t border-gray-200">
                     <div class="flex items-start space-x-2">
                       <svg class="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                       </svg>
-                      <p class="text-sm text-gray-600">{{ reservation.notes }}</p>
+                      <div class="text-sm text-gray-600">
+                        <p v-if="reservation.reservation_notes" class="mb-1">
+                          <span class="font-medium text-gray-700">預約備註：</span>{{ reservation.reservation_notes }}
+                        </p>
+                        <p v-if="reservation.notes && reservation.notes !== reservation.reservation_notes">
+                          <span class="font-medium text-gray-700">系統備註：</span>{{ reservation.notes }}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
                 <!-- 狀態標籤 -->
                 <div class="flex flex-col items-end space-y-2 ml-4">
+                  <!-- 預約狀態 -->
                   <span
                     class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
                     :class="{
-                      'bg-green-100 text-green-800': reservation.status === 'confirmed',
+                      'bg-purple-100 text-purple-800': reservation.status === 'completed',
+                      'bg-green-100 text-green-800': reservation.status === 'confirmed' && reservation.status !== 'completed',
                       'bg-yellow-100 text-yellow-800': reservation.status === 'pending',
                       'bg-gray-100 text-gray-800': reservation.status === 'cancelled'
                     }"
                   >
-                    {{ reservation.status === 'confirmed' ? '已確認' : reservation.status === 'pending' ? '待確認' : '已取消' }}
+                    {{ reservation.status === 'completed' ? '✓ 已完成' : reservation.status === 'confirmed' ? '已確認' : reservation.status === 'pending' ? '待確認' : '已取消' }}
                   </span>
                   
+                  <!-- 報到狀態 -->
                   <span
-                    v-if="reservation.check_in_status"
+                    v-if="reservation.check_in_status && reservation.status !== 'completed' && reservation.status !== 'cancelled'"
                     class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
                     :class="{
                       'bg-blue-100 text-blue-800': reservation.check_in_status === 'checked_in',
@@ -1237,6 +1247,19 @@
                     }"
                   >
                     {{ reservation.check_in_status === 'checked_in' ? '✓ 已報到' : reservation.check_in_status === 'late' ? '⏰ 遲到' : '✗ 爽約' }}
+                  </span>
+                  
+                  <!-- 付款狀態 -->
+                  <span
+                    v-if="reservation.payment_status && reservation.payment_status !== 'unpaid'"
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                    :class="{
+                      'bg-green-100 text-green-800': reservation.payment_status === 'paid',
+                      'bg-yellow-100 text-yellow-800': reservation.payment_status === 'partial',
+                      'bg-gray-100 text-gray-800': reservation.payment_status === 'refunded'
+                    }"
+                  >
+                    {{ reservation.payment_status === 'paid' ? '💰 已付款' : reservation.payment_status === 'partial' ? '💰 部分付款' : '💰 已退款' }}
                   </span>
                 </div>
               </div>
