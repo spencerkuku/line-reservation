@@ -193,14 +193,12 @@ MAIL_ENCRYPTION=null
 MAIL_FROM_ADDRESS="noreply@line-reservation.com"
 MAIL_FROM_NAME="${APP_NAME}"
 
-# LINE Bot 設定
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-LINE_CHANNEL_SECRET=your_line_channel_secret
-
 # Sanctum 設定
 SANCTUM_STATEFUL_DOMAINS=localhost:5173,127.0.0.1:5173,localhost:3000,127.0.0.1:3000
 SESSION_DOMAIN=localhost
 ```
+
+**注意**: LINE Bot 設定（Channel Access Token 和 Channel Secret）是存儲在資料庫的 `settings` 表中，透過後台管理介面的「系統設定」頁面進行設定。
 
 #### 執行資料庫遷移
 
@@ -314,10 +312,10 @@ npm run dev -- --host 0.0.0.0
 | `DB_DATABASE` | 資料庫名稱 | `line_reservation` | ✅ |
 | `DB_USERNAME` | 資料庫用戶名 | `root` | ✅ |
 | `DB_PASSWORD` | 資料庫密碼 | `password` | ✅ |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Channel Access Token | `your_token` | ✅ |
-| `LINE_CHANNEL_SECRET` | LINE Channel Secret | `your_secret` | ✅ |
 | `MAIL_MAILER` | 郵件驅動 | `smtp`, `log` | ❌ |
 | `SANCTUM_STATEFUL_DOMAINS` | Sanctum 允許的域名 | `localhost:5173` | ✅ |
+
+**LINE Bot 設定說明**: LINE Channel Access Token 和 Channel Secret 儲存在資料庫 `settings` 表中，不在 `.env` 文件。請透過系統後台「系統設定」頁面進行配置。
 
 ### 前端環境變數完整說明
 
@@ -435,11 +433,21 @@ Password: password
 #### 基本設定
 
 1. 在 Channel 基本設定頁面找到：
-   - **Channel Secret**: 複製到 `.env` 的 `LINE_CHANNEL_SECRET`
+   - **Channel Secret**: 複製備用
    - **Channel ID**: 記錄備用
 
 2. 在 Messaging API 頁面：
-   - **Channel Access Token**: 點擊「Issue」生成，複製到 `.env` 的 `LINE_CHANNEL_ACCESS_TOKEN`
+   - **Channel Access Token**: 點擊「Issue」生成，複製備用
+
+3. 在系統後台設定：
+   - 登入系統管理後台
+   - 前往「系統設定」頁面
+   - 找到「LINE Bot 設定」區塊
+   - 填入 **Channel Access Token**
+   - 填入 **Channel Secret**
+   - 點擊「儲存設定」
+
+**重要**: LINE Bot 的憑證資訊儲存在資料庫的 `settings` 表中，而非 `.env` 文件。這樣可以在不重啟應用程式的情況下動態更新設定。
 
 #### Webhook 設定
 
@@ -698,10 +706,17 @@ npm run dev -- --port 3000
 # 確認 Webhook URL 可從外部訪問
 curl -X POST https://your-domain.com/api/line/webhook
 
-# 檢查 LINE_CHANNEL_SECRET 是否正確
+# 檢查資料庫中的 LINE Bot 設定
 php artisan tinker
-config('linebot.channel_secret')
+use App\Models\Setting;
+Setting::where('key', 'line_channel_secret')->value('value')
+Setting::where('key', 'line_channel_access_token')->value('value')
 ```
+
+**檢查清單**:
+1. 確認資料庫 `settings` 表中有正確的 LINE Bot 設定
+2. 在後台「系統設定」頁面重新儲存一次 LINE Bot 設定
+3. 檢查 Webhook URL 是否使用 HTTPS
 
 #### 問題: 無法接收訊息
 
@@ -713,13 +728,20 @@ config('linebot.channel_secret')
 #### 問題: 無法發送訊息
 
 ```bash
-# 測試 LINE API 連接
+# 檢查 LINE Bot 設定是否正確儲存
 php artisan tinker
 
+use App\Models\Setting;
+Setting::where('key', 'line_channel_access_token')->first();
+Setting::where('key', 'line_channel_secret')->first();
+
+# 測試 LINE API 連接
 use App\Services\LineBotService;
 $bot = app(LineBotService::class);
 $bot->pushMessage('用戶LINE ID', '測試訊息');
 ```
+
+**提醒**: 如果 LINE Bot 無法正常運作，請先確認資料庫 `settings` 表中已正確儲存 `line_channel_access_token` 和 `line_channel_secret`。
 
 ### 資料庫問題
 

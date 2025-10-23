@@ -171,11 +171,10 @@ line-reservation/
    DB_USERNAME=your_username
    DB_PASSWORD=your_password
    
-   LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
-   LINE_CHANNEL_SECRET=your_line_channel_secret
-   
    FRONTEND_URL=http://localhost:5173
    ```
+   
+   **注意**: LINE Bot 設定（Channel Access Token 和 Channel Secret）是存儲在資料庫的 `settings` 表中，透過後台管理介面進行設定，不需要在 `.env` 文件中配置。
 
 4. **生成應用程式金鑰**
    ```bash
