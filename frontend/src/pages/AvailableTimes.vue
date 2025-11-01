@@ -6,6 +6,25 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import zhTwLocale from '@fullcalendar/core/locales/zh-tw'
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api.js'
+import { 
+  Dialog, 
+  DialogPanel, 
+  DialogTitle, 
+  TransitionRoot, 
+  TransitionChild 
+} from '@headlessui/vue'
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  PlusIcon,
+  XMarkIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  UserGroupIcon,
+  ViewColumnsIcon
+} from '@heroicons/vue/24/outline'
 
 // 核心狀態
 const calendarEvents = ref([])
@@ -30,6 +49,12 @@ const editForm = ref({
   max_capacity: 1,
   reservations: []
 })
+
+// 視圖選單狀態
+const showViewMenu = ref(false)
+function toggleViewMenu() {
+  showViewMenu.value = !showViewMenu.value
+}
 
 // 用於手動時間輸入的格式化函數
 const formatDateTimeLocal = (date) => {
@@ -270,6 +295,8 @@ const calendarOptions = computed(() => ({
   selectable: true,
   selectMirror: true,
   editable: true,
+  eventStartEditable: true,  // 允許拖動移動事件
+  eventDurationEditable: false,  // 禁止調整大小
   
   // 事件樣式
   eventDisplay: 'block',
@@ -357,8 +384,8 @@ const calendarOptions = computed(() => ({
   select: handleTimeSelect,
   eventClick: handleSlotEdit,
   eventChange: handleSlotUpdate,
-  eventDrop: handleSlotDrop,
-  eventResize: handleSlotResize
+  eventDrop: handleSlotDrop
+  // eventResize 已移除 - 不允許調整大小
 }))
 
 // 不再使用 watcher 觸發全量刷新，改由 refreshCalendarSource 在資料變動後主動控制
@@ -455,26 +482,26 @@ async function handleSlotDrop(info) {
   await handleSlotUpdate(info)
 }
 
-// 調整大小處理
-async function handleSlotResize(info) {
-  const start = new Date(info.event.start)
-  const end = new Date(info.event.end)
-  const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60))
-  
-  if (durationMinutes < 30) {
-    info.revert()
-    showToast('error', '時段不得少於30分鐘')
-    return
-  }
-  
-  if (durationMinutes > 480) {
-    info.revert()
-    showToast('error', '時段不得超過8小時')
-    return
-  }
-  
-  await handleSlotUpdate(info)
-}
+// 調整大小處理 - 已停用,僅允許拖動移動
+// async function handleSlotResize(info) {
+//   const start = new Date(info.event.start)
+//   const end = new Date(info.event.end)
+//   const durationMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60))
+//   
+//   if (durationMinutes < 30) {
+//     info.revert()
+//     showToast('error', '時段不得少於30分鐘')
+//     return
+//   }
+//   
+//   if (durationMinutes > 480) {
+//     info.revert()
+//     showToast('error', '時段不得超過8小時')
+//     return
+//   }
+//   
+//   await handleSlotUpdate(info)
+// }
 
 // 快速建立功能
 async function createQuickSlot() {
@@ -709,214 +736,411 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 p-2 md:p-6 overflow-hidden">
-    <!-- 頁面標題和工具列 -->
-
-
-    <!-- 手機優化的工具列 -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between p-2 md:p-6 border-b border-gray-200 bg-white rounded-t-xl mb-2 md:mb-6 gap-3 md:gap-0">
-      <!-- 日曆導航 - 手機版優化 -->
-      <div class="flex items-center justify-between md:justify-start gap-1 md:gap-2">
-        <div class="flex items-center gap-1 md:gap-2">
-          <button @click="goToToday" class="px-3 py-2.5 md:px-4 md:py-2 text-sm md:text-sm font-semibold text-gray-700 bg-transparent border-0 rounded-lg cursor-pointer transition-all duration-150 hover:bg-gray-100 hover:text-gray-900 min-h-[44px] md:min-h-auto active:scale-95 touch-manipulation">今天</button>
-          <button @click="navigatePrev" class="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-all duration-150 text-xl md:text-sm hover:bg-gray-100 active:scale-95 touch-manipulation">‹</button>
-          <button @click="navigateNext" class="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 border-0 rounded-full bg-transparent text-gray-500 cursor-pointer transition-all duration-150 text-xl md:text-sm hover:bg-gray-100 active:scale-95 touch-manipulation">›</button>
+  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-0 md:p-6 overflow-hidden">
+    <!-- 專業級工具列 - Google Calendar 風格 -->
+    <div class="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+      <div class="max-w-[1800px] mx-auto px-4 md:px-6 py-3 md:py-4">
+        <div class="flex items-center justify-between gap-4">
+          <!-- 左側：Logo + 導航控制 -->
+          <div class="flex items-center gap-3 md:gap-4">
+            <!-- Logo/選單圖示 -->
+            <div class="flex items-center gap-3">
+              <h1 class="hidden md:block text-xl font-bold text-gray-900">可預約時段</h1>
+            </div>
+            
+            <!-- 導航按鈕組 -->
+            <div class="flex items-center gap-2">
+              <button 
+                @click="goToToday" 
+                class="px-3 py-2 md:px-4 md:py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-indigo-400 hover:text-indigo-600 transition-all duration-200 active:scale-95 touch-manipulation shadow-sm"
+              >
+                今天
+              </button>
+              <button 
+                @click="navigatePrev" 
+                class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200 active:scale-95 touch-manipulation"
+              >
+                <ChevronLeftIcon class="w-5 h-5" />
+              </button>
+              <button 
+                @click="navigateNext" 
+                class="p-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200 active:scale-95 touch-manipulation"
+              >
+                <ChevronRightIcon class="w-5 h-5" />
+              </button>
+            </div>
+            
+            <!-- 當前日期顯示 -->
+            <h2 class="text-lg md:text-xl font-bold text-gray-900">{{ currentPeriod }}</h2>
+          </div>
+          
+          <!-- 右側：視圖切換 + 設定 -->
+          <div class="flex items-center gap-3">
+            <!-- 視圖切換 - Segmented Control -->
+            <div class="hidden md:flex bg-gray-100 rounded-lg p-1 gap-1">
+              <button 
+                @click="changeView('timeGridDay')"
+                :class="[
+                  'px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200',
+                  currentView === 'timeGridDay' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                ]"
+              >
+                日
+              </button>
+              <button 
+                @click="changeView('timeGridWeek')"
+                :class="[
+                  'px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200',
+                  currentView === 'timeGridWeek' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                ]"
+              >
+                週
+              </button>
+              <button 
+                @click="changeView('dayGridMonth')"
+                :class="[
+                  'px-4 py-2 text-sm font-semibold rounded-md transition-all duration-200',
+                  currentView === 'dayGridMonth' 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                ]"
+              >
+                月
+              </button>
+            </div>
+            
+            <!-- 手機版視圖選擇器 -->
+            <button 
+              @click="toggleViewMenu"
+              class="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-all duration-200"
+            >
+              <ViewColumnsIcon class="w-6 h-6" />
+            </button>
+          </div>
         </div>
-        <h2 class="text-base md:text-lg font-bold text-gray-900 mx-2 md:mx-4">{{ currentPeriod }}</h2>
       </div>
-      
-      <!-- 檢視切換 - 手機版優化 -->
-      <div class="flex border-2 border-gray-300 rounded-xl overflow-hidden w-full md:w-auto shadow-sm">
+    </div>
+    
+    <!-- 手機版視圖選擇 Menu -->
+    <Transition
+      enter-active-class="transition ease-out duration-200"
+      enter-from-class="opacity-0 -translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition ease-in duration-150"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 -translate-y-2"
+    >
+      <div v-if="showViewMenu" class="md:hidden absolute top-[60px] right-4 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-30 min-w-[160px]">
         <button 
-          @click="changeView('timeGridWeek')"
+          @click="changeView('timeGridDay'); toggleViewMenu()"
           :class="[
-            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95',
-            currentView === 'timeGridWeek' 
-              ? 'bg-blue-500 text-white shadow-inner' 
-              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            'w-full px-4 py-3 text-left text-sm font-medium transition-colors',
+            currentView === 'timeGridDay' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
           ]"
         >
-          週
+          日檢視
         </button>
         <button 
-          @click="changeView('timeGridDay')"
+          @click="changeView('timeGridWeek'); toggleViewMenu()"
           :class="[
-            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95 border-l-2 border-gray-300',
-            currentView === 'timeGridDay' 
-              ? 'bg-blue-500 text-white shadow-inner' 
-              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            'w-full px-4 py-3 text-left text-sm font-medium transition-colors border-t border-gray-100',
+            currentView === 'timeGridWeek' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
           ]"
         >
-          日
+          週檢視
         </button>
         <button 
-          @click="changeView('dayGridMonth')"
+          @click="changeView('dayGridMonth'); toggleViewMenu()"
           :class="[
-            'flex-1 md:flex-none px-4 py-3 md:px-4 md:py-2 border-0 text-sm md:text-sm font-bold cursor-pointer transition-all duration-150 min-h-[48px] md:min-h-auto touch-manipulation active:scale-95 border-l-2 border-gray-300',
-            currentView === 'dayGridMonth' 
-              ? 'bg-blue-500 text-white shadow-inner' 
-              : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            'w-full px-4 py-3 text-left text-sm font-medium transition-colors border-t border-gray-100',
+            currentView === 'dayGridMonth' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
           ]"
         >
-          月
+          月檢視
         </button>
+      </div>
+    </Transition>
+
+    <!-- 主要日曆區域 -->
+    <div class="max-w-[1800px] mx-auto px-0 md:px-6 py-4">
+      <div class="bg-white rounded-none md:rounded-2xl shadow-lg border-0 md:border border-gray-200 overflow-hidden relative">
+        <!-- 骨架屏 Loading -->
+        <div v-if="isLoading" class="absolute inset-0 bg-white bg-opacity-95 z-20 backdrop-blur-sm">
+          <div class="flex flex-col items-center justify-center h-full">
+            <div class="w-12 h-12 border-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p class="mt-4 text-gray-600 text-sm font-medium">載入中...</p>
+          </div>
+        </div>
+        
+        <FullCalendar 
+          ref="calendarRef"
+          :options="calendarOptions" 
+          class="p-4 md:p-6 calendar-container"
+        />
       </div>
     </div>
 
-    <!-- 主要日曆區域 - 修復手機版顯示 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
-      <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10">
-        <div class="w-8 h-8 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
-        <p class="mt-3 text-gray-500 text-sm">載入中...</p>
-      </div>
-      
-      <FullCalendar 
-        ref="calendarRef"
-        :options="calendarOptions" 
-        class="p-2 md:p-6"
-      />
-    </div>
+    <!-- 精緻的快速建立對話框 - Apple 風格 -->
+    <TransitionRoot appear :show="showQuickCreate" as="template">
+      <Dialog as="div" @close="cancelQuickCreate" class="relative z-50">
+        <TransitionChild
+          as="template"
+          enter="duration-300 ease-out"
+          enter-from="opacity-0"
+          enter-to="opacity-100"
+          leave="duration-200 ease-in"
+          leave-from="opacity-100"
+          leave-to="opacity-0"
+        >
+          <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" />
+        </TransitionChild>
 
-    <!-- 手機優化的快速建立氣泡 -->
-    <div v-if="showQuickCreate" class="fixed bg-white border border-gray-300 rounded-xl shadow-lg p-4 md:p-5 w-[calc(100vw-2rem)] md:min-w-80 md:w-auto z-[1000] top-4 left-4 right-4 md:top-1/2 md:left-1/2 md:right-auto md:transform md:-translate-x-1/2 md:-translate-y-1/2 max-h-[calc(100vh-2rem)] overflow-y-auto">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-gray-900 m-0">新增時段</h3>
-        <button @click="cancelQuickCreate" class="w-10 h-10 md:w-8 md:h-8 border-0 rounded-full bg-transparent text-gray-500 text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-100 hover:text-gray-700">×</button>
-      </div>
-      <input 
-        ref="quickInput"
-        v-model="quickSlotTitle"
-        placeholder="可預約時段"
-        @keyup.enter="createQuickSlot"
-        @keyup.escape="cancelQuickCreate"
-        class="w-full border border-gray-200 rounded-lg outline-none text-base font-medium text-gray-900 mb-4 bg-white placeholder-gray-400 px-4 py-3 md:py-2 md:border-0 md:bg-transparent focus:border-blue-500 md:focus:border-0"
-      />
-      <div class="text-gray-600 text-sm mb-6 md:mb-4 font-medium p-3 bg-gray-50 rounded-lg md:p-0 md:bg-transparent">
-        {{ formatTimeRange(selectedTime) }}
-      </div>
-      <div class="flex flex-col md:flex-row justify-end gap-3 md:gap-2">
-        <button @click="createQuickSlot" class="w-full md:w-auto bg-blue-500 text-white border-0 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/40 order-2 md:order-1">儲存</button>
-        <button @click="showDetailModal" class="w-full md:w-auto bg-transparent text-blue-500 border border-blue-200 md:border-gray-300 rounded-lg md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-blue-50 md:hover:bg-gray-50 hover:border-blue-500 order-1 md:order-2">更多選項</button>
-      </div>
-    </div>
+        <div class="fixed inset-0 overflow-y-auto">
+          <div class="flex min-h-full items-center justify-center p-4">
+            <TransitionChild
+              as="template"
+              enter="duration-300 ease-out"
+              enter-from="opacity-0 scale-95"
+              enter-to="opacity-100 scale-100"
+              leave="duration-200 ease-in"
+              leave-from="opacity-100 scale-100"
+              leave-to="opacity-0 scale-95"
+            >
+              <DialogPanel class="w-full max-w-md transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all">
+                <div class="p-6">
+                  <DialogTitle class="text-xl font-bold text-gray-900 mb-4">
+                    新增可預約時段
+                  </DialogTitle>
+                  
+                  <div class="space-y-4">
+                    <input 
+                      ref="quickInput"
+                      v-model="quickSlotTitle"
+                      placeholder="時段名稱"
+                      @keyup.enter="createQuickSlot"
+                      class="w-full px-4 py-3 text-base font-medium text-gray-900 bg-gray-50 border-0 border-b-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200"
+                    />
+                    
+                    <div class="flex items-center gap-3 px-4 py-3 bg-indigo-50 rounded-xl">
+                      <ClockIcon class="w-5 h-5 text-indigo-600" />
+                      <span class="text-sm font-medium text-gray-700">{{ formatTimeRange(selectedTime) }}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="flex gap-3 mt-6">
+                    <button 
+                      @click="createQuickSlot" 
+                      class="flex-1 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 active:scale-95"
+                    >
+                      儲存
+                    </button>
+                    <button 
+                      @click="showDetailModal" 
+                      class="px-6 py-3 text-indigo-600 font-semibold border-2 border-indigo-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-200 active:scale-95"
+                    >
+                      更多選項
+                    </button>
+                  </div>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
+        </div>
+      </Dialog>
+    </TransitionRoot>
 
-    <!-- 手機和平板版浮動新增按鈕 - 優化觸控體驗 -->
+    <!-- iOS 風格的浮動新增按鈕 -->
     <button 
       @click="openManualCreateModal"
-      class="lg:hidden fixed bottom-8 right-6 w-16 h-16 bg-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center z-50 text-3xl font-light cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:shadow-xl active:scale-90 touch-manipulation"
-      style="border: none; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.5);"
+      class="lg:hidden fixed bottom-8 right-6 w-16 h-16 bg-gradient-to-br from-indigo-600 to-indigo-500 text-white rounded-2xl shadow-2xl flex items-center justify-center z-50 cursor-pointer transition-all duration-300 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 touch-manipulation group"
     >
-      <span class="relative" style="top: -1px;">+</span>
+      <PlusIcon class="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
     </button>
 
-    <!-- 手機優化的編輯 Modal -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-end md:items-center justify-center z-[1000] p-0 md:p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-t-3xl md:rounded-2xl shadow-2xl w-full md:w-full md:max-w-lg max-h-[92vh] md:max-h-[90vh] overflow-hidden animate-slide-up md:animate-none">
-        <!-- 手機優化的標題列 -->
-        <div class="flex items-center justify-between px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <!-- 手機版拖動指示器 -->
-          <div class="absolute top-2 left-1/2 transform -translate-x-1/2 w-12 h-1.5 bg-gray-300 rounded-full md:hidden"></div>
-          <h3 class="text-xl md:text-lg font-bold text-gray-900 m-0 mt-3 md:mt-0">{{ editForm.id ? '編輯' : '新增' }}時段</h3>
-          <button @click="closeEditModal" class="w-11 h-11 md:w-8 md:h-8 border-0 rounded-full bg-gray-100 text-gray-600 text-2xl md:text-xl cursor-pointer flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800 active:scale-90 touch-manipulation">×</button>
-        </div>
-        
-        <!-- 手機優化的表單內容 -->
-        <div class="p-5 md:p-6 overflow-y-auto max-h-[calc(92vh-12rem)] md:max-h-none space-y-6 md:space-y-5">
-          <!-- 時段名稱 -->
-          <div>
-            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
-              時段名稱
-              <span class="text-red-500 ml-1">*</span>
-            </label>
-            <input 
-              v-model="editForm.title" 
-              placeholder="例如：諮詢服務"
-              class="w-full border-2 border-gray-300 rounded-xl md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium placeholder:text-gray-400"
-            />
-          </div>
-          
-          <!-- 時間設定 -->
-          <div>
-            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
-              時間設定
-              <span class="text-red-500 ml-1">*</span>
-            </label>
-            <div class="space-y-4">
-              <div class="bg-gray-50 p-4 rounded-xl md:rounded-md">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">開始時間</label>
-                <input 
-                  type="datetime-local" 
-                  :value="formatDateTimeLocal(editForm.start)"
-                  @input="editForm.start = parseDateTimeLocal($event.target.value)"
-                  class="w-full border-2 border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium"
-                />
-              </div>
-              <div class="bg-gray-50 p-4 rounded-xl md:rounded-md">
-                <label class="block text-sm font-semibold text-gray-700 mb-2">結束時間</label>
-                <input 
-                  type="datetime-local" 
-                  :value="formatDateTimeLocal(editForm.end)"
-                  @input="editForm.end = parseDateTimeLocal($event.target.value)"
-                  class="w-full border-2 border-gray-300 rounded-lg md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 min-h-[52px] md:min-h-auto font-medium"
-                />
-              </div>
-            </div>
-          </div>
-          
-          <!-- 備註 -->
-          <div>
-            <label class="block text-base md:text-sm font-bold text-gray-900 mb-3 md:mb-2">
-              備註
-              <span class="text-sm font-normal text-gray-500 ml-2">(選填)</span>
-            </label>
-            <textarea 
-              v-model="editForm.description"
-              rows="4"
-              placeholder="新增額外說明或注意事項..."
-              class="w-full border-2 border-gray-300 rounded-xl md:rounded-md p-4 md:p-3 text-base md:text-sm text-gray-900 transition-all duration-200 bg-white resize-none min-h-[100px] md:min-h-[60px] focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-medium placeholder:text-gray-400"
-            ></textarea>
-          </div>
-        </div>
-        
-        <!-- 手機優化的操作按鈕 -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between px-5 md:px-6 pb-6 md:pb-6 pt-5 border-t-2 border-gray-100 sticky bottom-0 bg-white gap-3 shadow-2xl md:shadow-none">
-          <!-- 手機版：主要操作在上，刪除在下 / 電腦版：刪除在左，操作在右 -->
-          
-          <!-- 主要操作按鈕組（手機版在上方，電腦版在右側） -->
-          <div class="flex flex-col md:flex-row gap-3 md:gap-3 md:ml-auto w-full md:w-auto order-1 md:order-2">
-            <button 
-              @click="saveSlot" 
-              class="w-full md:w-auto bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-xl hover:shadow-blue-500/40 active:scale-95 touch-manipulation min-h-[52px] md:min-h-auto flex items-center justify-center"
-            >
-              {{ editForm.id ? '儲存更改' : '建立時段' }}
-            </button>
-            <button 
-              @click="closeEditModal" 
-              class="w-full md:w-auto bg-gray-100 text-gray-700 border-2 border-gray-200 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:bg-gray-200 hover:border-gray-300 active:scale-95 touch-manipulation min-h-[52px] md:min-h-auto flex items-center justify-center"
-            >
-              取消
-            </button>
-          </div>
+    <!-- 精緻的編輯 Modal - 全新設計 -->
+    <TransitionRoot appear :show="showEditModal" as="template">
+      <Dialog as="div" @close="closeEditModal" class="relative z-50">
+        <TransitionChild
+          as="template"
+          enter="duration-300 ease-out"
+          enter-from="opacity-0"
+          enter-to="opacity-100"
+          leave="duration-200 ease-in"
+          leave-from="opacity-100"
+          leave-to="opacity-0"
+        >
+          <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+        </TransitionChild>
 
-          <!-- 刪除按鈕（手機版在下方，電腦版在左側） -->
-          <button 
-            v-if="editForm.id" 
-            @click="deleteCurrentSlot" 
-            class="w-full md:w-auto bg-red-50 text-red-600 border-2 border-red-200 rounded-xl md:rounded-md px-6 py-4 md:px-4 md:py-2 text-base md:text-sm font-bold cursor-pointer transition-all duration-200 hover:bg-red-100 hover:border-red-300 active:scale-95 touch-manipulation order-2 md:order-1 min-h-[52px] md:min-h-auto flex items-center justify-center"
-          >
-            刪除時段
-          </button>
+        <div class="fixed inset-0 overflow-y-auto">
+          <div class="flex min-h-full items-end md:items-center justify-center">
+            <TransitionChild
+              as="template"
+              enter="duration-300 ease-out"
+              enter-from="opacity-0 translate-y-full md:translate-y-0 md:scale-95"
+              enter-to="opacity-100 translate-y-0 md:scale-100"
+              leave="duration-200 ease-in"
+              leave-from="opacity-100 translate-y-0 md:scale-100"
+              leave-to="opacity-0 translate-y-full md:translate-y-0 md:scale-95"
+            >
+              <DialogPanel class="w-full md:max-w-2xl transform overflow-hidden rounded-t-3xl md:rounded-2xl bg-white shadow-2xl transition-all">
+                <!-- 頂部拖動指示器 (僅手機版) -->
+                <div class="md:hidden w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2"></div>
+                
+                <!-- 標題列 -->
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <DialogTitle class="text-xl font-bold text-gray-900">
+                    {{ editForm.id ? '編輯時段' : '新增時段' }}
+                  </DialogTitle>
+                  <button 
+                    @click="closeEditModal" 
+                    class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
+                  >
+                    <XMarkIcon class="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <!-- 表單內容 -->
+                <div class="p-6 max-h-[70vh] md:max-h-[600px] overflow-y-auto">
+                  <div class="space-y-6">
+                    <!-- 時段名稱 -->
+                    <div>
+                      <label class="block text-sm font-bold text-gray-900 mb-2">
+                        時段名稱 <span class="text-red-500">*</span>
+                      </label>
+                      <div class="relative">
+                        <input 
+                          v-model="editForm.title" 
+                          placeholder="例如：諮詢服務"
+                          class="w-full px-4 py-3 text-base font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200 placeholder:text-gray-400"
+                        />
+                      </div>
+                    </div>
+                    
+                    <!-- 時間設定 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="block text-sm font-bold text-gray-900 mb-2">
+                          開始時間 <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                          <input 
+                            type="datetime-local" 
+                            :value="formatDateTimeLocal(editForm.start)"
+                            @input="editForm.start = parseDateTimeLocal($event.target.value)"
+                            class="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label class="block text-sm font-bold text-gray-900 mb-2">
+                          結束時間 <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                          <input 
+                            type="datetime-local" 
+                            :value="formatDateTimeLocal(editForm.end)"
+                            @input="editForm.end = parseDateTimeLocal($event.target.value)"
+                            class="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 備註 -->
+                    <div>
+                      <label class="block text-sm font-bold text-gray-900 mb-2">
+                        備註 <span class="text-xs font-normal text-gray-500">(選填)</span>
+                      </label>
+                      <textarea 
+                        v-model="editForm.description"
+                        rows="4"
+                        placeholder="新增額外說明或注意事項..."
+                        class="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200 resize-none placeholder:text-gray-400"
+                      ></textarea>
+                    </div>
+                    
+                    <!-- 預約資訊（編輯時顯示） -->
+                    <div v-if="editForm.id && editForm.reservations?.length > 0" class="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
+                      <h4 class="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                        <UserGroupIcon class="w-5 h-5" />
+                        目前預約 ({{ editForm.current_bookings }}/{{ editForm.max_capacity }})
+                      </h4>
+                      <div class="space-y-2 max-h-40 overflow-y-auto">
+                        <div 
+                          v-for="reservation in editForm.reservations" 
+                          :key="reservation.id"
+                          class="px-3 py-2 bg-white rounded-lg text-sm"
+                        >
+                          <div class="font-medium text-gray-900">{{ reservation.customer_name }}</div>
+                          <div class="text-xs text-gray-600">{{ reservation.customer_phone }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- 底部操作按鈕 -->
+                <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50">
+                  <button 
+                    v-if="editForm.id" 
+                    @click="deleteCurrentSlot" 
+                    class="px-6 py-3 text-red-600 font-semibold border-2 border-red-200 bg-white rounded-xl hover:bg-red-50 hover:border-red-300 transition-all duration-200 active:scale-95"
+                  >
+                    刪除時段
+                  </button>
+                  <div class="flex gap-3 ml-auto">
+                    <button 
+                      @click="closeEditModal" 
+                      class="px-6 py-3 text-gray-700 font-semibold border-2 border-gray-200 bg-white rounded-xl hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 active:scale-95"
+                    >
+                      取消
+                    </button>
+                    <button 
+                      @click="saveSlot" 
+                      class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-indigo-600 hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 active:scale-95"
+                    >
+                      {{ editForm.id ? '儲存更改' : '建立時段' }}
+                    </button>
+                  </div>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
         </div>
+      </Dialog>
+    </TransitionRoot>
+
+    <!-- 精緻的 Toast 通知 - 從右側滑入 -->
+    <Transition
+      enter-active-class="transition ease-out duration-300 transform"
+      enter-from-class="translate-x-full opacity-0"
+      enter-to-class="translate-x-0 opacity-100"
+      leave-active-class="transition ease-in duration-200 transform"
+      leave-from-class="translate-x-0 opacity-100"
+      leave-to-class="translate-x-full opacity-0"
+    >
+      <div 
+        v-if="toast.show" 
+        :class="[
+          'fixed top-4 right-4 md:top-6 md:right-6 px-5 py-4 rounded-xl text-sm font-semibold shadow-2xl z-[1100] max-w-sm flex items-center gap-3',
+          toast.type === 'success' 
+            ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-200' 
+            : 'bg-red-50 text-red-800 border-2 border-red-200'
+        ]"
+      >
+        <component 
+          :is="toast.type === 'success' ? CheckCircleIcon : XCircleIcon" 
+          class="w-6 h-6 flex-shrink-0"
+        />
+        <span>{{ toast.message }}</span>
       </div>
-    </div>
-
-    <!-- 手機優化的 Toast 通知 -->
-    <div v-if="toast.show" :class="[
-      'fixed top-4 left-4 right-4 md:top-6 md:right-6 md:left-auto px-4 py-4 md:py-3 rounded-lg text-base md:text-sm font-medium shadow-lg z-[1100] animate-slide-in',
-      toast.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
-    ]">
-      {{ toast.message }}
-    </div>
+    </Transition>
   </div>
 </template>
 
