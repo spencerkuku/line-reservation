@@ -82,6 +82,36 @@ class SettingController extends Controller
         }
     }
 
+    // 獲取 Webhook URL
+    public function getWebhookUrl()
+    {
+        $user = auth()->user();
+        
+        if ($user->isSystemAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => '系統管理員無 Webhook URL'
+            ], 400);
+        }
+
+        $tenant = $user->tenant;
+        
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => '找不到租戶資訊'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'webhook_url' => $tenant->full_webhook_url,
+                'tenant_slug' => $tenant->slug,
+            ]
+        ]);
+    }
+
     // 獲取所有設定
     public function getAllSettings()
     {

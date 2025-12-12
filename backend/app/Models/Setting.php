@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 class Setting extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
-    protected $fillable = ['key', 'value', 'type'];
+    protected $fillable = ['key', 'value', 'type', 'tenant_id'];
 
     // 需要加密的設定鍵
     protected $encryptedKeys = [

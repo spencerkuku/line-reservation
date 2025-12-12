@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Models\Tenant;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\Service;
@@ -21,20 +22,43 @@ class LineBotService
 {
     private $channelAccessToken;
     private $channelSecret;
+    private $tenant;
     private $apiUrl = 'https://api.line.me/v2/bot/message/reply';
 
-    public function __construct()
+    /**
+     * 建構函式
+     * 
+     * @param Tenant|null $tenant 租戶實例（多租戶模式）
+     */
+    public function __construct(?Tenant $tenant = null)
     {
         try {
-            Log::info('LineBotService constructor called');
+            Log::info('LineBotService constructor called', [
+                'tenant_id' => $tenant?->id,
+                'tenant_name' => $tenant?->name,
+            ]);
             
-            // 優先從資料庫讀取設定
-            $this->channelAccessToken = Setting::get('line_channel_access_token') ?? config('linebot.channel_access_token');
-            $this->channelSecret = Setting::get('line_channel_secret') ?? config('linebot.channel_secret');
+            $this->tenant = $tenant;
+            
+            if ($tenant) {
+                // 多租戶模式：使用租戶的 LINE 憑證（從 settings 表取得並解密）
+                app()->instance('currentTenant', $tenant);
+                
+                $this->channelAccessToken = $this->getDecryptedSetting($tenant->id, 'line_channel_access_token');
+                $this->channelSecret = $this->getDecryptedSetting($tenant->id, 'line_channel_secret');
+            } else {
+                // 向後兼容：使用全局設定
+                $this->channelAccessToken = $this->getDecryptedSetting(null, 'line_channel_access_token') 
+                    ?? config('linebot.channel_access_token');
+                    
+                $this->channelSecret = $this->getDecryptedSetting(null, 'line_channel_secret')
+                    ?? config('linebot.channel_secret');
+            }
             
             Log::info('LineBotService configuration loaded', [
                 'has_access_token' => !empty($this->channelAccessToken),
-                'has_secret' => !empty($this->channelSecret)
+                'has_secret' => !empty($this->channelSecret),
+                'tenant_id' => $tenant?->id,
             ]);
             
         } catch (\Exception $e) {
@@ -50,10 +74,50 @@ class LineBotService
     }
 
     /**
+     * 獲取當前租戶
+     */
+    public function getTenant(): ?Tenant
+    {
+        return $this->tenant;
+    }
+
+    /**
+     * 從 settings 表取得解密後的設定值
+     */
+    private function getDecryptedSetting(?int $tenantId, string $key): ?string
+    {
+        $query = Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+            ->where('key', $key);
+            
+        if ($tenantId) {
+            $query->where('tenant_id', $tenantId);
+        } else {
+            $query->whereNull('tenant_id');
+        }
+        
+        $setting = $query->first();
+        
+        if (!$setting || !$setting->value) {
+            return null;
+        }
+        
+        // 嘗試解密（LINE 憑證應該是加密存儲的）
+        try {
+            return \Illuminate\Support\Facades\Crypt::decryptString($setting->value);
+        } catch (\Exception $e) {
+            // 如果解密失敗，返回原值（可能是未加密的舊數據）
+            return $setting->value;
+        }
+    }
+
+    /**
      * 獲取預約確認模式
      */
     private function getReservationConfirmMode()
     {
+        if ($this->tenant) {
+            return $this->tenant->getSetting('reservation_confirm_mode', 'auto');
+        }
         return Setting::get('reservation_confirm_mode', 'auto');
     }
 

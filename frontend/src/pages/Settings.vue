@@ -10,6 +10,56 @@
     <div class="max-w-7xl mx-auto">
       <!-- 主要設定卡片容器 - 並排顯示 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Webhook URL 卡片（全寬） -->
+        <div v-if="webhookUrl" class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <div class="ml-4">
+                <h3 class="text-lg font-semibold text-gray-900">您的 LINE Bot Webhook URL</h3>
+                <p class="text-sm text-gray-600 mt-1">請將此 URL 設定到 LINE Developers Console</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6">
+            <div class="flex items-center space-x-4">
+              <div class="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <code class="text-sm font-mono text-gray-800 break-all">{{ webhookUrl }}</code>
+              </div>
+              <button
+                @click="copyWebhookUrl"
+                class="flex-shrink-0 inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              >
+                <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                複製
+              </button>
+            </div>
+
+            <div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div class="flex items-start">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h4 class="text-sm font-semibold text-blue-800">設定說明</h4>
+                  <p class="mt-1 text-sm text-blue-700">
+                    請在 LINE Developers Console 的 Messaging API 設定中，將此 URL 貼到「Webhook URL」欄位，並啟用「Use webhook」選項。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- LINE API 設定卡片 -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <!-- 卡片標題 -->
@@ -423,8 +473,8 @@
               <div>
                 <h4 class="text-sm font-medium text-gray-900">設定 Webhook URL</h4>
                 <p class="text-sm text-gray-600 mt-1">
-                  點選「Messaging API」→ 在 Webhook URL 欄位填入：<br>
-                  <code class="bg-gray-100 px-2 py-1 rounded text-xs font-mono">https://(您的IP或網域)/api/line/webhook</code>
+                  點選「Messaging API」→ 在 Webhook URL 欄位貼上您的專屬 Webhook URL（上方顯示）<br>
+                  <span class="text-xs text-gray-500">每個租戶都有專屬的 Webhook URL，請確認使用正確的 URL</span>
                 </p>
               </div>
             </div>
@@ -468,6 +518,9 @@ const LineChannelAccessToken = ref('')
 const LineChannelSecret = ref('')
 const successMessage = ref('')
 const loading = ref(false)
+
+// Webhook URL
+const webhookUrl = ref('')
 
 // 新增狀態來追蹤是否有現有資料
 const hasExistingAccessToken = ref(false)
@@ -523,6 +576,9 @@ async function fetchSettings() {
       LineChannelSecret.value = ''
     }
 
+    // 獲取 Webhook URL
+    await fetchWebhookUrl()
+
     // 獲取預約設定
     await fetchReservationSettings()
     
@@ -532,6 +588,29 @@ async function fetchSettings() {
     console.error('Error fetching settings:', err) // 顯示所有錯誤
   } finally {
     loading.value = false
+  }
+}
+
+// 獲取 Webhook URL
+async function fetchWebhookUrl() {
+  try {
+    const response = await apiGet('/settings/webhook-url')
+    if (response.success && response.data && response.data.webhook_url) {
+      webhookUrl.value = response.data.webhook_url
+    }
+  } catch (err) {
+    console.error('Error fetching webhook URL:', err)
+  }
+}
+
+// 複製 Webhook URL 到剪貼簿
+async function copyWebhookUrl() {
+  try {
+    await navigator.clipboard.writeText(webhookUrl.value)
+    successMessage.value = 'Webhook URL 已複製到剪貼簿'
+    setTimeout(() => { successMessage.value = '' }, 3000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
   }
 }
 

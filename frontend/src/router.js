@@ -13,6 +13,8 @@ import Login from "./pages/Login.vue";
 import NotFound from "./pages/NotFound.vue";
 import Customers from './pages/Customers.vue'
 import CheckIn from './pages/CheckIn.vue'
+import Tenants from './pages/Tenants.vue'
+import ForceChangePassword from './pages/ForceChangePassword.vue'
 import { validateToken } from "./utils/api.js"
 
 const routes = [
@@ -28,12 +30,19 @@ const routes = [
             { path: 'reservations', name: 'Reservations', component: Reservations },
             { path: 'profile', name: 'Profile', component: Profile },
             { path: 'settings', name: 'Settings', component: Settings },
+            // 系統管理員專用
+            { path: 'tenants', name: 'Tenants', component: Tenants, meta: { requiresSystemAdmin: true } },
         ]
     },
     {
         path: "/login",
         name: "Login",
         component: Login
+    },
+    {
+        path: "/force-change-password",
+        name: "ForceChangePassword",
+        component: ForceChangePassword
     },
     {
         path: "/:pathMatch(.*)*",
@@ -66,12 +75,17 @@ router.beforeEach(async (to, from, next) => {
     
     // 如果前往登入頁面且已登入，重定向到首頁
     if (to.name === 'Login' && isLoggedIn) {
+        // 檢查是否需要強制修改密碼
+        if (user && user.must_change_password) {
+            next({ name: 'ForceChangePassword' })
+            return
+        }
         next({ name: 'Dashboard' })
         return
     }
     
     // 檢查是否為公開頁面
-    const publicPages = ['Login', 'NotFound', 'AvailableTimes']
+    const publicPages = ['Login', 'NotFound', 'AvailableTimes', 'ForceChangePassword']
     const isPublicPage = publicPages.includes(to.name)
     
     // 如果是公開頁面，直接允許訪問
@@ -83,6 +97,12 @@ router.beforeEach(async (to, from, next) => {
     // 非公開頁面需要登入
     if (!isLoggedIn) {
         next({ name: 'Login' })
+        return
+    }
+    
+    // 檢查是否需要強制修改密碼
+    if (user && user.must_change_password && to.name !== 'ForceChangePassword') {
+        next({ name: 'ForceChangePassword' })
         return
     }
     
@@ -106,9 +126,15 @@ router.beforeEach(async (to, from, next) => {
         }
     }
     
+    // 檢查系統管理員專用頁面
+    if (to.meta?.requiresSystemAdmin && (!user || user.role !== 'system_admin')) {
+        next({ name: 'Dashboard' })
+        return
+    }
+    
     // 檢查管理員權限 - 所有管理頁面都只允許管理員訪問
     const adminOnlyPages = ['Dashboard', 'Customers', 'CheckIn', 'Services', 'AvailableTimes', 'Reservations', 'Settings']
-    if (adminOnlyPages.includes(to.name) && user && user.role !== 'admin') {
+    if (adminOnlyPages.includes(to.name) && user && user.role !== 'admin' && user.role !== 'system_admin') {
         // 非管理員訪問管理頁面，重定向到登入頁面並顯示錯誤
         alert('權限不足，僅限管理員訪問此系統')
         localStorage.removeItem('token')

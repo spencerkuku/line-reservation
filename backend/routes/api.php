@@ -14,14 +14,19 @@ use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\FrontendLogController;
 use App\Http\Controllers\Api\CheckInController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\TenantController;
 use App\Http\Controllers\AdminActivityLogController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
 
-// LINE Webhook 路由 - 暫時停用簽名驗證以修復問題
-Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
-    // ->middleware('verify.line.signature'); // 暫時註解
+// LINE Webhook 路由 - 多租戶版本（使用 UUID token 確保唯一性）
+Route::post('/webhook/{webhook_token}', [LineWebhookController::class, 'handle'])
+    ->middleware('webhook.tenant')
+    ->where('webhook_token', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
+
+// LINE Webhook 路由 - 舊版（向後兼容）
+Route::post('/line/webhook', [LineWebhookController::class, 'handleLegacy']);
 
 // 前端日誌路由 - 允許前端發送日誌到後端
 Route::middleware('throttle:60,1')->group(function () {
@@ -29,11 +34,13 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::post('/frontend-logs/error', [FrontendLogController::class, 'storeError']);
 });
 
-// 公開的可預約時段查詢（允許前端查看可用時段） - 添加 Rate Limiting
-Route::get('/available-times', [AvailableTimeController::class, 'index'])
-    ->middleware('throttle:60,1');
-Route::get('/services', [ServiceController::class, 'index'])
-    ->middleware('throttle:60,1'); // 允許查看服務列表
+// ===== 公開租戶路由（顧客端使用，需要租戶識別）=====
+Route::prefix('{tenant_slug}')->middleware(['throttle:60,1', 'public.tenant'])->group(function () {
+    // 公開的可預約時段查詢
+    Route::get('/available-times', [AvailableTimeController::class, 'index']);
+    // 公開的服務列表
+    Route::get('/services', [ServiceController::class, 'index']);
+});
 
 // 測試路由
 Route::get('/test', function () {
@@ -59,10 +66,29 @@ Route::middleware('auth:sanctum')->group(function () {
     // 個人資料管理
     Route::post('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/password', [AuthController::class, 'updatePassword']);
+    
+    // 強制修改密碼
+    Route::post('/auth/force-change-password', [AuthController::class, 'forceChangePassword']);
 });
 
-// 需要管理員權限的路由（所有管理功能都只允許管理員使用）
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+// ===== 系統管理員專用路由 =====
+Route::middleware(['auth:sanctum', 'system.admin'])->prefix('system')->group(function () {
+    // 租戶管理
+    Route::prefix('tenants')->group(function () {
+        Route::get('/', [TenantController::class, 'index']);
+        Route::get('/statistics', [TenantController::class, 'statistics']);
+        Route::post('/', [TenantController::class, 'store']);
+        Route::get('/{tenant}', [TenantController::class, 'show']);
+        Route::put('/{tenant}', [TenantController::class, 'update']);
+        Route::delete('/{tenant}', [TenantController::class, 'destroy']);
+        Route::put('/{tenant}/status', [TenantController::class, 'updateStatus']);
+        Route::put('/{tenant}/subscription', [TenantController::class, 'updateSubscription']);
+        Route::post('/{tenant}/reset-password', [TenantController::class, 'resetAdminPassword']);
+    });
+});
+
+// ===== 租戶管理員路由（需要租戶識別）=====
+Route::middleware(['auth:sanctum', 'admin', 'tenant'])->group(function () {
     // 儀表板（僅管理員可訪問）
     Route::prefix('dashboard')->group(function () {
         Route::get('/stats', [DashboardController::class, 'stats']);
@@ -72,16 +98,19 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     });
 
     // 服務管理（僅管理員可訪問）
+    Route::get('/services', [ServiceController::class, 'index']);
     Route::post('/services', [ServiceController::class, 'store']);
     Route::put('/services/{service}', [ServiceController::class, 'update']);
     Route::delete('/services/{service}', [ServiceController::class, 'destroy']);
     Route::get('/services/{service}/reservations', [ServiceController::class, 'reservations']);
 
     // 可預約時段管理（僅管理員可訪問）
+    Route::get('/available-times', [AvailableTimeController::class, 'index']);
     Route::post('/available-times', [AvailableTimeController::class, 'store']);
     Route::put('/available-times/{availableTime}', [AvailableTimeController::class, 'update']);
     Route::delete('/available-times/{availableTime}', [AvailableTimeController::class, 'destroy']);
-    // 使用者管理
+    
+    // 使用者管理（租戶內）
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{user}', [UserController::class, 'update']);
@@ -103,6 +132,7 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::post('/settings/line', [SettingController::class, 'updateLineSettings']);
     Route::get('/settings', [SettingController::class, 'getAllSettings']);
     Route::post('/settings', [SettingController::class, 'updateSetting']);
+    Route::get('/settings/webhook-url', [SettingController::class, 'getWebhookUrl']);
 
     // 客戶管理（僅管理員可訪問）
     Route::prefix('customers')->group(function () {

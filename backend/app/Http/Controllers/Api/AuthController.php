@@ -56,16 +56,32 @@ class AuthController extends Controller
         SecurityLoggingService::logLoginSuccess($user, $request);
         ActivityLogger::login($user);
 
+        // 準備用戶資料
+        $userData = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'is_system_admin' => $user->is_system_admin,
+            'must_change_password' => $user->must_change_password,
+            'tenant_id' => $user->tenant_id,
+        ];
+
+        // 如果是租戶用戶，加入租戶資訊
+        if ($user->tenant_id && $user->tenant) {
+            $userData['tenant'] = [
+                'id' => $user->tenant->id,
+                'name' => $user->tenant->name,
+                'slug' => $user->tenant->slug,
+                'status' => $user->tenant->status,
+            ];
+        }
+
         return response()->json([
             'success' => true,
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role
-            ]
+            'user' => $userData
         ]);
     }
 
@@ -187,6 +203,60 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => '更新密碼時發生錯誤：' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 強制修改密碼（首次登入）
+     */
+    public function forceChangePassword(Request $request)
+    {
+        $user = $request->user();
+
+        // 驗證是否需要強制修改密碼
+        if (!$user->must_change_password) {
+            return response()->json([
+                'success' => false,
+                'message' => '不需要修改密碼'
+            ], 400);
+        }
+        
+        $validator = Validator::make($request->all(), [
+            'new_password' => ['required', 'confirmed', Password::min(8)],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => '資料驗證失敗',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user->update([
+                'password' => Hash::make($request->new_password),
+                'must_change_password' => false,
+            ]);
+
+            // 記錄操作
+            ActivityLogger::custom(
+                'updated',
+                'auth',
+                '首次登入修改密碼',
+                ['user_id' => $user->id]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => '密碼設定成功'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '設定密碼時發生錯誤：' . $e->getMessage()
             ], 500);
         }
     }

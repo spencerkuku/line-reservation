@@ -31,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'rate_limit' => \App\Http\Middleware\ApiRateLimitMiddleware::class,
             'access_control' => \App\Http\Middleware\EnhancedAccessControlMiddleware::class,
             'verify.line.signature' => \App\Http\Middleware\VerifyLineSignature::class,
+            'tenant' => \App\Http\Middleware\TenantIdentificationMiddleware::class,
+            'webhook.tenant' => \App\Http\Middleware\WebhookTenantMiddleware::class,
+            'system.admin' => \App\Http\Middleware\SystemAdminMiddleware::class,
+            'public.tenant' => \App\Http\Middleware\PublicTenantMiddleware::class,
         ]);
 
         // 禁用一些不安全的中間件（OWASP安全考量）

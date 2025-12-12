@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -25,6 +26,8 @@ class User extends Authenticatable
         'role',
         'status',
         'avatar',
+        'tenant_id',
+        'must_change_password',
     ];
 
     /**
@@ -47,7 +50,32 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
+    }
+
+    /**
+     * 關聯：所屬租戶
+     */
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * 檢查是否為系統管理員
+     */
+    public function isSystemAdmin(): bool
+    {
+        return $this->role === 'system_admin';
+    }
+
+    /**
+     * 檢查是否為租戶管理員
+     */
+    public function isTenantAdmin(): bool
+    {
+        return $this->role === 'admin' && $this->tenant_id !== null;
     }
 
     /**

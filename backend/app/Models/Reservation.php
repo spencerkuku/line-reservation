@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Reservation extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, BelongsToTenant;
 
     /**
      * 可批量賦值的屬性
@@ -19,6 +20,7 @@ class Reservation extends Model
      * - 請使用 getReservationDateTime() 方法獲取完整的預約日期時間
      */
     protected $fillable = [
+        'tenant_id',
         'customer_id', // LINE 客戶關聯
         'reservation_name', // 預約時填寫的姓名（快照）
         'reservation_phone', // 預約時填寫的電話（快照）
