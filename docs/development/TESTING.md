@@ -1,6 +1,6 @@
-# 測試指南 (Testing Guide)
+# 多租戶 B2B 系統測試指南
 
-## 📋 目錄
+## 目錄
 
 - [測試概覽](#測試概覽)
 - [單元測試](#單元測試)
@@ -219,7 +219,7 @@ describe('StatCard', () => {
 })
 ```
 
-## 🔗 整合測試
+##  整合測試
 
 ### 後端整合測試
 
@@ -299,7 +299,7 @@ class ReservationApiTest extends TestCase
 }
 ```
 
-## 🖱️ 手動測試
+## 🖱 手動測試
 
 ### 手動測試檢查清單
 
@@ -402,7 +402,7 @@ class ReservationApiTest extends TestCase
 備註:
 ```
 
-## 🌐 E2E 測試
+## E2E 測試
 
 ### Cypress 測試範例
 
@@ -575,7 +575,7 @@ $this->assertDatabaseHas('reservations', ['status' => 'confirmed']);
 $this->assertTrue($reservation->status == 'confirmed');
 ```
 
-## 🔍 持續整合 (CI)
+##  持續整合 (CI)
 
 ### GitHub Actions 配置範例
 

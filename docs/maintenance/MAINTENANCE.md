@@ -1,6 +1,6 @@
-# 維運指南 (Maintenance Guide)
+# 多租戶 B2B 系統維運指南
 
-## 📋 目錄
+## 目錄
 
 - [日誌管理](#日誌管理)
 - [監控與告警](#監控與告警)
@@ -10,7 +10,7 @@
 - [效能優化](#效能優化)
 - [安全維護](#安全維護)
 
-## 📝 日誌管理
+## 日誌管理
 
 ### Laravel 日誌位置
 
@@ -94,7 +94,7 @@ find backend/storage/logs -name "*.log" -mtime +30 -delete
 php artisan log:clear --days=30
 ```
 
-## 📊 監控與告警
+## 監控與告警
 
 ### 系統監控指標
 
@@ -208,7 +208,7 @@ crontab -e
 */5 * * * * /usr/local/bin/line-reservation-monitor.sh
 ```
 
-## 🔄 定期維護任務
+## 定期維護任務
 
 ### 每日任務
 
@@ -295,7 +295,7 @@ crontab -e
 * * * * * cd /var/www/line-reservation/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-## 💾 備份策略
+##  備份策略
 
 ### 3-2-1 備份原則
 
@@ -453,7 +453,7 @@ cat backend/.env | grep FRONTEND_URL
 php artisan config:clear
 ```
 
-## ⚡ 效能優化
+## 效能優化
 
 ### Laravel 優化
 
@@ -512,7 +512,7 @@ npm run build
 # - 圖片優化
 ```
 
-## 🔐 安全維護
+## 安全維護
 
 ### 安全檢查清單
 

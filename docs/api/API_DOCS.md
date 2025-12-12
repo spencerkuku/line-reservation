@@ -1,11 +1,13 @@
-# API 文件 (API Documentation)
+# 多租戶 B2B API 文件
 
-## 📋 目錄
+## 目錄
 
 - [API 概覽](#api-概覽)
+- [多租戶架構](#多租戶架構)
 - [認證](#認證)
 - [公開端點](#公開端點)
 - [認證端點](#認證端點)
+- [租戶管理](#租戶管理)
 - [客戶管理](#客戶管理)
 - [預約管理](#預約管理)
 - [服務管理](#服務管理)
@@ -17,7 +19,9 @@
 - [LINE Webhook](#line-webhook)
 - [錯誤碼](#錯誤碼)
 
-## 🌐 API 概覽
+## API 概覽
+
+多租戶 B2B LINE 預約系統提供 RESTful API，支援多租戶架構。每個租戶擁有獨立的資料空間和 API 資源。
 
 ### Base URL
 
@@ -25,6 +29,13 @@
 開發環境: http://localhost:8000/api
 生產環境: https://your-domain.com/api
 ```
+
+### 多租戶識別
+
+API 透過以下方式識別租戶：
+- **Slug**: URL 中包含 `/tenant/{slug}`
+- **Token**: 租戶相關的 API Token
+- **Webhook Token**: LINE Webhook 专用 Token
 
 ### 通用響應格式
 
@@ -76,7 +87,7 @@
 | 預約查詢 | 120 次/分鐘 |
 | 其他認證端點 | 60 次/分鐘 |
 
-## 🔐 認證
+## 認證
 
 本系統使用 **Laravel Sanctum** 進行 Token 認證。
 
@@ -242,7 +253,7 @@ Content-Type: application/json
 
 ---
 
-## 🔑 認證端點
+##  認證端點
 
 **所有端點需要認證 Token**
 
@@ -329,7 +340,7 @@ Content-Type: application/json
 
 ---
 
-## 👥 客戶管理
+## 客戶管理
 
 **需要管理員權限**
 
@@ -523,7 +534,7 @@ Content-Type: application/json
 
 ---
 
-## 📅 預約管理
+## 預約管理
 
 **需要管理員權限**
 
@@ -654,7 +665,7 @@ Content-Type: application/json
 
 ---
 
-## 🛠️ 服務管理
+## 服務管理
 
 **需要管理員權限**
 
@@ -881,7 +892,7 @@ Content-Type: application/json
 
 ---
 
-## 📊 儀表板
+## 儀表板
 
 **需要管理員權限**
 
@@ -949,7 +960,7 @@ Content-Type: application/json
 
 ---
 
-## ⚙️ 系統設定
+##  系統設定
 
 **需要管理員權限**
 
@@ -996,7 +1007,7 @@ Content-Type: application/json
 
 ---
 
-## 📝 活動日誌
+## 活動日誌
 
 **需要管理員權限**
 

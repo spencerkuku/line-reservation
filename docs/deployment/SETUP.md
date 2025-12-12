@@ -1,6 +1,6 @@
-# 環境設定與開發指南 (Setup & Development Guide)
+# 多租戶 B2B 系統環境設定指南
 
-## 📋 目錄
+## 目錄
 
 - [系統需求](#系統需求)
 - [開發環境設置](#開發環境設置)
@@ -10,7 +10,7 @@
 - [開發工作流程](#開發工作流程)
 - [常見問題排除](#常見問題排除)
 
-## 💻 系統需求
+##  系統需求
 
 ### 最低需求
 
@@ -33,7 +33,7 @@
 - **Git 客戶端**: Git CLI, GitHub Desktop, SourceTree
 - **終端機**: Windows Terminal, iTerm2, GNOME Terminal
 
-## 🚀 開發環境設置
+## 開發環境設置
 
 ### 1. 安裝基礎軟體
 
@@ -294,7 +294,7 @@ npm run dev -- --port 3000
 npm run dev -- --host 0.0.0.0
 ```
 
-## 🔧 環境變數配置
+## 環境變數配置
 
 ### 後端環境變數完整說明
 
@@ -327,7 +327,7 @@ npm run dev -- --host 0.0.0.0
 | `VITE_APP_ENV` | 環境類型 | `development` | ❌ |
 | `VITE_APP_DEBUG` | 除錯模式 | `true` | ❌ |
 
-## 🗄️ 資料庫設置
+## 資料庫設置
 
 ### MySQL 資料庫創建
 
@@ -366,7 +366,7 @@ php artisan migrate:status
 # 執行所有遷移
 php artisan migrate
 
-# 重置並重新執行所有遷移（⚠️ 會刪除所有資料）
+# 重置並重新執行所有遷移（⚠ 會刪除所有資料）
 php artisan migrate:fresh
 
 # 重置並填充資料
@@ -410,9 +410,9 @@ Email: user@example.com
 Password: password
 ```
 
-⚠️ **生產環境務必更改這些預設密碼！**
+⚠ **生產環境務必更改這些預設密碼！**
 
-## 🤖 LINE Bot 設置
+## LINE Bot 設置
 
 ### 1. 創建 LINE Channel
 
@@ -451,7 +451,7 @@ Password: password
 
 #### Webhook 設定
 
-⚠️ **開發環境需使用 ngrok 或類似工具將本地伺服器暴露到公網**
+⚠ **開發環境需使用 ngrok 或類似工具將本地伺服器暴露到公網**
 
 ```bash
 # 安裝 ngrok (參考 https://ngrok.com/)
@@ -501,7 +501,7 @@ php artisan pail
 php artisan pail --filter="level=error"
 ```
 
-## 🔄 開發工作流程
+## 開發工作流程
 
 ### 日常開發流程
 

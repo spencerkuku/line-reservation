@@ -1,8 +1,8 @@
-# LINE Reservation System 部署指南 (Apache)
+# 多租戶 B2B LINE 預約系統部署指南
 
-本文檔提供使用 **Apache Web Server** 的部署方式，適用於 Laravel + Vue.js 的全端應用程式。
+本文檔提供多租戶 B2B 預約系統使用 **Apache Web Server** 的部署方式，適用於 Laravel + Vue.js 的全端應用程式。
 
-## 📋 系統需求
+## 系統需求
 
 ### 基本需求
 - **作業系統**: Ubuntu 20.04+ / CentOS 8+ / Debian 11+
@@ -20,7 +20,7 @@
 
 ---
 
-## 🚀 快速部署步驟
+## 快速部署步驟
 
 ### 1. 環境準備
 
@@ -205,7 +205,7 @@ npm run build
 sudo chown -R www-data:www-data /var/www/line-reservation/frontend/dist
 ```
 
-## 🚀 針對您環境的快速部署
+## 針對您環境的快速部署
 
 ### 1. 一鍵安裝腳本
 
@@ -214,7 +214,7 @@ sudo chown -R www-data:www-data /var/www/line-reservation/frontend/dist
 ```bash
 #!/bin/bash
 
-echo "🚀 開始部署 LINE Reservation System (Apache) - 完整優化版..."
+echo "開始部署 LINE Reservation System (Apache) - 完整優化版..."
 
 set -e
 trap 'echo "❌ 部署失敗於第 $LINENO 行"; exit 1' ERR
@@ -232,9 +232,9 @@ USER_HOME=$(eval echo "~$USER")
 SERVER_IP=$(hostname -I | awk '{print $1}')
 DOMAIN=${1:-$SERVER_IP}
 
-echo "📁 專案目錄: $PROJECT_DIR"
-echo "🌐 域名/IP: $DOMAIN"
-echo "🔍 偵測到伺服器 IP: $SERVER_IP"
+echo "專案目錄: $PROJECT_DIR"
+echo "域名/IP: $DOMAIN"
+echo " 偵測到伺服器 IP: $SERVER_IP"
 
 # 更新系統套件
 sudo apt update && sudo apt upgrade -y
@@ -261,7 +261,7 @@ sudo a2enmod rewrite ssl headers proxy proxy_fcgi setenvif expires
 
 # 設定資料庫
 DB_PASS=$(openssl rand -hex 16)
-echo "🔑 生成 MySQL 資料庫密碼：$DB_PASS"
+echo " 生成 MySQL 資料庫密碼：$DB_PASS"
 
 # 自動偵測 MySQL 連接方式
 MYSQL_CMD=""
@@ -295,7 +295,7 @@ if [ -d "$PROJECT_DIR" ]; then
     sudo chown -R $USER:$USER "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     git config --global --add safe.directory "$PROJECT_DIR"
-    git pull origin main || echo "⚠️ Git 更新失敗，請手動檢查"
+    git pull origin main || echo "⚠ Git 更新失敗，請手動檢查"
 else
     echo "📥 下載專案代碼..."
     cd /var/www
@@ -344,8 +344,8 @@ sudo -u $USER php artisan config:clear
 sudo -u $USER php artisan config:cache
 sudo -u $USER php artisan key:generate --force
 sudo -u $USER php artisan migrate --force
-sudo -u $USER php artisan db:seed --force 2>/dev/null || echo "⚠️ 種子可能已存在，跳過"
-sudo -u $USER php artisan storage:link 2>/dev/null || echo "⚠️ Storage 連結已存在，跳過"
+sudo -u $USER php artisan db:seed --force 2>/dev/null || echo "⚠ 種子可能已存在，跳過"
+sudo -u $USER php artisan storage:link 2>/dev/null || echo "⚠ Storage 連結已存在，跳過"
 
 # 設定前端
 cd ../frontend
@@ -583,7 +583,7 @@ Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
 
 ---
 
-## 🔧 進階配置
+## 進階配置
 
 ### 5. SSL 憑證設定
 
@@ -646,7 +646,7 @@ sudo mysql_secure_installation
 
 ---
 
-## 📊 監控與維護
+## 監控與維護
 
 ### 1. 日誌監控
 ```bash

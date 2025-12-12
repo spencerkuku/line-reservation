@@ -1,8 +1,9 @@
-# 前端文件 (Frontend Documentation)
+# 多租戶 B2B 前端架構文件
 
-## 📋 目錄
+## 目錄
 
 - [前端概覽](#前端概覽)
+- [多租戶設計](#多租戶設計)
 - [技術棧](#技術棧)
 - [專案結構](#專案結構)
 - [路由系統](#路由系統)
@@ -12,20 +13,30 @@
 - [UI 設計規範](#ui-設計規範)
 - [最佳實踐](#最佳實踐)
 
-## 🌐 前端概覽
+## 前端概覽
 
-LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 **Tailwind CSS** 作為 UI 框架，透過 **Vite** 進行快速構建。
+多租戶 B2B LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 **Tailwind CSS** 作為 UI 框架，透過 **Vite** 進行快速構建。支援多租戶獨立運營的企業級管理介面。
 
 ### 核心特性
 
-- 🎨 **現代化 UI**: 基於 Tailwind CSS 的響應式設計
-- ⚡ **快速開發**: Vite HMR 提供極速的開發體驗
-- 🔐 **Token 認證**: Laravel Sanctum Token 認證
-- 📱 **響應式**: 支援桌面、平板、手機
-- 🎯 **類型安全**: 使用 Vue 3 Composition API
-- 🔄 **狀態管理**: Pinia 集中式狀態管理
+- **多租戶支持**: 租戶隔離與狀態管理
+- **現代化 UI**: 基於 Tailwind CSS 的響應式設計
+- **快速開發**: Vite HMR 提供極速的開發體驗
+- **安全認證**: Laravel Sanctum + 租戶驗證
+- **響應式設計**: 支援桌面、平板、手機
+- **類型安全**: 使用 Vue 3 Composition API
+- **狀態管理**: Pinia 集中式狀態管理
 
-## 🛠️ 技術棧
+## 多租戶設計
+
+前端透過以下機制支援多租戶架構：
+
+- **租戶識別**: URL slug 或 subdomain 識別
+- **資料隔離**: API 請求自動帶入租戶資訊
+- **狀態管理**: 租戶相關狀態在 Pinia store 中管理
+- **權限控制**: 基於租戶的組件與功能顯示
+
+## 技術棧
 
 | 技術 | 版本 | 用途 |
 |------|------|------|
@@ -39,7 +50,7 @@ LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 *
 | FullCalendar | 6.1.18 | 日曆組件 |
 | DOMPurify | 3.1.7 | XSS 防護 |
 
-## 📁 專案結構
+## 專案結構
 
 ```
 frontend/
@@ -97,7 +108,7 @@ frontend/
 └── package.json               # 依賴管理
 ```
 
-## 🗺️ 路由系統
+## 🗺 路由系統
 
 ### 路由配置
 
@@ -311,7 +322,7 @@ export const useAuthStore = defineStore('auth', () => {
 })
 ```
 
-## 🔌 API 整合
+## API 整合
 
 ### API 配置 (utils/api.js)
 
@@ -376,7 +387,7 @@ export async function updateCustomer(id, data) {
 }
 ```
 
-## 🎨 UI 設計規範
+## UI 設計規範
 
 ### 色彩系統
 
@@ -514,7 +525,7 @@ try {
 </template>
 ```
 
-## 🚀 開發指南
+## 開發指南
 
 ### 啟動開發伺服器
 ```bash

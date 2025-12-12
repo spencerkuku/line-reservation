@@ -1,8 +1,9 @@
-# 資料庫文件 (Database Documentation)
+# 多租戶 B2B 資料庫設計文件
 
-## 📋 目錄
+## 目錄
 
 - [資料庫概覽](#資料庫概覽)
+- [多租戶設計](#多租戶設計)
 - [ERD 關係圖](#erd-關係圖)
 - [資料表結構](#資料表結構)
 - [資料關聯](#資料關聯)
@@ -10,7 +11,7 @@
 - [資料字典](#資料字典)
 - [遷移管理](#遷移管理)
 
-## 🗄️ 資料庫概覽
+## 資料庫概覽
 
 ### 基本資訊
 
@@ -18,25 +19,27 @@
 - **字元編碼**: utf8mb4
 - **排序規則**: utf8mb4_unicode_ci
 - **時區**: Asia/Taipei
-- **資料庫名稱**: line_reservation
+- **資料庫名稱**: line_reservation_b2b
+- **架構模式**: 多租戶共享資料庫 (Shared Database)
 
-### 資料表清單
+### 多租戶資料表清單
 
-| 資料表名稱 | 說明 | 記錄數量(約) |
-|-----------|------|-------------|
-| `users` | 系統用戶（管理員） | 1-10 |
-| `customers` | LINE 客戶資料 | 100-10000 |
-| `services` | 服務項目 | 5-50 |
-| `available_times` | 可預約時段 | 50-500 |
-| `reservations` | 預約記錄 | 1000-100000 |
-| `settings` | 系統設定 | 10-50 |
-| `line_message_logs` | LINE 訊息日誌 | 10000+ |
-| `admin_activity_logs` | 管理員操作日誌 | 1000+ |
-| `cache` | Laravel 快取 | 變動 |
-| `jobs` | 佇列任務 | 變動 |
-| `personal_access_tokens` | API Tokens | 10-100 |
+| 資料表名稱 | 說明 | 多租戶 | 記錄數量(約) |
+|-----------|------|--------|-------------|
+| `tenants` | 租戶主表 | N/A | 10-1000 |
+| `users` | 系統用戶（租戶管理員） | Yes | 1-10/租戶 |
+| `customers` | LINE 客戶資料 | Yes | 100-10000/租戶 |
+| `services` | 服務項目 | Yes | 5-50/租戶 |
+| `available_times` | 可預約時段 | Yes | 50-500/租戶 |
+| `reservations` | 預約記錄 | Yes | 1000-100000/租戶 |
+| `settings` | 系統設定 | Yes | 10-50/租戶 |
+| `line_message_logs` | LINE 訊息日誌 | Yes | 10000+/租戶 |
+| `admin_activity_logs` | 管理員操作日誌 | Yes | 1000+/租戶 |
+| `cache` | Laravel 快取 | N/A | 變動 |
+| `jobs` | 佇列任務 | N/A | 變動 |
+| `personal_access_tokens` | API Tokens | Yes | 10-100/租戶 |
 
-## 📊 ERD 關係圖
+## ERD 關係圖
 
 ```
 ┌──────────────┐         ┌──────────────┐
@@ -419,7 +422,7 @@ CREATE TABLE `admin_activity_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-## 🔗 資料關聯
+##  資料關聯
 
 ### 關聯類型說明
 
@@ -486,7 +489,7 @@ class Customer extends Model
 }
 ```
 
-## 📈 索引策略
+## 索引策略
 
 ### 主要索引
 
@@ -562,7 +565,7 @@ ON customers (name, phone, email);
 - 客戶狀態預設: `active`
 - 服務啟用預設: `true`
 
-## 🔄 遷移管理
+## 遷移管理
 
 ### 執行遷移
 
@@ -615,7 +618,7 @@ php artisan make:migration drop_table_name_table
 ...
 ```
 
-## 🔒 資料庫安全
+## 資料庫安全
 
 ### 備份策略
 
@@ -662,7 +665,7 @@ WHERE deleted_at IS NOT NULL
 AND deleted_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
 ```
 
-## 📊 查詢範例
+## 查詢範例
 
 ### 常用查詢
 

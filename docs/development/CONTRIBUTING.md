@@ -1,8 +1,9 @@
-# 貢獻指南 (Contributing Guide)
+# 多租戶 B2B 系統貢獻指南
 
-## 📋 目錄
+## 目錄
 
 - [開發流程](#開發流程)
+- [多租戶開發注意事項](#多租戶開發注意事項)
 - [分支策略](#分支策略)
 - [程式碼規範](#程式碼規範)
 - [Commit 訊息格式](#commit-訊息格式)
@@ -10,7 +11,9 @@
 - [程式碼審查](#程式碼審查)
 - [測試要求](#測試要求)
 
-## 🚀 開發流程
+## 開發流程
+
+本專案為多租戶 B2B 預約系統，開發時需特別注意租戶隔離與資料安全性。
 
 ### 1. 設定開發環境
 
@@ -124,7 +127,7 @@ git push upstream develop
 git branch -d hotfix/security-vulnerability
 ```
 
-## 📝 程式碼規範
+## 程式碼規範
 
 ### Backend (PHP/Laravel)
 
@@ -439,7 +442,7 @@ Before: '2025-10-25'
 After: '2025-10-25T00:00:00.000000Z'"
 ```
 
-## 🔄 Pull Request 流程
+## Pull Request 流程
 
 ### 1. 建立 Pull Request
 
