@@ -50,6 +50,47 @@ class AuthController extends Controller
             ]);
         }
 
+        // 檢查租戶狀態（暫停或停用的租戶顯示具體原因）
+        if ($user->tenant_id && $user->tenant) {
+            $tenant = $user->tenant;
+            
+            if ($tenant->status === 'suspended') {
+                SecurityLoggingService::logLoginFailure(
+                    $request->email,
+                    '租戶帳號已被暫停',
+                    $request
+                );
+                
+                throw ValidationException::withMessages([
+                    'email' => ['您的租戶帳號已被暫停，請聯繫系統管理員'],
+                ]);
+            }
+            
+            if ($tenant->status === 'inactive') {
+                SecurityLoggingService::logLoginFailure(
+                    $request->email,
+                    '租戶帳號已被停用',
+                    $request
+                );
+                
+                throw ValidationException::withMessages([
+                    'email' => ['您的租戶帳號已被停用，請聯繫系統管理員'],
+                ]);
+            }
+            
+            if (!$tenant->isActive()) {
+                SecurityLoggingService::logLoginFailure(
+                    $request->email,
+                    '租戶訂閱已到期',
+                    $request
+                );
+                
+                throw ValidationException::withMessages([
+                    'email' => ['您的租戶訂閱已到期，請聯繫系統管理員續約'],
+                ]);
+            }
+        }
+
         $token = $user->createToken('auth-token')->plainTextToken;
 
         // 記錄登入成功

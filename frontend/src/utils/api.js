@@ -176,7 +176,18 @@ async function apiRequest(url, options = {}) {
             if (import.meta.env.DEV) {
                 logger.apiResponse(method, url, response.status, null);
             }
-            const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            
+            // 處理 Laravel 驗證錯誤 (422)
+            let errorMessage = errorData.message;
+            if (response.status === 422 && errorData.errors) {
+                // 取得第一個驗證錯誤訊息
+                const firstErrorField = Object.keys(errorData.errors)[0];
+                if (firstErrorField && errorData.errors[firstErrorField].length > 0) {
+                    errorMessage = errorData.errors[firstErrorField][0];
+                }
+            }
+            
+            const error = new Error(errorMessage || `HTTP ${response.status}: ${response.statusText}`);
             if (import.meta.env.DEV) {
                 logger.error('API request failed', error, { url, method });
             }
