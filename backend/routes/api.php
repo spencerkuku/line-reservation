@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\CheckInController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\TenantController;
 use App\Http\Controllers\AdminActivityLogController;
+use App\Http\Controllers\Api\SystemController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -73,6 +74,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // ===== 系統管理員專用路由 =====
 Route::middleware(['auth:sanctum', 'system.admin'])->prefix('system')->group(function () {
+    // 系統統計和監控
+    Route::get('/stats', [SystemController::class, 'stats']);
+    Route::get('/monitoring', [SystemController::class, 'monitoring']);
+    
     // 租戶管理
     Route::prefix('tenants')->group(function () {
         Route::get('/', [TenantController::class, 'index']);

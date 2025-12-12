@@ -738,7 +738,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-0 md:p-6 overflow-hidden">
     <!-- 專業級工具列 - Google Calendar 風格 -->
-    <div class="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+    <div class="sticky top-0 z-[5] bg-white border-b border-gray-200 shadow-sm">
       <div class="max-w-[1800px] mx-auto px-4 md:px-6 py-3 md:py-4">
         <div class="flex items-center justify-between gap-4">
           <!-- 左側：Logo + 導航控制 -->
@@ -834,7 +834,7 @@ onMounted(() => {
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-2"
     >
-      <div v-if="showViewMenu" class="md:hidden absolute top-[60px] right-4 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-30 min-w-[160px]">
+      <div v-if="showViewMenu" class="md:hidden absolute top-[60px] right-4 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-10 min-w-[160px]">
         <button 
           @click="changeView('timeGridDay'); toggleViewMenu()"
           :class="[
@@ -869,7 +869,7 @@ onMounted(() => {
     <div class="max-w-[1800px] mx-auto px-0 md:px-6 py-4">
       <div class="bg-white rounded-none md:rounded-2xl shadow-lg border-0 md:border border-gray-200 overflow-hidden relative">
         <!-- 骨架屏 Loading -->
-        <div v-if="isLoading" class="absolute inset-0 bg-white bg-opacity-95 z-20 backdrop-blur-sm">
+        <div v-if="isLoading" class="absolute inset-0 bg-white bg-opacity-95 z-10 backdrop-blur-sm">
           <div class="flex flex-col items-center justify-center h-full">
             <div class="w-12 h-12 border-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
             <p class="mt-4 text-gray-600 text-sm font-medium">載入中...</p>
@@ -956,14 +956,14 @@ onMounted(() => {
     <!-- iOS 風格的浮動新增按鈕 -->
     <button 
       @click="openManualCreateModal"
-      class="lg:hidden fixed bottom-8 right-6 w-16 h-16 bg-gradient-to-br from-indigo-600 to-indigo-500 text-white rounded-2xl shadow-2xl flex items-center justify-center z-50 cursor-pointer transition-all duration-300 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 touch-manipulation group"
+      class="lg:hidden fixed bottom-8 right-6 w-16 h-16 bg-gradient-to-br from-indigo-600 to-indigo-500 text-white rounded-2xl shadow-2xl flex items-center justify-center z-20 cursor-pointer transition-all duration-300 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 touch-manipulation group"
     >
       <PlusIcon class="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
     </button>
 
     <!-- 精緻的編輯 Modal - 全新設計 -->
     <TransitionRoot appear :show="showEditModal" as="template">
-      <Dialog as="div" @close="closeEditModal" class="relative z-50">
+      <Dialog as="div" @close="closeEditModal" class="relative z-40">
         <TransitionChild
           as="template"
           enter="duration-300 ease-out"
@@ -1128,7 +1128,7 @@ onMounted(() => {
       <div 
         v-if="toast.show" 
         :class="[
-          'fixed top-4 right-4 md:top-6 md:right-6 px-5 py-4 rounded-xl text-sm font-semibold shadow-2xl z-[1100] max-w-sm flex items-center gap-3',
+          'fixed top-4 right-4 md:top-6 md:right-6 px-5 py-4 rounded-xl text-sm font-semibold shadow-2xl z-20 max-w-sm flex items-center gap-3',
           toast.type === 'success' 
             ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-200' 
             : 'bg-red-50 text-red-800 border-2 border-red-200'
