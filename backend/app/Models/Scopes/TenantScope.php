@@ -16,6 +16,10 @@ class TenantScope implements Scope
 {
     /**
      * 應用範圍到給定的 Eloquent 查詢建構器
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $builder
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return void
      */
     public function apply(Builder $builder, Model $model): void
     {
