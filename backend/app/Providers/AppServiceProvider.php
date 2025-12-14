@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Reservation;
 use App\Observers\ReservationObserver;
 
@@ -29,5 +30,10 @@ class AppServiceProvider extends ServiceProvider
 
         // 註冊模型觀察者
         Reservation::observe(ReservationObserver::class);
+
+        // 記錄應用啟動時間（如果尚未設置）
+        if (!Cache::has('app_start_time')) {
+            Cache::forever('app_start_time', now());
+        }
     }
 }

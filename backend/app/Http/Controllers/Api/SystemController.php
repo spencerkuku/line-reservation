@@ -138,18 +138,17 @@ class SystemController extends Controller
 
 
     /**
-     * 獲取 CPU 使用率（模擬，實際可能需要系統命令）
+     * 獲取 CPU 使用率
      */
     private function getCpuUsage()
     {
-        // 實際環境中，可以使用 sys_getloadavg() 或執行系統命令
         if (function_exists('sys_getloadavg')) {
             $load = sys_getloadavg();
-            return round($load[0] * 20, 1); // 簡化轉換
+            // 轉換為百分比（假設單核心）
+            return round($load[0] * 100, 1);
         }
         
-        // 模擬數據
-        return round(mt_rand(15, 45) + (mt_rand(0, 100) / 100), 1);
+        return null;
     }
 
     /**
@@ -157,9 +156,8 @@ class SystemController extends Controller
      */
     private function getMemoryUsage()
     {
-        if (function_exists('memory_get_usage') && function_exists('memory_get_peak_usage')) {
+        if (function_exists('memory_get_usage')) {
             $used = memory_get_usage(true);
-            $peak = memory_get_peak_usage(true);
             $limit = ini_get('memory_limit');
             
             if ($limit !== '-1') {
@@ -168,8 +166,7 @@ class SystemController extends Controller
             }
         }
         
-        // 模擬數據
-        return round(mt_rand(30, 55) + (mt_rand(0, 100) / 100), 1);
+        return null;
     }
 
     /**
@@ -187,8 +184,7 @@ class SystemController extends Controller
             }
         }
         
-        // 模擬數據
-        return round(mt_rand(25, 45) + (mt_rand(0, 100) / 100), 1);
+        return null;
     }
 
     /**
@@ -214,16 +210,16 @@ class SystemController extends Controller
             $active = $result[0]->Value ?? 0;
             
             $result = DB::select("SHOW VARIABLES WHERE `variable_name` = 'max_connections'");
-            $max = $result[0]->Value ?? 100;
+            $max = $result[0]->Value ?? 0;
             
             return ['active' => (int)$active, 'max' => (int)$max];
         } catch (\Exception $e) {
-            return ['active' => mt_rand(5, 20), 'max' => 100];
+            return null;
         }
     }
 
     /**
-     * 獲取資料庫響應時間
+     * 獲取資料庫響應時間（毫秒）
      */
     private function getDatabaseResponseTime()
     {
@@ -232,27 +228,27 @@ class SystemController extends Controller
             DB::select('SELECT 1');
             $end = microtime(true);
             
-            return round(($end - $start) * 1000, 1);
+            return round(($end - $start) * 1000, 2);
         } catch (\Exception $e) {
-            return mt_rand(10, 60);
+            return null;
         }
     }
 
     /**
-     * 獲取儲存空間總量
+     * 獲取儲存空間總量（位元組）
      */
     private function getStorageTotal()
     {
         $path = storage_path();
         if (function_exists('disk_total_space')) {
-            return disk_total_space($path) ?: 100 * 1024 * 1024 * 1024; // 預設 100GB
+            return disk_total_space($path) ?: null;
         }
         
-        return 100 * 1024 * 1024 * 1024; // 100GB
+        return null;
     }
 
     /**
-     * 獲取儲存空間使用量
+     * 獲取儲存空間使用量（位元組）
      */
     private function getStorageUsed()
     {
@@ -266,7 +262,7 @@ class SystemController extends Controller
             }
         }
         
-        return 45 * 1024 * 1024 * 1024; // 預設 45GB
+        return null;
     }
 
     /**
@@ -281,21 +277,21 @@ class SystemController extends Controller
     }
 
     /**
-     * 獲取 API 響應時間（模擬）
+     * 獲取 API 平均響應時間（毫秒）
      */
     private function getApiResponseTime()
     {
-        // 實際環境中可以從日誌或監控系統獲取
-        return mt_rand(120, 220);
+        // 從 Cache 獲取過去一小時的平均響應時間
+        return Cache::get('api_avg_response_time', null);
     }
 
     /**
-     * 獲取 API 吞吐量（模擬）
+     * 獲取 API 吞吐量（每小時請求數）
      */
     private function getApiThroughput()
     {
-        // 實際環境中可以從日誌或監控系統獲取
-        return mt_rand(1000, 1500);
+        // 從 Cache 獲取過去一小時的請求數
+        return Cache::get('api_requests_per_hour', null);
     }
 
     /**
@@ -303,8 +299,51 @@ class SystemController extends Controller
      */
     private function getSystemUptime()
     {
-        // 實際環境中可以使用系統命令獲取
-        return 99.9;
+        // 優先從 Cache 獲取應用啟動時間
+        $appStartTime = Cache::get('app_start_time');
+        
+        if ($appStartTime) {
+            $uptimeSeconds = now()->diffInSeconds($appStartTime);
+            return [
+                'seconds' => $uptimeSeconds,
+                'days' => floor($uptimeSeconds / 86400),
+                'hours' => floor(($uptimeSeconds % 86400) / 3600),
+                'minutes' => floor(($uptimeSeconds % 3600) / 60),
+                'formatted' => $this->formatUptime($uptimeSeconds)
+            ];
+        }
+        
+        // 備選方案：從 /proc/uptime 讀取系統運行時間（Linux）
+        if (file_exists('/proc/uptime')) {
+            $uptime = file_get_contents('/proc/uptime');
+            $uptimeSeconds = (float) explode(' ', $uptime)[0];
+            return [
+                'seconds' => round($uptimeSeconds),
+                'days' => floor($uptimeSeconds / 86400),
+                'hours' => floor(($uptimeSeconds % 86400) / 3600),
+                'minutes' => floor(($uptimeSeconds % 3600) / 60),
+                'formatted' => $this->formatUptime($uptimeSeconds)
+            ];
+        }
+        
+        return null;
+    }
+
+    /**
+     * 格式化運行時間
+     */
+    private function formatUptime($seconds)
+    {
+        $days = floor($seconds / 86400);
+        $hours = floor(($seconds % 86400) / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        
+        $parts = [];
+        if ($days > 0) $parts[] = $days . ' 天';
+        if ($hours > 0) $parts[] = $hours . ' 小時';
+        if ($minutes > 0 || empty($parts)) $parts[] = $minutes . ' 分鐘';
+        
+        return implode(' ', $parts);
     }
 
     /**

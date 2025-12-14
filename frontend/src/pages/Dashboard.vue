@@ -116,29 +116,29 @@
           </div>
         </div>
 
-        <!-- 系統健康度 -->
+        <!-- 系統運行時間 -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 group">
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <div class="flex items-center">
-                <p class="text-sm font-medium text-gray-600">系統健康度</p>
+                <p class="text-sm font-medium text-gray-600">系統運行時間</p>
                 <div class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                   <div class="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
-                  健康
+                  運行中
                 </div>
               </div>
-              <p class="text-2xl font-bold text-gray-900 mt-2">{{ systemStats.uptime || '99.9' }}%</p>
+              <p class="text-2xl font-bold text-gray-900 mt-2">{{ formatUptime(systemStats.uptime) }}</p>
               <p class="text-sm text-gray-500 mt-1 flex items-center">
                 <svg class="w-4 h-4 mr-1 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                運行正常
+                {{ getUptimeDetail(systemStats.uptime) }}
               </p>
             </div>
             <div class="flex-shrink-0">
               <div class="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
                 <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 00-2-2z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
               </div>
             </div>
@@ -258,6 +258,29 @@
               <p class="text-xs text-gray-500 ml-6">{{ getCpuStatusText(systemStats.systemLoad?.cpu || 0) }}</p>
             </div>
             
+            <!-- 記憶體使用量 -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                  <svg class="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                  </svg>
+                  <span class="text-sm font-medium text-gray-700">記憶體使用</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                  <div class="w-32 bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      :class="getMemoryProgressClass(systemStats.systemLoad?.memory || 0)"
+                      class="h-2.5 rounded-full transition-all duration-300" 
+                      :style="{ width: (systemStats.systemLoad?.memory || 0) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="text-sm font-semibold text-gray-900 w-10 text-right">{{ (systemStats.systemLoad?.memory || 0).toFixed(1) }}%</span>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 ml-6">{{ getMemoryUsageText() }}</p>
+            </div>
+
             <!-- 資料庫連接 -->
             <div class="space-y-2">
               <div class="flex items-center justify-between">
@@ -302,29 +325,6 @@
               <p class="text-xs text-gray-500 ml-6">
                 已使用 {{ formatBytes(systemStats.storage?.used || 0) }} / {{ formatBytes(systemStats.storage?.total || 0) }} 總容量
               </p>
-            </div>
-
-            <!-- 記憶體使用量 -->
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                  <svg class="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                  </svg>
-                  <span class="text-sm font-medium text-gray-700">記憶體使用</span>
-                </div>
-                <div class="flex items-center space-x-3">
-                  <div class="w-32 bg-gray-200 rounded-full h-2.5">
-                    <div 
-                      :class="getMemoryProgressClass(systemStats.systemLoad?.memory || 0)"
-                      class="h-2.5 rounded-full transition-all duration-300" 
-                      :style="{ width: (systemStats.systemLoad?.memory || 0) + '%' }"
-                    ></div>
-                  </div>
-                  <span class="text-sm font-semibold text-gray-900 w-10 text-right">{{ (systemStats.systemLoad?.memory || 0).toFixed(1) }}%</span>
-                </div>
-              </div>
-              <p class="text-xs text-gray-500 ml-6">{{ getMemoryUsageText() }}</p>
             </div>
 
             <!-- API 響應時間 -->
@@ -841,6 +841,47 @@ const getCpuStatusText = (percentage) => {
   }
 }
 
+// 格式化運行時間
+const formatUptime = (uptimeData) => {
+  if (!uptimeData) return 'N/A'
+  
+  // 如果是字串格式，直接返回
+  if (typeof uptimeData === 'string') return uptimeData
+  
+  // 如果有 formatted 欄位，直接使用
+  if (uptimeData.formatted) return uptimeData.formatted
+  
+  // 如果有 days 欄位，格式化顯示
+  if (uptimeData.days !== undefined) {
+    const parts = []
+    if (uptimeData.days > 0) parts.push(`${uptimeData.days} 天`)
+    if (uptimeData.hours > 0) parts.push(`${uptimeData.hours} 小時`)
+    if (uptimeData.minutes > 0 || parts.length === 0) parts.push(`${uptimeData.minutes} 分鐘`)
+    return parts.join(' ')
+  }
+  
+  return 'N/A'
+}
+
+// 獲取運行時間詳細資訊
+const getUptimeDetail = (uptimeData) => {
+  if (!uptimeData) return '系統運行中'
+  
+  if (uptimeData.days !== undefined) {
+    if (uptimeData.days >= 30) {
+      return '長期穩定運行'
+    } else if (uptimeData.days >= 7) {
+      return '運行穩定'
+    } else if (uptimeData.days >= 1) {
+      return '系統運行中'
+    } else {
+      return '最近啟動'
+    }
+  }
+  
+  return '系統運行中'
+}
+
 const getDatabaseDotClass = (status) => {
   switch (status?.toLowerCase()) {
     case 'connected':
@@ -1002,37 +1043,6 @@ const fetchDashboardData = async () => {
         
         if (systemStatsRes?.success) {
           systemStats.value = systemStatsRes.data || {}
-        } else {
-          // 使用模擬數據作為後備
-          systemStats.value = {
-            activeTenants: 12,
-            totalUsers: 1247,
-            totalReservations: 8954,
-            uptime: 99.9,
-            newTenantsThisMonth: 2,
-            newUsersThisWeek: 34,
-            todayReservations: 156,
-            // 系統監控數據 - 預設使用真實的模擬值
-            systemLoad: {
-              cpu: Math.floor(Math.random() * 30) + 15, // 15-45%
-              memory: Math.floor(Math.random() * 25) + 30, // 30-55%
-              disk: Math.floor(Math.random() * 20) + 25 // 25-45%
-            },
-            database: {
-              status: 'connected',
-              connections: { active: Math.floor(Math.random() * 50) + 10, max: 100 },
-              responseTime: Math.floor(Math.random() * 50) + 10 // 10-60ms
-            },
-            storage: {
-              used: 1024 * 1024 * 1024 * 45, // 45GB
-              total: 1024 * 1024 * 1024 * 100, // 100GB
-              percentage: 45
-            },
-            performance: {
-              apiResponseTime: Math.floor(Math.random() * 100) + 120, // 120-220ms
-              throughput: Math.floor(Math.random() * 500) + 1000 // 1000-1500 req/min
-            }
-          }
         }
         
         // 獲取系統監控數據
@@ -1051,36 +1061,7 @@ const fetchDashboardData = async () => {
 
       } catch (err) {
         systemError.value = err.message || '獲取系統數據失敗'
-        // 使用模擬數據
-        systemStats.value = {
-          activeTenants: 0,
-          totalUsers: 0,
-          totalReservations: 0,
-          uptime: 0,
-          newTenantsThisMonth: 0,
-          newUsersThisWeek: 0,
-          todayReservations: 0,
-          // 系統監控數據預設值（錯誤狀態）
-          systemLoad: {
-            cpu: 0,
-            memory: 0,
-            disk: 0
-          },
-          database: {
-            status: 'disconnected',
-            connections: { active: 0, max: 0 },
-            responseTime: 0
-          },
-          storage: {
-            used: 0,
-            total: 0,
-            percentage: 0
-          },
-          performance: {
-            apiResponseTime: 0,
-            throughput: 0
-          }
-        }
+        console.error('系統數據獲取錯誤:', err)
       } finally {
         systemLoading.value = false
       }
