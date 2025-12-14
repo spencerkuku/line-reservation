@@ -89,15 +89,15 @@ class FrontendLogController extends Controller
         try {
             $validated = $request->validate([
                 'message' => 'required|string|max:1000',
-                'stack' => 'sometimes|string|max:5000',
-                'component' => 'sometimes|string|max:255',
-                'url' => 'sometimes|string|max:2000',
-                'line' => 'sometimes|integer',
-                'column' => 'sometimes|integer',
-                'user_agent' => 'sometimes|string',
-                'screen_resolution' => 'sometimes|string',
-                'viewport' => 'sometimes|string',
-                'context' => 'sometimes|array',
+                'stack' => 'nullable|string|max:5000',
+                'component' => 'nullable|string|max:255',
+                'url' => 'nullable|string|max:2000',
+                'line' => 'nullable|integer',
+                'column' => 'nullable|integer',
+                'user_agent' => 'nullable|string',
+                'screen_resolution' => 'nullable|string',
+                'viewport' => 'nullable|string',
+                'context' => 'nullable|array',
             ]);
 
             $errorContext = [
