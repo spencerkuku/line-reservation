@@ -77,6 +77,9 @@ Route::middleware(['auth:sanctum', 'system.admin'])->prefix('system')->group(fun
     // 系統統計和監控
     Route::get('/stats', [SystemController::class, 'stats']);
     Route::get('/monitoring', [SystemController::class, 'monitoring']);
+    Route::get('/alerts', [SystemController::class, 'alerts']);
+    Route::get('/performance-history', [SystemController::class, 'performanceHistory']);
+    Route::get('/tenant-activity', [SystemController::class, 'tenantActivity']);
     
     // 租戶管理
     Route::prefix('tenants')->group(function () {

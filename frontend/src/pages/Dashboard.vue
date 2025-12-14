@@ -349,6 +349,219 @@
         </div>
       </div>
 
+      <!-- Phase 1: 系統警報、效能圖表、租戶活動 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 系統警報中心 -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">系統警報</h3>
+                <p class="text-sm text-gray-600 mt-1">即時系統警告</p>
+              </div>
+              <div v-if="systemAlerts.total > 0" class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" v-if="systemAlerts.error_count > 0">
+                  {{ systemAlerts.error_count }} 錯誤
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800" v-if="systemAlerts.warning_count > 0">
+                  {{ systemAlerts.warning_count }} 警告
+                </span>
+              </div>
+              <span v-else class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                正常
+              </span>
+            </div>
+          </div>
+          <div class="p-6">
+            <div v-if="systemAlerts.total === 0" class="text-center py-8">
+              <svg class="mx-auto h-12 w-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p class="mt-2 text-sm text-gray-500">系統運行正常，無警報</p>
+            </div>
+            <div v-else class="space-y-3 max-h-80 overflow-y-auto">
+              <div v-for="alert in systemAlerts.alerts" :key="alert.timestamp" 
+                   :class="[
+                     'p-3 rounded-lg border-l-4',
+                     alert.type === 'error' ? 'bg-red-50 border-red-400' : 'bg-yellow-50 border-yellow-400'
+                   ]">
+                <div class="flex items-start">
+                  <svg v-if="alert.type === 'error'" class="h-5 w-5 text-red-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                  </svg>
+                  <svg v-else class="h-5 w-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                  </svg>
+                  <div class="ml-3 flex-1">
+                    <p :class="['text-sm font-medium', alert.type === 'error' ? 'text-red-800' : 'text-yellow-800']">
+                      {{ alert.title }}
+                    </p>
+                    <p :class="['text-xs mt-1', alert.type === 'error' ? 'text-red-700' : 'text-yellow-700']">
+                      {{ alert.message }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 效能趨勢圖表 -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900">API 效能趨勢</h3>
+                <p class="text-sm text-gray-600 mt-1">過去 24 小時</p>
+              </div>
+              <div class="flex items-center space-x-4 text-xs">
+                <div class="flex items-center">
+                  <div class="w-3 h-3 bg-blue-500 rounded mr-1"></div>
+                  <span class="text-gray-600">請求數</span>
+                </div>
+                <div class="flex items-center">
+                  <div class="w-3 h-3 bg-green-500 rounded mr-1"></div>
+                  <span class="text-gray-600">響應時間</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="p-6">
+            <div v-if="performanceHistory.length === 0" class="text-center py-12">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 00-2-2z"/>
+              </svg>
+              <p class="mt-2 text-sm text-gray-500">暫無效能數據</p>
+            </div>
+            <div v-else class="space-y-4">
+              <!-- 簡易圖表 -->
+              <div class="relative h-48">
+                <div class="absolute inset-0 flex items-end justify-between space-x-1">
+                  <div v-for="(point, index) in performanceHistory.slice(-12)" :key="index" 
+                       class="flex-1 flex flex-col items-center space-y-1">
+                    <!-- 請求數柱狀圖 -->
+                    <div class="w-full bg-blue-100 rounded-t relative group cursor-pointer"
+                         :style="{ height: getBarHeight(point.requests, 'requests') + '%' }">
+                      <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                        {{ point.requests }} 請求
+                      </div>
+                    </div>
+                    <!-- 時間標籤 -->
+                    <span class="text-xs text-gray-500 transform rotate-45 origin-top-left">{{ point.time }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 統計摘要 -->
+              <div class="grid grid-cols-3 gap-4 pt-4 border-t">
+                <div class="text-center">
+                  <p class="text-sm text-gray-600">總請求數</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-1">
+                    {{ formatNumber(performanceHistory.reduce((sum, p) => sum + p.requests, 0)) }}
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-sm text-gray-600">平均響應時間</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-1">
+                    {{ getAvgResponseTime() }}ms
+                  </p>
+                </div>
+                <div class="text-center">
+                  <p class="text-sm text-gray-600">峰值請求</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-1">
+                    {{ Math.max(...performanceHistory.map(p => p.requests), 0) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 租戶活動監控 -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900">租戶活動排行</h3>
+              <p class="text-sm text-gray-600 mt-1">過去 7 天最活躍的租戶</p>
+            </div>
+            <RouterLink 
+              :to="{ name: 'Tenants' }"
+              class="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              查看全部 →
+            </RouterLink>
+          </div>
+        </div>
+        <div class="p-6">
+          <div v-if="tenantActivities.length === 0" class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <p class="mt-2 text-sm text-gray-500">暫無租戶活動數據</p>
+          </div>
+          <div v-else class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">排名</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">租戶名稱</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">用戶數</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">本週預約</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">今日預約</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">活動分數</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <tr v-for="(tenant, index) in tenantActivities" :key="tenant.id" class="hover:bg-gray-50">
+                  <td class="px-4 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                      <span v-if="index === 0" class="text-2xl">🥇</span>
+                      <span v-else-if="index === 1" class="text-2xl">🥈</span>
+                      <span v-else-if="index === 2" class="text-2xl">🥉</span>
+                      <span v-else class="text-sm font-medium text-gray-900">{{ index + 1 }}</span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">{{ tenant.name }}</div>
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap">
+                    <span :class="[
+                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                      tenant.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    ]">
+                      {{ tenant.status === 'active' ? '活躍' : '暫停' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                    {{ tenant.users_count }}
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap text-right">
+                    <span class="text-sm font-semibold text-blue-600">{{ tenant.week_reservations }}</span>
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap text-right">
+                    <span class="text-sm text-gray-900">{{ tenant.today_reservations }}</span>
+                  </td>
+                  <td class="px-4 py-4 whitespace-nowrap text-right">
+                    <div class="flex items-center justify-end space-x-2">
+                      <div class="w-16 bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full" :style="{ width: getActivityPercentage(tenant.activity_score) + '%' }"></div>
+                      </div>
+                      <span class="text-sm font-medium text-gray-900">{{ tenant.activity_score }}</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- 租戶管理員儀表板 -->
@@ -697,6 +910,11 @@ const systemStats = ref({})
 const systemLoading = ref(false)
 const systemError = ref('')
 
+// Phase 1: 新增數據
+const systemAlerts = ref({ alerts: [], total: 0, error_count: 0, warning_count: 0 })
+const performanceHistory = ref([])
+const tenantActivities = ref([])
+
 // 獲取當前用戶信息
 const currentUser = computed(() => {
   const userStr = localStorage.getItem('user')
@@ -882,6 +1100,30 @@ const getUptimeDetail = (uptimeData) => {
   return '系統運行中'
 }
 
+// Phase 1: 新增輔助函數
+// 計算柱狀圖高度
+const getBarHeight = (value, type) => {
+  if (type === 'requests') {
+    const maxRequests = Math.max(...performanceHistory.value.map(p => p.requests), 1)
+    return (value / maxRequests) * 100
+  }
+  return 0
+}
+
+// 計算平均響應時間
+const getAvgResponseTime = () => {
+  if (performanceHistory.value.length === 0) return 0
+  const total = performanceHistory.value.reduce((sum, p) => sum + p.avgResponseTime, 0)
+  return Math.round(total / performanceHistory.value.length)
+}
+
+// 計算活動分數百分比
+const getActivityPercentage = (score) => {
+  if (tenantActivities.value.length === 0) return 0
+  const maxScore = Math.max(...tenantActivities.value.map(t => t.activity_score), 1)
+  return Math.min((score / maxScore) * 100, 100)
+}
+
 const getDatabaseDotClass = (status) => {
   switch (status?.toLowerCase()) {
     case 'connected':
@@ -1056,6 +1298,36 @@ const fetchDashboardData = async () => {
           }
         } catch (err) {
           console.warn('獲取系統監控數據失敗:', err.message)
+        }
+
+        // Phase 1: 獲取系統警報
+        try {
+          const alertsRes = await apiGet('/system/alerts')
+          if (alertsRes?.success) {
+            systemAlerts.value = alertsRes.data
+          }
+        } catch (err) {
+          console.warn('獲取系統警報失敗:', err.message)
+        }
+
+        // Phase 1: 獲取效能歷史
+        try {
+          const perfRes = await apiGet('/system/performance-history')
+          if (perfRes?.success) {
+            performanceHistory.value = perfRes.data.history || []
+          }
+        } catch (err) {
+          console.warn('獲取效能歷史失敗:', err.message)
+        }
+
+        // Phase 1: 獲取租戶活動
+        try {
+          const activityRes = await apiGet('/system/tenant-activity')
+          if (activityRes?.success) {
+            tenantActivities.value = activityRes.data.tenants || []
+          }
+        } catch (err) {
+          console.warn('獲取租戶活動失敗:', err.message)
         }
         
 

@@ -135,6 +135,275 @@ class SystemController extends Controller
         }
     }
 
+    /**
+     * 獲取系統警報
+     */
+    public function alerts()
+    {
+        try {
+            $alerts = [];
+            
+            // 檢查 CPU 使用率
+            $cpu = $this->getCpuUsage();
+            if ($cpu !== null && $cpu > 80) {
+                $alerts[] = [
+                    'type' => 'error',
+                    'category' => 'cpu',
+                    'title' => 'CPU 使用率過高',
+                    'message' => "當前 CPU 使用率為 {$cpu}%，超過警戒值 80%",
+                    'value' => $cpu,
+                    'threshold' => 80,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            } elseif ($cpu !== null && $cpu > 60) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'category' => 'cpu',
+                    'title' => 'CPU 使用率偏高',
+                    'message' => "當前 CPU 使用率為 {$cpu}%",
+                    'value' => $cpu,
+                    'threshold' => 60,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+            
+            // 檢查記憶體使用率
+            $memory = $this->getMemoryUsage();
+            if ($memory !== null && $memory > 85) {
+                $alerts[] = [
+                    'type' => 'error',
+                    'category' => 'memory',
+                    'title' => '記憶體使用率過高',
+                    'message' => "當前記憶體使用率為 {$memory}%，超過警戒值 85%",
+                    'value' => $memory,
+                    'threshold' => 85,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            } elseif ($memory !== null && $memory > 70) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'category' => 'memory',
+                    'title' => '記憶體使用率偏高',
+                    'message' => "當前記憶體使用率為 {$memory}%",
+                    'value' => $memory,
+                    'threshold' => 70,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+            
+            // 檢查磁碟使用率
+            $disk = $this->getDiskUsage();
+            if ($disk !== null && $disk > 90) {
+                $alerts[] = [
+                    'type' => 'error',
+                    'category' => 'disk',
+                    'title' => '磁碟空間不足',
+                    'message' => "當前磁碟使用率為 {$disk}%，超過警戒值 90%",
+                    'value' => $disk,
+                    'threshold' => 90,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            } elseif ($disk !== null && $disk > 80) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'category' => 'disk',
+                    'title' => '磁碟空間偏低',
+                    'message' => "當前磁碟使用率為 {$disk}%",
+                    'value' => $disk,
+                    'threshold' => 80,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+            
+            // 檢查資料庫連接
+            $dbStatus = $this->getDatabaseStatus();
+            if ($dbStatus === 'disconnected') {
+                $alerts[] = [
+                    'type' => 'error',
+                    'category' => 'database',
+                    'title' => '資料庫連接失敗',
+                    'message' => '無法連接到資料庫',
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+            
+            // 檢查資料庫響應時間
+            $dbResponseTime = $this->getDatabaseResponseTime();
+            if ($dbResponseTime !== null && $dbResponseTime > 500) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'category' => 'database',
+                    'title' => '資料庫響應緩慢',
+                    'message' => "當前資料庫響應時間為 {$dbResponseTime}ms，超過建議值 500ms",
+                    'value' => $dbResponseTime,
+                    'threshold' => 500,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+            
+            // 檢查儲存空間
+            $storagePercentage = $this->getStoragePercentage();
+            if ($storagePercentage > 90) {
+                $alerts[] = [
+                    'type' => 'error',
+                    'category' => 'storage',
+                    'title' => '儲存空間嚴重不足',
+                    'message' => "當前儲存空間使用率為 {$storagePercentage}%",
+                    'value' => $storagePercentage,
+                    'threshold' => 90,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            } elseif ($storagePercentage > 80) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'category' => 'storage',
+                    'title' => '儲存空間偏低',
+                    'message' => "當前儲存空間使用率為 {$storagePercentage}%",
+                    'value' => $storagePercentage,
+                    'threshold' => 80,
+                    'timestamp' => now()->toIso8601String()
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'alerts' => $alerts,
+                    'total' => count($alerts),
+                    'error_count' => count(array_filter($alerts, fn($a) => $a['type'] === 'error')),
+                    'warning_count' => count(array_filter($alerts, fn($a) => $a['type'] === 'warning')),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '獲取系統警報失敗',
+                'error' => config('app.debug') ? $e->getMessage() : '內部伺服器錯誤'
+            ], 500);
+        }
+    }
+
+    /**
+     * 獲取效能歷史數據
+     */
+    public function performanceHistory()
+    {
+        try {
+            // 獲取過去 24 小時的數據點
+            $hours = 24;
+            $history = [];
+            
+            for ($i = $hours - 1; $i >= 0; $i--) {
+                $hourKey = now()->subHours($i)->format('YmdH');
+                
+                // 從 Cache 獲取該小時的數據
+                $responses = Cache::get("api_responses_{$hourKey}", []);
+                $requests = Cache::get("api_requests_{$hourKey}", 0);
+                
+                $avgResponseTime = 0;
+                if (count($responses) > 0) {
+                    $avgResponseTime = round(array_sum($responses) / count($responses), 2);
+                }
+                
+                $history[] = [
+                    'time' => now()->subHours($i)->format('H:00'),
+                    'timestamp' => now()->subHours($i)->toIso8601String(),
+                    'requests' => $requests,
+                    'avgResponseTime' => $avgResponseTime,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'history' => $history,
+                    'period' => '24h'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '獲取效能歷史數據失敗',
+                'error' => config('app.debug') ? $e->getMessage() : '內部伺服器錯誤'
+            ], 500);
+        }
+    }
+
+    /**
+     * 獲取租戶活動統計
+     */
+    public function tenantActivity()
+    {
+        try {
+            // 獲取所有租戶的活動統計
+            $tenants = Tenant::with(['users', 'reservations' => function($query) {
+                $query->where('created_at', '>=', now()->subDays(7));
+            }])
+            ->withCount([
+                'users',
+                'reservations as total_reservations',
+                'reservations as week_reservations' => function($query) {
+                    $query->where('created_at', '>=', now()->subDays(7));
+                },
+                'reservations as today_reservations' => function($query) {
+                    $query->whereDate('created_at', today());
+                }
+            ])
+            ->orderBy('week_reservations', 'desc')
+            ->limit(10)
+            ->get();
+
+            $activities = $tenants->map(function($tenant) {
+                return [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'status' => $tenant->status,
+                    'users_count' => $tenant->users_count,
+                    'total_reservations' => $tenant->total_reservations,
+                    'week_reservations' => $tenant->week_reservations,
+                    'today_reservations' => $tenant->today_reservations,
+                    'activity_score' => $this->calculateActivityScore($tenant)
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'tenants' => $activities,
+                    'period' => '7d'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => '獲取租戶活動統計失敗',
+                'error' => config('app.debug') ? $e->getMessage() : '內部伺服器錯誤'
+            ], 500);
+        }
+    }
+
+    /**
+     * 計算租戶活動分數
+     */
+    private function calculateActivityScore($tenant)
+    {
+        $score = 0;
+        
+        // 根據本週預約數計分
+        $score += $tenant->week_reservations * 10;
+        
+        // 根據今日預約數額外加分
+        $score += $tenant->today_reservations * 5;
+        
+        // 根據用戶數計分
+        $score += $tenant->users_count * 2;
+        
+        return $score;
+    }
+
 
 
     /**
