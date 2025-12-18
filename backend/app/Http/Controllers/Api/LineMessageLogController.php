@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LineMessageLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class LineMessageLogController extends Controller
 {
@@ -81,7 +83,8 @@ class LineMessageLogController extends Controller
         $query = LineMessageLog::whereBetween('line_message_logs.created_at', [$dateFrom, $dateTo]);
 
         // 如果不是系統管理員，只看自己租戶的
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         if (!$user->isSystemAdmin()) {
             $query->where('line_message_logs.tenant_id', $user->tenant_id);
         }
@@ -141,7 +144,8 @@ class LineMessageLogController extends Controller
         $query = LineMessageLog::whereBetween('line_message_logs.created_at', [$dateFrom, now()]);
 
         // 如果不是系統管理員，只看自己租戶的
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         if (!$user->isSystemAdmin()) {
             $query->where('line_message_logs.tenant_id', $user->tenant_id);
         }
@@ -188,7 +192,8 @@ class LineMessageLogController extends Controller
      */
     public function tenants(): JsonResponse
     {
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         
         if (!$user->isSystemAdmin()) {
             return response()->json([

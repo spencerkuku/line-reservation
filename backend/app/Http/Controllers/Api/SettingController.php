@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class SettingController extends Controller
 {
@@ -85,7 +87,8 @@ class SettingController extends Controller
     // 獲取 Webhook URL
     public function getWebhookUrl()
     {
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         
         if ($user->isSystemAdmin()) {
             return response()->json([

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdminActivityLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class AdminActivityLogController extends Controller
 {
@@ -13,7 +15,8 @@ class AdminActivityLogController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         
         // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
         $query = $user->isSystemAdmin() 
@@ -83,7 +86,8 @@ class AdminActivityLogController extends Controller
         $dateFrom = $request->get('date_from', now()->subDays(30));
         $dateTo = $request->get('date_to', now());
 
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         
         // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
         $baseQuery = $user->isSystemAdmin() 
@@ -151,7 +155,8 @@ class AdminActivityLogController extends Controller
         $days = $request->get('days', 30);
         $dateFrom = now()->subDays($days)->startOfDay();
 
-        $user = auth()->user();
+        /** @var User $user */
+        $user = Auth::user();
         
         // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
         $query = $user->isSystemAdmin() 
