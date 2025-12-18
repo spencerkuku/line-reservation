@@ -27,6 +27,7 @@ class ActivityLogger
             $request = request();
 
             $log = AdminActivityLog::create([
+                'tenant_id' => $user?->tenant_id,
                 'user_id' => $user?->id,
                 'user_name' => $user?->name,
                 'user_email' => $user?->email,

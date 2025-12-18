@@ -24,6 +24,16 @@ class LineMessageLog extends Model
         'bot_response' => 'array'
     ];
 
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'line_user_id', 'line_user_id');
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'line_user_id', 'line_user_id');

@@ -201,7 +201,9 @@ const navigation = computed(() => {
   // 系統管理員可以管理租戶
   if (user.value.role === 'system_admin') {
     baseNav.push(
-      { name: '租戶管理', to: { name: 'Tenants' } }
+      { name: '租戶管理', to: { name: 'Tenants' } },
+      { name: '活動日誌', to: { name: 'ActivityLogs' } },
+      { name: 'LINE 訊息', to: { name: 'LineMessageLogs' } }
     )
   }
   

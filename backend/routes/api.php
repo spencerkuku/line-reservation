@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\TenantController;
 use App\Http\Controllers\AdminActivityLogController;
 use App\Http\Controllers\Api\SystemController;
+use App\Http\Controllers\Api\LineMessageLogController;
 
 // 公開路由
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -173,5 +174,15 @@ Route::middleware(['auth:sanctum', 'admin', 'tenant'])->group(function () {
         Route::get('/modules', [AdminActivityLogController::class, 'modules']);
         Route::get('/actions', [AdminActivityLogController::class, 'actions']);
         Route::get('/{log}', [AdminActivityLogController::class, 'show']);
+    });
+
+    // LINE 訊息日誌管理（系統管理員和租戶管理員都可訪問）
+    Route::prefix('line-message-logs')->group(function () {
+        Route::get('/', [LineMessageLogController::class, 'index']);
+        Route::get('/stats', [LineMessageLogController::class, 'stats']);
+        Route::get('/trends', [LineMessageLogController::class, 'trends']);
+        Route::get('/types', [LineMessageLogController::class, 'types']);
+        Route::get('/tenants', [LineMessageLogController::class, 'tenants']);
+        Route::get('/{log}', [LineMessageLogController::class, 'show']);
     });
 });

@@ -15,6 +15,8 @@ import Customers from './pages/Customers.vue'
 import CheckIn from './pages/CheckIn.vue'
 import Tenants from './pages/Tenants.vue'
 import ForceChangePassword from './pages/ForceChangePassword.vue'
+import ActivityLogs from './pages/ActivityLogs.vue'
+import LineMessageLogs from './pages/LineMessageLogs.vue'
 import { validateToken } from "./utils/api.js"
 
 const routes = [
@@ -32,6 +34,8 @@ const routes = [
             { path: 'settings', name: 'Settings', component: Settings },
             // 系統管理員專用
             { path: 'tenants', name: 'Tenants', component: Tenants, meta: { requiresSystemAdmin: true } },
+            { path: 'activity-logs', name: 'ActivityLogs', component: ActivityLogs, meta: { requiresSystemAdmin: true } },
+            { path: 'line-message-logs', name: 'LineMessageLogs', component: LineMessageLogs, meta: { requiresSystemAdmin: true } },
         ]
     },
     {

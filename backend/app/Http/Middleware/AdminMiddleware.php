@@ -23,8 +23,8 @@ class AdminMiddleware
             ], 401);
         }
 
-        // 檢查用戶角色是否為管理員
-        if ($request->user()->role !== 'admin') {
+        // 檢查用戶角色是否為管理員（包含租戶管理員和系統管理員）
+        if ($request->user()->role !== 'admin' && $request->user()->role !== 'system_admin') {
             return response()->json([
                 'success' => false,
                 'message' => '權限不足，僅限管理員操作'

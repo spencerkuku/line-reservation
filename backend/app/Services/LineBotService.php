@@ -2909,6 +2909,19 @@ class LineBotService
             Log::error('LINE reply message failed: ' . $response->body());
         } else {
             Log::info('LINE reply message sent successfully');
+            
+            // 記錄發送的訊息
+            try {
+                LineMessageLog::create([
+                    'tenant_id' => $this->tenant?->id,
+                    'line_user_id' => 'reply', // reply token 無法獲取 userId，使用 'reply'
+                    'message_type' => $message['type'] ?? 'unknown',
+                    'message_content' => json_encode($message),
+                    'direction' => 'outgoing'
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to log outgoing LINE message: ' . $e->getMessage());
+            }
         }
     }
 
@@ -2944,6 +2957,19 @@ class LineBotService
             throw new \Exception('Failed to send LINE push message');
         } else {
             Log::info('LINE push message sent successfully');
+            
+            // 記錄發送的訊息
+            try {
+                LineMessageLog::create([
+                    'tenant_id' => $this->tenant?->id,
+                    'line_user_id' => $userId,
+                    'message_type' => $message['type'] ?? 'unknown',
+                    'message_content' => json_encode($message),
+                    'direction' => 'outgoing'
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to log outgoing LINE message: ' . $e->getMessage());
+            }
         }
 
         return true;
@@ -2957,6 +2983,7 @@ class LineBotService
             $content = json_encode($event);
 
             LineMessageLog::create([
+                'tenant_id' => $this->tenant?->id,
                 'line_user_id' => $userId,
                 'message_type' => $messageType,
                 'message_content' => $content,

@@ -13,8 +13,14 @@ class AdminActivityLogController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = AdminActivityLog::with('user')
-            ->orderBy('created_at', 'desc');
+        $user = auth()->user();
+        
+        // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
+        $query = $user->isSystemAdmin() 
+            ? AdminActivityLog::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+            : AdminActivityLog::query();
+            
+        $query->with('user')->orderBy('created_at', 'desc');
 
         // 篩選條件
         if ($request->filled('module')) {
@@ -77,10 +83,17 @@ class AdminActivityLogController extends Controller
         $dateFrom = $request->get('date_from', now()->subDays(30));
         $dateTo = $request->get('date_to', now());
 
+        $user = auth()->user();
+        
+        // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
+        $baseQuery = $user->isSystemAdmin() 
+            ? AdminActivityLog::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+            : AdminActivityLog::query();
+
         $stats = [
-            'total_activities' => AdminActivityLog::whereBetween('created_at', [$dateFrom, $dateTo])->count(),
+            'total_activities' => (clone $baseQuery)->whereBetween('created_at', [$dateFrom, $dateTo])->count(),
             
-            'by_module' => AdminActivityLog::whereBetween('created_at', [$dateFrom, $dateTo])
+            'by_module' => (clone $baseQuery)->whereBetween('created_at', [$dateFrom, $dateTo])
                 ->selectRaw('module, count(*) as count')
                 ->groupBy('module')
                 ->orderBy('count', 'desc')
@@ -93,7 +106,7 @@ class AdminActivityLogController extends Controller
                     ];
                 }),
             
-            'by_action' => AdminActivityLog::whereBetween('created_at', [$dateFrom, $dateTo])
+            'by_action' => (clone $baseQuery)->whereBetween('created_at', [$dateFrom, $dateTo])
                 ->selectRaw('action, count(*) as count')
                 ->groupBy('action')
                 ->orderBy('count', 'desc')
@@ -106,18 +119,18 @@ class AdminActivityLogController extends Controller
                     ];
                 }),
             
-            'by_user' => AdminActivityLog::whereBetween('created_at', [$dateFrom, $dateTo])
+            'by_user' => (clone $baseQuery)->whereBetween('created_at', [$dateFrom, $dateTo])
                 ->selectRaw('user_id, user_name, user_email, count(*) as count')
                 ->groupBy('user_id', 'user_name', 'user_email')
                 ->orderBy('count', 'desc')
                 ->limit(10)
                 ->get(),
             
-            'failed_operations' => AdminActivityLog::whereBetween('created_at', [$dateFrom, $dateTo])
+            'failed_operations' => (clone $baseQuery)->whereBetween('created_at', [$dateFrom, $dateTo])
                 ->where('status', 'failed')
                 ->count(),
             
-            'recent_activities' => AdminActivityLog::with('user')
+            'recent_activities' => (clone $baseQuery)->with('user')
                 ->whereBetween('created_at', [$dateFrom, $dateTo])
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
@@ -138,7 +151,14 @@ class AdminActivityLogController extends Controller
         $days = $request->get('days', 30);
         $dateFrom = now()->subDays($days)->startOfDay();
 
-        $trends = AdminActivityLog::whereBetween('created_at', [$dateFrom, now()])
+        $user = auth()->user();
+        
+        // 系統管理員可以看所有日誌，一般管理員只能看自己租戶的
+        $query = $user->isSystemAdmin() 
+            ? AdminActivityLog::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+            : AdminActivityLog::query();
+
+        $trends = $query->whereBetween('created_at', [$dateFrom, now()])
             ->selectRaw('DATE(created_at) as date, count(*) as count')
             ->groupBy('date')
             ->orderBy('date')
