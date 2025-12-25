@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">系統設定</h1>
-      <p class="text-gray-600 mt-2">管理 LINE Bot 連接設定與系統配置</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 設定容器 -->
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-7xl mx-auto mt-2">
       <!-- 主要設定卡片容器 - 並排顯示 -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <!-- Webhook URL 卡片（全寬） -->

@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題區域 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">預約管理</h1>
-      <p class="text-gray-600 mt-2">查看與管理所有預約紀錄</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 統計卡片區域 -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 mt-2">
       <!-- 今日預約 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between">

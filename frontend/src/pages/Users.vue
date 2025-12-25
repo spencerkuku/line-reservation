@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題區域 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">管理人員</h1>
-      <p class="text-gray-600 mt-2">管理系統使用者與權限設定</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 操作欄 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 mt-2">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div class="flex items-center space-x-4">
           <div class="relative">

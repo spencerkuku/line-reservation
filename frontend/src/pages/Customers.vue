@@ -1,11 +1,5 @@
 <template>
-  <div class="bg-gray-50 p-6">
-    <!-- 頁面標題 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">客戶管理</h1>
-      <p class="text-gray-600 mt-2">管理您的客戶資料、查看客戶統計與互動記錄</p>
-    </div>
-    
+  <div class="bg-gray-50 p-6"> 
     <!-- 統計儀表板 -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <!-- 總客戶數 -->

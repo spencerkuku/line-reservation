@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題區域 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">租戶管理</h1>
-      <p class="text-gray-600 mt-2">管理系統租戶與訂閱狀態</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 統計卡片 -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6 mt-2">
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
           <div class="p-3 bg-blue-100 rounded-lg">

@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">儀表板</h1>
-      <p class="text-gray-600 mt-2">歡迎回來，{{ currentUser?.name }}！這是您的系統概覽。</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 非管理員提示 -->
-    <div v-if="!isAdmin && !isSystemAdmin" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mb-8">
+    <div v-if="!isAdmin && !isSystemAdmin" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mb-8 mt-2">
       <div class="flex items-center">
         <div class="flex-shrink-0">
           <svg class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

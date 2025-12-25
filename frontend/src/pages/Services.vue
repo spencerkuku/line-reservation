@@ -173,14 +173,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 頁面標題區域 -->
-    <div class="mb-8">
-      <div class="flex justify-between items-center">
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900">服務項目</h1>
-          <p class="text-gray-600 mt-2">管理系統提供的服務類型與設定</p>
-        </div>
+    <div class="mb-8 mt-2">
+      <div class="flex justify-end items-center">
         <button
           @click="toggleForm"
           class="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"

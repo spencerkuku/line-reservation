@@ -1,13 +1,7 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <!-- 頁面標題 -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">個人資訊</h1>
-      <p class="text-gray-600 mt-2">管理您的個人資料、頭像和帳號安全設定</p>
-    </div>
-
+  <div class="min-h-screen bg-gray-50 pt-4 px-4 sm:px-6 lg:px-8 pb-6">
     <!-- 主要內容區域 -->
-    <div class="max-w-4xl mx-auto space-y-8">
+    <div class="max-w-4xl mx-auto space-y-8 mt-2">
       <!-- 個人資料卡片 -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
