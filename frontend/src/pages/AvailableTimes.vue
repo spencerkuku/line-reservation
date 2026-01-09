@@ -76,8 +76,8 @@ const parseDateTimeLocal = (str) => {
 // Toast 通知
 const toast = ref({ show: false, type: 'success', message: '' })
 
-// 當前檢視模式
-const currentView = ref('timeGridWeek')
+// 當前檢視模式（手機版預設使用日檢視）
+const currentView = ref(window.innerWidth <= 767 ? 'timeGridDay' : 'timeGridWeek')
 const currentDate = ref(new Date())
 
 // 強制更新 FullCalendar 的事件來源（完全受控刷新）
@@ -260,8 +260,8 @@ const calendarOptions = computed(() => ({
   // 移除預設工具列，使用自定義
   headerToolbar: false,
   
-  // Google 風格檢視設定
-  initialView: 'timeGridWeek',
+  // Google 風格檢視設定（手機版預設使用日檢視）
+  initialView: window.innerWidth <= 767 ? 'timeGridDay' : 'timeGridWeek',
   views: {
     timeGridWeek: {
       dayHeaderFormat: { weekday: 'short', day: 'numeric' }
@@ -312,20 +312,10 @@ const calendarOptions = computed(() => ({
     }
   },
   
-  // 自定義事件內容
+  // 自定義事件內容 - 母子容器設計模式
   eventContent: function(arg) {
     const props = arg.event.extendedProps
-    const current = props.current_bookings || 0
-    const max = props.max_capacity || 1
-    
-    let statusIcon = ''
-    if (props.isFullyBooked) {
-      statusIcon = '🔴' // 已滿
-    } else if (props.hasReservations) {
-      statusIcon = '🟡' // 部分預約
-    } else {
-      statusIcon = '🟢' // 可預約
-    }
+    const reservations = props.reservations || []
     
     // 格式化時間顯示（上午9點到~下午3點）
     function formatEventTime(start, end) {
@@ -344,36 +334,98 @@ const calendarOptions = computed(() => ({
       return `${formatTime(startDate)}-${formatTime(endDate)}`
     }
     
-    // 顯示時間、標題與內容（描述），圖示改為註解不顯示
+    // 母容器
     const container = document.createElement('div')
-    container.className = 'event-content'
+    container.className = 'slot-container'
 
-    // 註解：如需顯示圖示可改為取消註解
-    // const iconEl = document.createElement('span')
-    // iconEl.className = 'event-icon'
-    // iconEl.textContent = statusIcon
-    // container.appendChild(iconEl)
-
-    // 時間顯示
+    // 頂部：時間與標題
+    const headerEl = document.createElement('div')
+    headerEl.className = 'slot-header'
+    
     const timeEl = document.createElement('div')
-    timeEl.className = 'event-time'
+    timeEl.className = 'slot-time'
     timeEl.textContent = formatEventTime(arg.event.start, arg.event.end)
-    container.appendChild(timeEl)
-
-    // 標題顯示
+    headerEl.appendChild(timeEl)
+    
     const titleEl = document.createElement('div')
-    titleEl.className = 'event-title'
-    titleEl.textContent = arg.event.title || ''
-    container.appendChild(titleEl)
+    titleEl.className = 'slot-title'
+    titleEl.textContent = arg.event.title || '可預約時段'
+    headerEl.appendChild(titleEl)
+    
+    container.appendChild(headerEl)
 
-    // 描述顯示
-    const desc = props.description || ''
-    if (desc) {
-      const descEl = document.createElement('div')
-      descEl.className = 'event-desc'
-      descEl.textContent = desc
-      container.appendChild(descEl)
+    // 子元素：預約清單
+    const reservationsEl = document.createElement('div')
+    reservationsEl.className = 'reservations-list'
+    
+    if (reservations.length > 0) {
+      // 智能顯示限制：根據裝置和時段高度調整
+      const isMobileDevice = window.innerWidth <= 767
+      const maxVisible = isMobileDevice ? 2 : 3 // 手機顯示2個，桌面顯示3個
+      const visibleReservations = reservations.slice(0, maxVisible)
+      const remainingCount = reservations.length - maxVisible
+      
+      // 遍歷顯示的預約
+      visibleReservations.forEach(reservation => {
+        const itemEl = document.createElement('div')
+        itemEl.className = 'reservation-item'
+        
+        // 根據狀態設定顏色
+        if (reservation.status === 'confirmed') {
+          itemEl.classList.add('status-confirmed')
+        } else if (reservation.status === 'pending') {
+          itemEl.classList.add('status-pending')
+        } else if (reservation.status === 'cancelled') {
+          itemEl.classList.add('status-cancelled')
+        }
+        
+        // 手機版簡化顯示：只顯示時間和名稱第一個字
+        if (isMobileDevice) {
+          const timeSpan = document.createElement('span')
+          timeSpan.className = 'reservation-time'
+          timeSpan.textContent = reservation.reservation_time ? reservation.reservation_time.substring(0, 5) : ''
+          
+          const nameSpan = document.createElement('span')
+          nameSpan.className = 'reservation-name'
+          const customerName = reservation.customer_name || '未命名'
+          // 手機版縮短名稱（只保疙2-3個字）
+          nameSpan.textContent = customerName.length > 3 ? customerName.substring(0, 3) : customerName
+          
+          itemEl.appendChild(timeSpan)
+          itemEl.appendChild(nameSpan)
+        } else {
+          // 桌面版完整顯示
+          const timeSpan = document.createElement('span')
+          timeSpan.className = 'reservation-time'
+          timeSpan.textContent = reservation.reservation_time ? reservation.reservation_time.substring(0, 5) : ''
+          
+          const nameSpan = document.createElement('span')
+          nameSpan.className = 'reservation-name'
+          nameSpan.textContent = reservation.customer_name || '未命名客戶'
+          
+          itemEl.appendChild(timeSpan)
+          itemEl.appendChild(nameSpan)
+        }
+        
+        reservationsEl.appendChild(itemEl)
+      })
+      
+      // 如果有更多預約，顯示「+N更多」提示
+      if (remainingCount > 0) {
+        const moreEl = document.createElement('div')
+        moreEl.className = 'reservation-more'
+        moreEl.textContent = `+${remainingCount} 更多...`
+        reservationsEl.appendChild(moreEl)
+      }
+    } else {
+      // 無預約時顯示提示
+      const emptyEl = document.createElement('div')
+      emptyEl.className = 'empty-hint'
+      emptyEl.textContent = '開放預約'
+      reservationsEl.appendChild(emptyEl)
     }
+    
+    container.appendChild(reservationsEl)
 
     return { domNodes: [container] }
   },
@@ -460,6 +512,26 @@ function handleSlotEdit(info) {
 // 時段更新處理
 async function handleSlotUpdate(info) {
   const event = info.event
+  const now = new Date()
+  const endTime = new Date(event.end)
+  
+  // 檢查時間是否在未來
+  if (endTime <= now) {
+    info.revert()
+    showToast('error', '無法移動到過去的時間')
+    return
+  }
+  
+  const hasReservations = event.extendedProps.current_bookings > 0 || 
+                          (event.extendedProps.reservations && event.extendedProps.reservations.length > 0)
+  
+  // 如果已有預約，禁止更新時間
+  if (hasReservations) {
+    info.revert()
+    showToast('error', '此時段已有預約，無法修改時間')
+    return
+  }
+  
   await updateSlot(event.id, {
     title: event.title,
     description: event.extendedProps.description || '',
@@ -472,10 +544,23 @@ async function handleSlotUpdate(info) {
 async function handleSlotDrop(info) {
   const now = new Date()
   const startTime = new Date(info.event.start)
+  const endTime = new Date(info.event.end)
   
-  if (startTime <= now) {
+  // 優先檢查時間是否在未來（檢查結束時間，確保整個時段都在未來）
+  if (endTime <= now) {
     info.revert()
     showToast('error', '無法移動到過去的時間')
+    return
+  }
+  
+  // 檢查是否有預約
+  const hasReservations = info.event.extendedProps.current_bookings > 0 || 
+                          (info.event.extendedProps.reservations && info.event.extendedProps.reservations.length > 0)
+  
+  // 如果已有預約，禁止移動
+  if (hasReservations) {
+    info.revert()
+    showToast('error', '此時段已有預約，無法移動')
     return
   }
   
@@ -544,8 +629,36 @@ async function saveSlot() {
     return
   }
   
+  // 檢查時間是否為未來時間
+  const now = new Date()
+  const startTime = new Date(editForm.value.start)
+  
+  if (startTime <= now) {
+    showToast('error', '開始時間必須在未來')
+    return
+  }
+  
   if (editForm.value.id) {
-    // 更新現有時段
+    // 更新現有時段 - 如果有預約則不允許修改時間
+    const hasReservations = editForm.value.current_bookings > 0 || 
+                            (editForm.value.reservations && editForm.value.reservations.length > 0)
+    
+    if (hasReservations) {
+      // 只允許修改標題和描述，不允許修改時間
+      const originalEvent = calendarEvents.value.find(e => String(e.id) === String(editForm.value.id))
+      if (originalEvent) {
+        const originalStart = new Date(originalEvent.start).getTime()
+        const originalEnd = new Date(originalEvent.end).getTime()
+        const newStart = new Date(editForm.value.start).getTime()
+        const newEnd = new Date(editForm.value.end).getTime()
+        
+        if (originalStart !== newStart || originalEnd !== newEnd) {
+          showToast('error', '此時段已有預約，無法修改時間')
+          return
+        }
+      }
+    }
+    
     await updateSlot(editForm.value.id, editForm.value)
   } else {
     // 建立新時段
@@ -1064,24 +1177,6 @@ onMounted(() => {
                         class="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200 resize-none placeholder:text-gray-400"
                       ></textarea>
                     </div>
-                    
-                    <!-- 預約資訊（編輯時顯示） -->
-                    <div v-if="editForm.id && editForm.reservations?.length > 0" class="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
-                      <h4 class="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                        <UserGroupIcon class="w-5 h-5" />
-                        目前預約 ({{ editForm.current_bookings }}/{{ editForm.max_capacity }})
-                      </h4>
-                      <div class="space-y-2 max-h-40 overflow-y-auto">
-                        <div 
-                          v-for="reservation in editForm.reservations" 
-                          :key="reservation.id"
-                          class="px-3 py-2 bg-white rounded-lg text-sm"
-                        >
-                          <div class="font-medium text-gray-900">{{ reservation.customer_name }}</div>
-                          <div class="text-xs text-gray-600">{{ reservation.customer_phone }}</div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 
@@ -1328,127 +1423,171 @@ onMounted(() => {
   background-color: #f9fafb;
 }
 
-/* 可預約時段樣式 - 優化 UI/UX */
+/* 可預約時段樣式 - 母子容器設計模式 */
 :deep(.available-slot) {
-  border: none !important;
+  background-color: transparent !important;
   border-radius: 6px !important;
-  color: #ffffff !important;
+  color: #374151 !important;
   font-size: 12px !important;
   font-weight: 500 !important;
-  padding: 6px 8px !important;
+  padding: 8px !important;
   cursor: pointer !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
   transition: all 0.2s ease !important;
-  min-height: 44px !important;
+  min-height: 60px !important;
   display: flex !important;
   align-items: flex-start !important;
   overflow: visible !important;
   word-wrap: break-word !important;
 }
 
-/* 事件內容樣式 - 優化 UI/UX */
-:deep(.event-content) {
+/* 母子容器樣式 */
+:deep(.slot-container) {
   display: flex !important;
   flex-direction: column !important;
-  align-items: flex-start !important;
-  gap: 1px !important;
-  white-space: normal !important;
-  overflow: visible !important;
-  padding: 3px 6px !important;
+  gap: 6px !important;
+  width: 100% !important;
   height: 100% !important;
-  box-sizing: border-box !important;
-  justify-content: flex-start !important;
-  word-wrap: break-word !important;
+  padding: 0 !important;
 }
 
-:deep(.event-time) {
+:deep(.slot-header) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding-bottom: 6px !important;
+  border-bottom: 1px solid rgba(107, 114, 128, 0.2) !important;
+}
+
+:deep(.slot-time) {
   font-size: 10px !important;
-  opacity: 0.85 !important;
-  font-weight: 500 !important;
-  line-height: 1.3 !important;
-  color: rgba(255, 255, 255, 0.9) !important;
-  letter-spacing: 0.02em !important;
-  white-space: normal !important;
-  word-wrap: break-word !important;
-  width: 100% !important;
-}
-
-:deep(.event-icon) {
-  font-size: 12px !important;
-  line-height: 1 !important;
-}
-
-:deep(.event-title) {
-  font-size: 12px !important;
   font-weight: 600 !important;
-  line-height: 1.3 !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-  width: 100% !important;
-  color: rgba(255, 255, 255, 1) !important;
-  letter-spacing: 0.01em !important;
-  margin-top: 1px !important;
-  white-space: normal !important;
-  word-wrap: break-word !important;
-  word-break: break-word !important;
-}
-
-:deep(.event-booking) {
-  font-size: 10px !important;
-  opacity: 0.8 !important;
-  font-weight: 600 !important;
-}
-
-/* 事件描述樣式 - 優化可讀性 */
-:deep(.event-desc) {
-  font-size: 10px !important;
-  opacity: 0.75 !important;
-  font-weight: 400 !important;
+  color: #6b7280 !important;
   line-height: 1.2 !important;
-  white-space: normal !important;
-  overflow: visible !important;
-  text-overflow: unset !important;
-  width: 100% !important;
-  color: rgba(255, 255, 255, 0.8) !important;
-  font-style: italic !important;
-  margin-top: 1px !important;
-  word-wrap: break-word !important;
-  word-break: break-word !important;
 }
 
-/* 完全可預約（無預約） */
-:deep(.available-slot.available) {
+:deep(.slot-title) {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+  line-height: 1.3 !important;
+}
+
+/* 預約清單容器 */
+:deep(.reservations-list) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  flex: 1 !important;
+  overflow: visible !important;
+}
+
+/* 預約項目小方塊 */
+:deep(.reservation-item) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+:deep(.reservation-time) {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  opacity: 0.9 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+:deep(.reservation-name) {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 1 !important;
+}
+
+/* 預約狀態顏色 */
+:deep(.reservation-item.status-confirmed) {
   background-color: #3b82f6 !important;
 }
 
-:deep(.available-slot.available:hover) {
-  background-color: #2563eb !important;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* 部分已預約 */
-:deep(.available-slot.partially-booked) {
+:deep(.reservation-item.status-pending) {
   background-color: #f59e0b !important;
 }
 
-:deep(.available-slot.partially-booked:hover) {
-  background-color: #d97706 !important;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
-  transform: translateY(-1px) !important;
+:deep(.reservation-item.status-cancelled) {
+  background-color: #9ca3af !important;
+  text-decoration: line-through !important;
 }
 
-/* 完全預約滿 */
+/* 空狀態提示 */
+:deep(.empty-hint) {
+  text-align: center !important;
+  color: #9ca3af !important;
+  font-size: 11px !important;
+  font-style: italic !important;
+  padding: 8px 0 !important;
+}
+
+/* 「+N更多」提示 */
+:deep(.reservation-more) {
+  text-align: center !important;
+  color: #6b7280 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  font-style: italic !important;
+  padding: 4px 8px !important;
+  background-color: rgba(107, 114, 128, 0.1) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+:deep(.reservation-more:hover) {
+  background-color: rgba(107, 114, 128, 0.2) !important;
+  color: #374151 !important;
+}
+
+/* 完全可預約（無預約）- 虛線灰色邊框 */
+:deep(.available-slot.available) {
+  border: 2px dashed #d1d5db !important;
+  background-color: #f9fafb !important;
+}
+
+:deep(.available-slot.available:hover) {
+  border-color: #9ca3af !important;
+  background-color: #f3f4f6 !important;
+  box-shadow: 0 2px 8px rgba(156, 163, 175, 0.2) !important;
+}
+
+/* 部分已預約 - 實線藍色/橙色邊框 */
+:deep(.available-slot.partially-booked) {
+  border: 2px solid #3b82f6 !important;
+  background-color: #eff6ff !important;
+}
+
+:deep(.available-slot.partially-booked:hover) {
+  border-color: #2563eb !important;
+  background-color: #dbeafe !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* 完全預約滿 - 實線紅色邊框 */
 :deep(.available-slot.fully-booked) {
-  background-color: #ef4444 !important;
-  opacity: 0.8 !important;
+  border: 2px solid #ef4444 !important;
+  background-color: #fef2f2 !important;
   cursor: not-allowed !important;
 }
 
 :deep(.available-slot.fully-booked:hover) {
-  background-color: #dc2626 !important;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
-  transform: none !important;
+  border-color: #dc2626 !important;
+  background-color: #fee2e2 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
 }
 
 :deep(.fc-event-dragging) {
@@ -1468,23 +1607,33 @@ onMounted(() => {
 /* 平板版優化 (768px - 1024px) */
 @media (min-width: 768px) and (max-width: 1024px) {
   :deep(.fc-timegrid-slot) {
-    height: 55px !important;
+    height: 70px !important;
   }
 
   :deep(.available-slot) {
-    min-height: 52px !important;
-    padding: 7px 6px !important;
+    min-height: 65px !important;
+    padding: 8px !important;
   }
 
-  :deep(.event-time) {
-    font-size: 11px !important;
+  :deep(.slot-time) {
+    font-size: 10px !important;
   }
 
-  :deep(.event-title) {
+  :deep(.slot-title) {
     font-size: 12px !important;
   }
 
-  :deep(.event-desc) {
+  :deep(.reservation-item) {
+    font-size: 10px !important;
+    padding: 3px 6px !important;
+    gap: 4px !important;
+  }
+  
+  :deep(.reservation-time) {
+    font-size: 9px !important;
+  }
+  
+  :deep(.reservation-name) {
     font-size: 10px !important;
   }
 
@@ -1525,8 +1674,8 @@ onMounted(() => {
   /* 事件卡片 - 加大觸控區域 */
   :deep(.available-slot) {
     font-size: 13px !important;
-    padding: 8px 6px !important;
-    min-height: 70px !important;
+    padding: 10px !important;
+    min-height: 90px !important;
     border-radius: 8px !important;
     line-height: 1.3 !important;
     cursor: pointer !important;
@@ -1534,42 +1683,52 @@ onMounted(() => {
     touch-action: manipulation !important;
   }
   
-  /* 事件內容 - 更清晰的層次 */
-  :deep(.event-time) {
+  /* 母子容器 - 更清晰的層次 */
+  :deep(.slot-container) {
+    gap: 8px !important;
+  }
+  
+  :deep(.slot-header) {
+    padding-bottom: 8px !important;
+  }
+  
+  :deep(.slot-time) {
+    font-size: 12px !important;  /* 從 11px 提升至 12px */
+    font-weight: 700 !important;
+  }
+  
+  :deep(.slot-title) {
+    font-size: 14px !important;  /* 從 13px 提升至 14px */
+    font-weight: 700 !important;
+  }
+  
+  :deep(.reservation-item) {
+    font-size: 12px !important;  /* 從 11px 提升至 12px */
+    padding: 6px 8px !important; /* 增加內邊距 */
+    gap: 5px !important;
+  }
+  
+  :deep(.reservation-time) {
     font-size: 11px !important;
-    font-weight: 700 !important;
-    opacity: 1 !important;
-    margin-bottom: 2px !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
   }
   
-  :deep(.event-title) {
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
-    margin-top: 2px !important;
-    margin-bottom: 2px !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    overflow: visible !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  :deep(.reservation-name) {
+    font-size: 12px !important;  /* 從 11px 提升至 12px */
   }
   
-  :deep(.event-desc) {
-    font-size: 10px !important;
-    opacity: 0.95 !important;
-    margin-top: 2px !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    overflow: visible !important;
-    line-height: 1.3 !important;
+  :deep(.reservation-more) {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+  
+  :deep(.empty-hint) {
+    font-size: 12px !important;  /* 從 11px 提升至 12px */
+    padding: 10px 0 !important;
   }
 
   /* 日曆格子 - 加大高度便於操作 */
   :deep(.fc-timegrid-slot) {
-    height: 70px !important;
+    height: 90px !important;
     border-color: #e5e7eb;
   }
 
@@ -1585,14 +1744,8 @@ onMounted(() => {
   }
 
   /* 事件內容容器 - 優化排版 */
-  :deep(.event-content) {
-    padding: 6px 7px !important;
-    gap: 2px !important;
-    justify-content: flex-start !important;
-    min-height: 66px !important;
-    overflow: visible !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
+  :deep(.slot-container) {
+    min-height: 85px !important;
   }
 
   /* 選擇區域 - 更明顯的視覺回饋 */
@@ -1663,27 +1816,37 @@ onMounted(() => {
   /* 事件卡片 - 保持足夠大小便於點擊 */
   :deep(.available-slot) {
     font-size: 12px !important;
-    padding: 6px 5px !important;
-    min-height: 65px !important;
+    padding: 8px !important;
+    min-height: 80px !important;
   }
   
-  :deep(.event-time) {
+  :deep(.slot-time) {
     font-size: 10px !important;
     font-weight: 700 !important;
   }
   
-  :deep(.event-title) {
+  :deep(.slot-title) {
     font-size: 11px !important;
     font-weight: 700 !important;
   }
 
-  :deep(.event-desc) {
+  :deep(.reservation-item) {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
+  }
+  
+  :deep(.reservation-time) {
     font-size: 9px !important;
+  }
+  
+  :deep(.reservation-name) {
+    font-size: 10px !important;
   }
 
   /* 日曆格子 */
   :deep(.fc-timegrid-slot) {
-    height: 65px !important;
+    height: 80px !important;
   }
 
   :deep(.fc-timegrid-axis) {
@@ -1691,10 +1854,9 @@ onMounted(() => {
   }
 
   /* 事件內容 */
-  :deep(.event-content) {
-    padding: 5px 5px !important;
-    min-height: 61px !important;
-    gap: 1px !important;
+  :deep(.slot-container) {
+    min-height: 75px !important;
+    gap: 6px !important;
   }
 
   /* 日曆頭部 */

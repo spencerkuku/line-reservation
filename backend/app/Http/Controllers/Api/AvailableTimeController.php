@@ -42,15 +42,40 @@ class AvailableTimeController extends Controller
         $perPage = $request->get('per_page', 50);
         $availableTimes = $query->orderBy('start_time')
             ->with(['reservations' => function($q) {
-                // 只載入必要的預約資訊，避免暴露敏感資料
-                $q->select('id', 'available_time_id', 'status');
+                $q->select('id', 'available_time_id', 'customer_id', 'status', 'reservation_date', 'reservation_time')
+                  ->with(['customer' => function($customerQuery) {
+                      $customerQuery->select('id', 'name', 'line_display_name', 'phone');
+                  }]);
             }])
             ->paginate($perPage);
 
-        // 添加調試信息
+        // 格式化返回資料，包含客戶資訊
+        $formattedData = $availableTimes->getCollection()->map(function($time) {
+            return [
+                'id' => $time->id,
+                'title' => $time->title,
+                'description' => $time->description,
+                'start_time' => $time->start_time,
+                'end_time' => $time->end_time,
+                'max_capacity' => $time->max_capacity,
+                'current_bookings' => $time->current_bookings,
+                'is_active' => $time->is_active,
+                'reservations' => $time->reservations->map(function($reservation) {
+                    return [
+                        'id' => $reservation->id,
+                        'status' => $reservation->status,
+                        'reservation_date' => $reservation->reservation_date,
+                        'reservation_time' => $reservation->reservation_time,
+                        'customer_name' => $reservation->customer->name ?? $reservation->customer->line_display_name ?? '未命名客戶',
+                        'customer_phone' => $reservation->customer->phone ?? null,
+                    ];
+                }),
+            ];
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $availableTimes->items(),
+            'data' => $formattedData,
             'pagination' => [
                 'current_page' => $availableTimes->currentPage(),
                 'last_page' => $availableTimes->lastPage(),
