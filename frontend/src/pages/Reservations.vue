@@ -868,7 +868,7 @@ const error = ref('')
 const currentPage = ref(1)
 
 // 自動刷新相關
-const autoRefreshEnabled = ref(true)
+const autoRefreshEnabled = ref(false)
 const autoRefreshInterval = ref(null)
 
 // 使用篩選 composable
