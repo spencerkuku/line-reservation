@@ -247,4 +247,77 @@ class ReservationController extends Controller
             'message' => '預約已取消'
         ]);
     }
+
+    // 改期功能
+    public function reschedule(Request $request, Reservation $reservation)
+    {
+        $requestId = LoggingService::generateRequestId();
+        LoggingService::logApiRequestStart($request, $requestId, 'Reschedule Reservation');
+        
+        // 驗證輸入
+        $request->validate([
+            'new_available_time_id' => 'required|exists:available_times,id',
+        ]);
+
+        // 檢查新時段是否可用
+        $newAvailableTime = \App\Models\AvailableTime::find($request->new_available_time_id);
+        
+        if (!$newAvailableTime->is_active) {
+            return response()->json([
+                'success' => false,
+                'message' => '選擇的時段目前無法預約（已暫停）'
+            ], 422);
+        }
+
+        // 檢查新時段是否已滿
+        if ($newAvailableTime->current_bookings >= $newAvailableTime->max_capacity) {
+            return response()->json([
+                'success' => false,
+                'message' => '選擇的時段已滿'
+            ], 422);
+        }
+
+        // 記錄舊資料
+        $oldTimeId = $reservation->available_time_id;
+        $oldDate = $reservation->reservation_date;
+        $oldTime = $reservation->reservation_time;
+
+        // 更新預約時段
+        $reservation->available_time_id = $request->new_available_time_id;
+        $reservation->reservation_date = $newAvailableTime->start_time->format('Y-m-d');
+        $reservation->reservation_time = $newAvailableTime->start_time->format('H:i:s');
+        $reservation->save();
+
+        LoggingService::logReservationEvent('rescheduled', [
+            'reservation_id' => $reservation->id,
+            'customer_name' => $reservation->customer_name,
+            'old_date' => $oldDate,
+            'old_time' => $oldTime,
+            'new_date' => $reservation->reservation_date,
+            'new_time' => $reservation->reservation_time,
+        ], $requestId);
+
+        LoggingService::logApiRequestSuccess($requestId, ['reservation_id' => $reservation->id]);
+
+        // 記錄操作
+        ActivityLogger::custom(
+            'rescheduled',
+            'reservations',
+            "改期預約: {$reservation->customer_name} - {$reservation->service->name}",
+            [
+                'old_time_id' => $oldTimeId,
+                'new_time_id' => $request->new_available_time_id,
+                'old_date' => $oldDate,
+                'old_time' => $oldTime,
+                'new_date' => $reservation->reservation_date,
+                'new_time' => $reservation->reservation_time,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => '預約已改期',
+            'data' => $reservation->fresh(['service', 'customer', 'availableTime'])
+        ]);
+    }
 }

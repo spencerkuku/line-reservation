@@ -118,6 +118,7 @@ Route::middleware(['auth:sanctum', 'admin', 'tenant'])->group(function () {
     Route::post('/available-times', [AvailableTimeController::class, 'store']);
     Route::put('/available-times/{availableTime}', [AvailableTimeController::class, 'update']);
     Route::delete('/available-times/{availableTime}', [AvailableTimeController::class, 'destroy']);
+    Route::post('/available-times/{availableTime}/toggle-status', [AvailableTimeController::class, 'toggleStatus']);
     
     // 使用者管理（租戶內）
     Route::get('/users', [UserController::class, 'index']);
@@ -134,6 +135,8 @@ Route::middleware(['auth:sanctum', 'admin', 'tenant'])->group(function () {
     Route::put('/reservations/{reservation}/confirm', [ReservationController::class, 'confirm'])
         ->middleware('throttle:30,1');
     Route::put('/reservations/{reservation}/cancel', [ReservationController::class, 'cancel'])
+        ->middleware('throttle:30,1');
+    Route::put('/reservations/{reservation}/reschedule', [ReservationController::class, 'reschedule'])
         ->middleware('throttle:30,1');
 
     // 設定

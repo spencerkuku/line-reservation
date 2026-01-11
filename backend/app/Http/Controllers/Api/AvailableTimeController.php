@@ -250,4 +250,40 @@ class AvailableTimeController extends Controller
             'message' => '可預約時段已刪除'
         ]);
     }
+
+    // 切換時段狀態（暫停/啟用）
+    public function toggleStatus(AvailableTime $availableTime)
+    {
+        // 如果要暫停時段，檢查是否有未完成的預約
+        if ($availableTime->is_active) {
+            $activeReservations = $availableTime->reservations()
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->count();
+            
+            if ($activeReservations > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "此時段有 {$activeReservations} 筆未完成的預約，請先到預約管理頁面為客戶改期後再暫停",
+                    'active_reservations' => $activeReservations,
+                    'redirect_to_reservations' => true
+                ], 422);
+            }
+        }
+
+        // 保存舊狀態
+        $oldStatus = $availableTime->is_active;
+        
+        // 切換狀態
+        $availableTime->is_active = !$availableTime->is_active;
+        $availableTime->save();
+
+        // 記錄操作
+        ActivityLogger::updated($availableTime, 'available_times', ['is_active' => $oldStatus]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $availableTime->is_active ? '時段已啟用' : '時段已暫停',
+            'data' => $availableTime->fresh()
+        ]);
+    }
 }

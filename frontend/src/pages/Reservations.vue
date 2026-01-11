@@ -719,6 +719,14 @@
           >
             關閉
           </button>
+
+          <button
+            v-if="['pending', 'confirmed'].includes(selectedRecord?.status)"
+            @click="openRescheduleModal(selectedRecord); closeDetailModal()"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            改期
+          </button>
           
           <button
             v-if="selectedRecord?.status === 'pending'"
@@ -734,6 +742,112 @@
             class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           >
             取消預約
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 改期模態框 -->
+    <div v-if="showRescheduleModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @click="closeRescheduleModal">
+      <div class="relative top-20 mx-auto p-5 border w-full max-w-3xl bg-white rounded-xl shadow-xl" @click.stop>
+        <div class="flex items-center justify-between pb-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">預約改期</h3>
+          <button @click="closeRescheduleModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div v-if="rescheduleReservation" class="py-4">
+          <!-- 當前預約資訊 -->
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h4 class="text-sm font-semibold text-blue-900 mb-2">當前預約資訊</h4>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span class="text-blue-700 font-medium">客戶：</span>
+                <span class="text-blue-900">{{ rescheduleReservation.customer?.line_display_name || rescheduleReservation.customer?.name || rescheduleReservation.customer_name || '未指定客戶' }}</span>
+              </div>
+              <div>
+                <span class="text-blue-700 font-medium">服務：</span>
+                <span class="text-blue-900">{{ rescheduleReservation.service_name || rescheduleReservation.item || '未指定服務' }}</span>
+              </div>
+              <div>
+                <span class="text-blue-700 font-medium">原預約日期：</span>
+                <span class="text-blue-900">{{ formatDate(rescheduleReservation.reservation_date) }}</span>
+              </div>
+              <div>
+                <span class="text-blue-700 font-medium">原預約時間：</span>
+                <span class="text-blue-900">{{ rescheduleReservation.reservation_time || formatTime(rescheduleReservation.reservation_date) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 選擇新時段 -->
+          <div>
+            <h4 class="text-sm font-semibold text-gray-900 mb-3">選擇新的時段</h4>
+            
+            <div v-if="loading" class="text-center py-8">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p class="text-gray-600 mt-2">載入可用時段中...</p>
+            </div>
+
+            <div v-else-if="availableTimes.length === 0" class="text-center py-8 bg-gray-50 rounded-lg">
+              <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p class="text-gray-600 font-medium">目前沒有可用的時段</p>
+            </div>
+
+            <div v-else class="max-h-96 overflow-y-auto space-y-2">
+              <div
+                v-for="time in availableTimes"
+                :key="time.id"
+                @click="selectedNewTime = time.id"
+                :class="[
+                  'p-4 border-2 rounded-lg cursor-pointer transition-all',
+                  selectedNewTime === time.id
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                ]"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    <h5 class="font-semibold text-gray-900">{{ time.title }}</h5>
+                    <p class="text-sm text-blue-600 font-medium mt-1">
+                      {{ formatDate(time.start_time || time.start) }}
+                    </p>
+                    <p class="text-sm text-gray-700 mt-1">
+                      {{ formatTime(time.start_time || time.start) }} - {{ formatTime(time.end_time || time.end) }}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                      可預約: {{ (time.max_capacity || 1) - (time.current_bookings || 0) }} 人
+                    </p>
+                  </div>
+                  <div v-if="selectedNewTime === time.id" class="ml-4">
+                    <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
+          <button
+            @click="closeRescheduleModal"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            @click="executeReschedule"
+            :disabled="!selectedNewTime"
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            確認改期
           </button>
         </div>
       </div>
@@ -775,6 +889,12 @@ const {
 const itemsPerPage = ref(20)
 const showDetailModal = ref(false)
 const selectedRecord = ref(null)
+
+// 改期相關
+const showRescheduleModal = ref(false)
+const rescheduleReservation = ref(null)
+const availableTimes = ref([])
+const selectedNewTime = ref(null)
 
 // 統計數據（從 composable 獲取）
 const todayReservations = computed(() => statistics.value.today)
@@ -874,6 +994,74 @@ async function cancelRecord(record) {
   }
 }
 
+// 打開改期 Modal
+async function openRescheduleModal(record) {
+  rescheduleReservation.value = record
+  selectedNewTime.value = null
+  
+  // 獲取可用時段
+  try {
+    loading.value = true
+    const data = await apiGet('/available-times')
+    
+    // 只顯示未來且啟用的時段
+    const now = new Date()
+    const timeData = data.data || data
+    const times = Array.isArray(timeData) ? timeData : (timeData.data || [])
+    
+    availableTimes.value = times
+      .filter(time => {
+        const startTime = new Date(time.start_time || time.start)
+        return startTime > now && time.is_active !== false
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.start_time || a.start)
+        const bTime = new Date(b.start_time || b.start)
+        return aTime - bTime
+      })
+    
+    showRescheduleModal.value = true
+  } catch (err) {
+    showNotification(`載入可用時段失敗: ${err.message}`, 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 關閉改期 Modal
+function closeRescheduleModal() {
+  showRescheduleModal.value = false
+  rescheduleReservation.value = null
+  selectedNewTime.value = null
+  availableTimes.value = []
+}
+
+// 執行改期
+async function executeReschedule() {
+  if (!selectedNewTime.value) {
+    showNotification('請選擇新的時段', 'error')
+    return
+  }
+  
+  if (!confirm(`確定要將預約改到新時段嗎？`)) return
+  
+  try {
+    loading.value = true
+    await apiPut(`/reservations/${rescheduleReservation.value.id}/reschedule`, {
+      new_available_time_id: selectedNewTime.value
+    })
+    
+    await fetchReservations()
+    closeRescheduleModal()
+    showNotification('預約已成功改期', 'success')
+    
+  } catch (err) {
+    showNotification(`改期失敗: ${err.message}`, 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
 // 狀態樣式
 const statusClass = (status) => {
   switch (status) {
@@ -965,6 +1153,37 @@ const formatPaymentTime = (paymentTime) => {
     return `收款時間：${formattedTime}`
   } catch (err) {
     return `收款時間：${paymentTime}`
+  }
+}
+
+// 格式化日期
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short'
+    })
+  } catch (err) {
+    return dateStr
+  }
+}
+
+// 格式化時間
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('zh-TW', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+  } catch (err) {
+    return dateStr
   }
 }
 

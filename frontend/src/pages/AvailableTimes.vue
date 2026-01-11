@@ -48,6 +48,7 @@ const viewData = ref({
   end: null,
   current_bookings: 0,
   max_capacity: 10,
+  is_active: true,
   reservations: []
 })
 
@@ -146,6 +147,7 @@ async function fetchAvailableTimes() {
           description: item.description || '',
           current_bookings: item.current_bookings || 0,
           max_capacity: item.max_capacity || 1,
+          is_active: item.is_active !== undefined ? item.is_active : true,
           reservations: reservations,
           isFullyBooked: isFullyBooked,
           hasReservations: hasReservations
@@ -153,7 +155,10 @@ async function fetchAvailableTimes() {
       }
       
       // 根據預約狀態設定事件類別
-      if (isFullyBooked) {
+      if (!item.is_active) {
+        // 已暫停的時段
+        event.classNames = ['available-slot', 'suspended']
+      } else if (isFullyBooked) {
         event.classNames = ['available-slot', 'fully-booked']
       } else if (hasReservations) {
         event.classNames = ['available-slot', 'partially-booked']
@@ -413,6 +418,29 @@ async function deleteSlot(id) {
   }
 }
 
+// 切換時段狀態（暫停/啟用）
+async function toggleSlotStatus(slotId, currentStatus) {
+  try {
+    const response = await apiPost(`/available-times/${slotId}/toggle-status`)
+    
+    if (response.success) {
+      await fetchAvailableTimes()
+      nextTick(refreshCalendarSource)
+      showToast('success', response.message)
+    }
+  } catch (err) {
+    if (err.redirect_to_reservations) {
+      // 有未完成的預約，提示用戶先改期
+      if (confirm(`${err.message}\n\n點擊確定前往預約管理頁面`)) {
+        // 跳轉到預約管理頁面
+        window.location.href = '/reservations'
+      }
+    } else {
+      showToast('error', err.message || '操作失敗')
+    }
+  }
+}
+
 // Google Calendar 風格的 FullCalendar 配置
 const calendarOptions = computed(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -669,6 +697,7 @@ function handleSlotEdit(info) {
     end: event.end,
     current_bookings: props.current_bookings || 0,
     max_capacity: props.max_capacity || 10,
+    is_active: props.is_active !== undefined ? props.is_active : true,
     reservations: props.reservations || []
   }
   showViewModal.value = true
@@ -692,6 +721,7 @@ function closeViewModal() {
     end: null,
     current_bookings: 0,
     max_capacity: 10,
+    is_active: true,
     reservations: []
   }
 }
@@ -995,6 +1025,7 @@ function formatTime(date) {
 }
 
 function formatDateTime(date) {
+  if (!date) return ''
   return date.toLocaleString('zh-TW', {
     month: 'short',
     day: 'numeric',
@@ -1365,8 +1396,27 @@ onMounted(() => {
                 <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                   <DialogTitle class="text-xl font-bold text-gray-900">
                     時段詳情
+                    <span 
+                      v-if="!viewData.is_active"
+                      class="ml-3 px-3 py-1 text-xs font-bold bg-gray-200 text-gray-600 rounded-full"
+                    >
+                      已暫停
+                    </span>
                   </DialogTitle>
                   <div class="flex items-center gap-2">
+                    <!-- 暫停/啟用按鈕 -->
+                    <button 
+                      @click="toggleSlotStatus(viewData.id, viewData.is_active)" 
+                      :class="[
+                        'px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200',
+                        viewData.is_active 
+                          ? 'text-gray-700 bg-gray-100 hover:bg-gray-200' 
+                          : 'text-green-700 bg-green-100 hover:bg-green-200'
+                      ]"
+                      :title="viewData.is_active ? '暫停此時段' : '啟用此時段'"
+                    >
+                      {{ viewData.is_active ? '暫停' : '啟用' }}
+                    </button>
                     <!-- 編輯按鈕 -->
                     <button 
                       @click="switchToEditMode" 
@@ -2112,6 +2162,25 @@ onMounted(() => {
   border-color: #dc2626 !important;
   background-color: #fee2e2 !important;
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* 已暫停時段 - 灰色虛線邊框 */
+:deep(.available-slot.suspended) {
+  border: 2px dashed #9ca3af !important;
+  background-color: #f3f4f6 !important;
+  opacity: 0.6 !important;
+}
+
+:deep(.available-slot.suspended:hover) {
+  border-color: #6b7280 !important;
+  background-color: #e5e7eb !important;
+  box-shadow: 0 2px 8px rgba(156, 163, 175, 0.2) !important;
+  opacity: 0.8 !important;
+}
+
+:deep(.available-slot.suspended .slot-title) {
+  text-decoration: line-through !important;
+  color: #6b7280 !important;
 }
 
 :deep(.fc-event-dragging) {
