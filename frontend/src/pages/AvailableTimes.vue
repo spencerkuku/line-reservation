@@ -23,7 +23,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   UserGroupIcon,
-  ViewColumnsIcon
+  ViewColumnsIcon,
+  PencilIcon
 } from '@heroicons/vue/24/outline'
 
 // 核心狀態
@@ -37,6 +38,19 @@ const quickInput = ref(null)
 const quickSlotTitle = ref('可預約時段')
 const selectedTime = ref(null)
 
+// 檢視 Modal 狀態
+const showViewModal = ref(false)
+const viewData = ref({
+  id: null,
+  title: '',
+  description: '',
+  start: null,
+  end: null,
+  current_bookings: 0,
+  max_capacity: 10,
+  reservations: []
+})
+
 // 編輯 Modal 狀態
 const showEditModal = ref(false)
 const editForm = ref({
@@ -47,7 +61,12 @@ const editForm = ref({
   end: null,
   current_bookings: 0,
   max_capacity: 1,
-  reservations: []
+  reservations: [],
+  // 重複選項
+  enableRepeat: false,
+  repeatType: 'daily', // daily, weekly, weekdays, never
+  repeatEndDate: null,
+  repeatDays: [] // 用於每週重複選擇星期幾
 })
 
 // 視圖選單狀態
@@ -158,26 +177,168 @@ async function fetchAvailableTimes() {
 // 簡化的 CRUD 操作
 async function createSlot(slotData) {
   try {
-    // 確保時間格式正確 - 使用 ISO 格式但保持本地時區
-    const startTime = new Date(slotData.start)
-    const endTime = new Date(slotData.end)
+    // 檢查是否啟用重複
+    if (slotData.enableRepeat) {
+      await createRepeatingSlots(slotData)
+    } else {
+      // 單次創建
+      const startTime = new Date(slotData.start)
+      const endTime = new Date(slotData.end)
+      
+      await apiPost('/available-times', {
+        title: slotData.title,
+        description: slotData.description || '',
+        start_time: formatBackendDateTime(startTime),
+        end_time: formatBackendDateTime(endTime),
+        max_capacity: 10
+      })
+      
+      showToast('success', '時段已建立')
+    }
     
-    const response = await apiPost('/available-times', {
-      title: slotData.title,
-      description: slotData.description || '',
-      start_time: formatBackendDateTime(startTime),
-      end_time: formatBackendDateTime(endTime),
-      max_capacity: 10
-    })
-    
-  // 重新獲取最新數據以確保同步
-  await fetchAvailableTimes()
-  nextTick(refreshCalendarSource)
-    
-    showToast('success', '時段已建立')
+    // 重新獲取最新數據以確保同步
+    await fetchAvailableTimes()
+    nextTick(refreshCalendarSource)
   } catch (err) {
     const errorMessage = err.message || '建立失敗'
     showToast('error', errorMessage)
+  }
+}
+
+// 創建重複時段（優化版：併發處理）
+async function createRepeatingSlots(slotData) {
+  const slots = []
+  const startTime = new Date(slotData.start)
+  const endTime = new Date(slotData.end)
+  const duration = endTime.getTime() - startTime.getTime() // 計算單個時段的長度
+  
+  // ==========================================
+  // 1. 邏輯修復：正確計算終止條件
+  // ==========================================
+  
+  // 判斷是否有設定結束日期
+  let maxDate = null
+  if (slotData.repeatEndDate) {
+    maxDate = new Date(slotData.repeatEndDate)
+    maxDate.setHours(23, 59, 59, 999) // 包含結束當天的全天
+  }
+  
+  // 安全限制：防止邏輯錯誤導致的當機 (強制上限)
+  // 如果沒有結束日期，預設建立 90 天；如果有，上限 365 天
+  const SAFE_LIMIT_DAYS = maxDate ? 365 : 90
+  const limitDate = new Date(startTime)
+  limitDate.setDate(limitDate.getDate() + SAFE_LIMIT_DAYS)
+  
+  // 決定最終的檢查日期 (取 maxDate 與 limitDate 較早者)
+  const cutoffDate = maxDate && maxDate < limitDate ? maxDate : limitDate
+
+  // 根據不同類型生成時段數據
+  let currentDate = new Date(startTime)
+  
+  // 統一的迴圈生成邏輯
+  while (currentDate <= cutoffDate) {
+    let shouldCreate = false
+
+    if (slotData.repeatType === 'daily') {
+      shouldCreate = true
+    } else if (slotData.repeatType === 'weekly') {
+      // 檢查是否是同一週的同一天（雖然每次加7天必然是，但保持邏輯嚴謹）
+      shouldCreate = true 
+    } else if (slotData.repeatType === 'weekdays') {
+      // 檢查當前日期是否在選中的星期幾之中
+      const dayOfWeek = currentDate.getDay() // 0 (週日) - 6 (週六)
+      if (slotData.repeatDays && slotData.repeatDays.includes(dayOfWeek)) {
+        shouldCreate = true
+      }
+    }
+
+    if (shouldCreate) {
+      const newStart = new Date(currentDate)
+      // 確保時間部分準確繼承原始設定 (避免日光節約時間等偏移)
+      newStart.setHours(startTime.getHours(), startTime.getMinutes(), startTime.getSeconds())
+      
+      const newEnd = new Date(newStart.getTime() + duration)
+
+      slots.push({
+        title: slotData.title,
+        description: slotData.description || '',
+        start_time: formatBackendDateTime(newStart),
+        end_time: formatBackendDateTime(newEnd),
+        max_capacity: 10
+      })
+    }
+
+    // 日期推進邏輯
+    if (slotData.repeatType === 'weekly') {
+      currentDate.setDate(currentDate.getDate() + 7)
+    } else {
+      currentDate.setDate(currentDate.getDate() + 1) // daily 和 weekdays 都是逐日檢查
+    }
+    
+    // 安全中斷：防止意外死循環
+    if (slots.length > 500) break 
+  }
+
+  if (slots.length === 0) {
+    showToast('error', '沒有產生任何時段，請檢查日期設定')
+    return
+  }
+
+  // ==========================================
+  // 2. 傳輸修復：併發上傳 (Concurrent Upload)
+  // ==========================================
+  
+  showToast('success', `準備建立 ${slots.length} 個時段，請勿關閉頁面...`)
+  
+  let successCount = 0
+  let failCount = 0
+  let conflictCount = 0
+
+  // 設定併發數量 (一次同時發送 5 個請求，加快速度但不過載伺服器)
+  const CONCURRENT_LIMIT = 5 
+  
+  // 將陣列切成小塊 (Chunking)
+  for (let i = 0; i < slots.length; i += CONCURRENT_LIMIT) {
+    const chunk = slots.slice(i, i + CONCURRENT_LIMIT)
+    
+    // 使用 Promise.all 同時處理這一批次的請求
+    await Promise.all(chunk.map(async (slot) => {
+      try {
+        await apiPost('/available-times', slot)
+        successCount++
+      } catch (err) {
+        // 簡單判斷是否為衝突 (根據你的後端回傳訊息調整)
+        if (err.message && (err.message.includes('衝突') || err.message.includes('存在'))) {
+          conflictCount++
+        } else {
+          failCount++
+          console.error('建立失敗:', err)
+        }
+      }
+    }))
+
+    // 更新進度顯示 (每處理完一批更新一次)
+    if (slots.length > 20) {
+      showToast('success', `建立進度: ${Math.min(i + CONCURRENT_LIMIT, slots.length)} / ${slots.length}，請勿關閉頁面`)
+    }
+  }
+
+  // ==========================================
+  // 3. 結果總結
+  // ==========================================
+  
+  // 重新獲取資料以刷新日曆
+  await fetchAvailableTimes()
+  
+  if (successCount > 0) {
+    let message = `完成！成功建立 ${successCount} 個時段`
+    if (conflictCount > 0) message += ` (${conflictCount} 個重複跳過)`
+    if (failCount > 0) message += `，${failCount} 個失敗`
+    showToast('success', message)
+  } else if (conflictCount > 0) {
+    showToast('warning', '所有選擇的時段都已存在')
+  } else {
+    showToast('error', '建立失敗，請稍後再試')
   }
 }
 
@@ -486,27 +647,53 @@ function openManualCreateModal() {
     end: endTime,
     current_bookings: 0,
     max_capacity: 1,
-    reservations: []
+    reservations: [],
+    enableRepeat: false,
+    repeatType: 'daily',
+    repeatEndDate: null,
+    repeatDays: []
   }
   showEditModal.value = true
 }
 
-// 編輯時段
+// 檢視時段詳情
 function handleSlotEdit(info) {
   const event = info.event
   const props = event.extendedProps
   
-  editForm.value = {
+  viewData.value = {
     id: event.id,
     title: event.title,
     description: props.description || '',
     start: event.start,
     end: event.end,
     current_bookings: props.current_bookings || 0,
-    max_capacity: props.max_capacity || 1,
+    max_capacity: props.max_capacity || 10,
     reservations: props.reservations || []
   }
+  showViewModal.value = true
+}
+
+// 從檢視模式切換到編輯模式
+function switchToEditMode() {
+  editForm.value = { ...viewData.value }
+  showViewModal.value = false
   showEditModal.value = true
+}
+
+// 關閉檢視 Modal
+function closeViewModal() {
+  showViewModal.value = false
+  viewData.value = {
+    id: null,
+    title: '',
+    description: '',
+    start: null,
+    end: null,
+    current_bookings: 0,
+    max_capacity: 10,
+    reservations: []
+  }
 }
 
 // 時段更新處理
@@ -616,7 +803,11 @@ function showDetailModal() {
     title: quickSlotTitle.value,
     description: '',
     start: selectedTime.value.start,
-    end: selectedTime.value.end
+    end: selectedTime.value.end,
+    enableRepeat: false,
+    repeatType: 'daily',
+    repeatEndDate: null,
+    repeatDays: []
   }
   cancelQuickCreate()
   showEditModal.value = true
@@ -685,8 +876,73 @@ function closeEditModal() {
     end: null,
     current_bookings: 0,
     max_capacity: 1,
-    reservations: []
+    reservations: [],
+    enableRepeat: false,
+    repeatType: 'daily',
+    repeatEndDate: null,
+    repeatDays: []
   }
+}
+
+// 切換重複日期選擇
+function toggleRepeatDay(dayIndex) {
+  const index = editForm.value.repeatDays.indexOf(dayIndex)
+  if (index > -1) {
+    editForm.value.repeatDays.splice(index, 1)
+  } else {
+    editForm.value.repeatDays.push(dayIndex)
+  }
+}
+
+// 啟用結束日期選項
+function enableEndDate() {
+  if (!editForm.value.repeatEndDate) {
+    const defaultDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    editForm.value.repeatEndDate = formatDateTimeLocal(defaultDate).split('T')[0]
+  }
+}
+
+// 設定預設結束日期
+function setDefaultEndDate() {
+  if (!editForm.value.repeatEndDate) {
+    const defaultDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    editForm.value.repeatEndDate = formatDateTimeLocal(defaultDate).split('T')[0]
+  }
+}
+
+// 獲取重複摘要
+function getRepeatSummary() {
+  const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  
+  if (editForm.value.repeatType === 'never') {
+    return '不重複'
+  }
+  
+  let summary = ''
+  
+  if (editForm.value.repeatType === 'daily') {
+    summary = '每天重複'
+  } else if (editForm.value.repeatType === 'weekly') {
+    summary = '每週重複'
+  } else if (editForm.value.repeatType === 'weekdays') {
+    if (editForm.value.repeatDays.length === 0) {
+      return '請選擇至少一個星期'
+    }
+    const selectedDays = editForm.value.repeatDays
+      .sort((a, b) => a - b)
+      .map(i => dayNames[i])
+      .join('、')
+    summary = `每週 ${selectedDays} 重複`
+  }
+  
+  if (editForm.value.repeatEndDate) {
+    const endDate = new Date(editForm.value.repeatEndDate)
+    summary += `，直到 ${endDate.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}`
+  } else {
+    summary += '（預設建立 90 天內的時段）'
+  }
+  
+  return summary
 }
 
 // 日曆導航
@@ -802,6 +1058,7 @@ function showToast(type, message) {
 function handleKeydown(e) {
   if (e.key === 'Escape') {
     if (showQuickCreate.value) cancelQuickCreate()
+    if (showViewModal.value) closeViewModal()
     if (showEditModal.value) closeEditModal()
   }
   if (e.key === 'Enter') {
@@ -1074,6 +1331,149 @@ onMounted(() => {
       <PlusIcon class="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
     </button>
 
+    <!-- 檢視 Modal - 詳細資訊展示 -->
+    <TransitionRoot appear :show="showViewModal" as="template">
+      <Dialog as="div" @close="closeViewModal" class="relative z-40">
+        <TransitionChild
+          as="template"
+          enter="duration-300 ease-out"
+          enter-from="opacity-0"
+          enter-to="opacity-100"
+          leave="duration-200 ease-in"
+          leave-from="opacity-100"
+          leave-to="opacity-0"
+        >
+          <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+        </TransitionChild>
+
+        <div class="fixed inset-0 overflow-y-auto">
+          <div class="flex min-h-full items-end md:items-center justify-center">
+            <TransitionChild
+              as="template"
+              enter="duration-300 ease-out"
+              enter-from="opacity-0 translate-y-full md:translate-y-0 md:scale-95"
+              enter-to="opacity-100 translate-y-0 md:scale-100"
+              leave="duration-200 ease-in"
+              leave-from="opacity-100 translate-y-0 md:scale-100"
+              leave-to="opacity-0 translate-y-full md:translate-y-0 md:scale-95"
+            >
+              <DialogPanel class="w-full md:max-w-2xl transform overflow-hidden rounded-t-3xl md:rounded-2xl bg-white shadow-2xl transition-all">
+                <!-- 頂部拖動指示器 (僅手機版) -->
+                <div class="md:hidden w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-2"></div>
+                
+                <!-- 標題列 -->
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <DialogTitle class="text-xl font-bold text-gray-900">
+                    時段詳情
+                  </DialogTitle>
+                  <div class="flex items-center gap-2">
+                    <!-- 編輯按鈕 -->
+                    <button 
+                      @click="switchToEditMode" 
+                      class="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
+                      title="編輯時段"
+                    >
+                      <PencilIcon class="w-5 h-5" />
+                    </button>
+                    <!-- 關閉按鈕 -->
+                    <button 
+                      @click="closeViewModal" 
+                      class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
+                    >
+                      <XMarkIcon class="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- 內容區域 -->
+                <div class="p-6 max-h-[70vh] md:max-h-[600px] overflow-y-auto">
+                  <div class="space-y-6">
+                    <!-- 時段資訊 -->
+                    <div class="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-5 border border-indigo-100">
+                      <h3 class="text-lg font-bold text-gray-900 mb-3">{{ viewData.title }}</h3>
+                      
+                      <div class="space-y-2">
+                        <!-- 時間 -->
+                        <div class="flex items-center gap-3 text-gray-700">
+                          <ClockIcon class="w-5 h-5 text-indigo-600" />
+                          <span class="font-medium">{{ formatDateTime(viewData.start) }} - {{ formatTime(viewData.end) }}</span>
+                        </div>
+                        
+                        <!-- 備註 -->
+                        <div v-if="viewData.description" class="mt-3 pt-3 border-t border-indigo-200">
+                          <p class="text-sm text-gray-600 leading-relaxed">{{ viewData.description }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- 預約列表 -->
+                    <div>
+                      <h4 class="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <UserGroupIcon class="w-5 h-5 text-gray-600" />
+                        預約清單 ({{ viewData.reservations.length }})
+                      </h4>
+                      
+                      <div v-if="viewData.reservations.length > 0" class="space-y-3 max-h-[400px] overflow-y-auto scrollbar-hidden pr-1">
+                        <div 
+                          v-for="(reservation, index) in viewData.reservations" 
+                          :key="index"
+                          class="bg-white border-2 rounded-xl p-4 hover:shadow-md transition-all duration-200"
+                          :class="{
+                            'border-blue-200 bg-blue-50': reservation.status === 'confirmed',
+                            'border-amber-200 bg-amber-50': reservation.status === 'pending',
+                            'border-gray-200 bg-gray-50': reservation.status === 'cancelled'
+                          }"
+                        >
+                          <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                              <div class="flex items-center gap-2 mb-2">
+                                <span class="font-bold text-gray-900">{{ reservation.customer_name || '未命名客戶' }}</span>
+                                <span 
+                                  class="px-2 py-1 rounded-full text-xs font-bold"
+                                  :class="{
+                                    'bg-blue-100 text-blue-700': reservation.status === 'confirmed',
+                                    'bg-amber-100 text-amber-700': reservation.status === 'pending',
+                                    'bg-gray-100 text-gray-700': reservation.status === 'cancelled'
+                                  }"
+                                >
+                                  {{ reservation.status === 'confirmed' ? '已確認' : reservation.status === 'pending' ? '待確認' : '已取消' }}
+                                </span>
+                              </div>
+                              
+                              <div class="space-y-1 text-sm text-gray-600">
+                                <div v-if="reservation.customer_phone">
+                                  <span class="font-medium">電話:</span> {{ reservation.customer_phone }}
+                                </div>
+                                <div v-if="reservation.reservation_time">
+                                  <span class="font-medium">預約時間:</span> {{ reservation.reservation_time }}
+                                </div>
+                                <div v-if="reservation.service_name">
+                                  <span class="font-medium">服務項目:</span> {{ reservation.service_name }}
+                                </div>
+                                <div v-if="reservation.notes" class="mt-2 p-2 bg-white rounded border border-gray-200">
+                                  <span class="font-medium">備註:</span> {{ reservation.notes }}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div v-else class="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                        <UserGroupIcon class="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p class="text-gray-500 font-medium">目前沒有預約</p>
+                        <p class="text-sm text-gray-400 mt-1">此時段開放預約中</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
+        </div>
+      </Dialog>
+    </TransitionRoot>
+
     <!-- 精緻的編輯 Modal - 全新設計 -->
     <TransitionRoot appear :show="showEditModal" as="template">
       <Dialog as="div" @close="closeEditModal" class="relative z-40">
@@ -1118,7 +1518,7 @@ onMounted(() => {
                 </div>
                 
                 <!-- 表單內容 -->
-                <div class="p-6 max-h-[70vh] md:max-h-[600px] overflow-y-auto">
+                <div class="p-6 max-h-[70vh] md:max-h-[600px] overflow-y-auto scrollbar-hidden">
                   <div class="space-y-6">
                     <!-- 時段名稱 -->
                     <div>
@@ -1177,6 +1577,130 @@ onMounted(() => {
                         class="w-full px-4 py-3 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-50 transition-all duration-200 resize-none placeholder:text-gray-400"
                       ></textarea>
                     </div>
+                    
+                    <!-- 重複設定（僅新建時顯示） -->
+                    <div v-if="!editForm.id" class="border-t-2 border-gray-200 pt-6">
+                      <!-- 重複按鈕 -->
+                      <button
+                        v-if="!editForm.enableRepeat"
+                        type="button"
+                        @click="editForm.enableRepeat = true; editForm.repeatType = 'daily'"
+                        class="w-full px-4 py-3 text-left text-sm font-medium text-gray-700 bg-white border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-indigo-300 transition-all duration-200 flex items-center gap-2"
+                      >
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>新增重複</span>
+                      </button>
+                      
+                      <!-- 重複設定區域 -->
+                      <div v-if="editForm.enableRepeat" class="space-y-4">
+                        <!-- 重複類型選擇 -->
+                        <div class="flex items-center gap-3">
+                          <label class="text-sm font-bold text-gray-900 flex-shrink-0">
+                            重複
+                          </label>
+                          <select 
+                            v-model="editForm.repeatType"
+                            class="flex-1 px-4 py-2 text-sm font-medium text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all duration-200"
+                          >
+                            <option value="daily">每天</option>
+                            <option value="weekly">每週</option>
+                            <option value="weekdays">自訂（選擇星期）</option>
+                          </select>
+                          <button
+                            type="button"
+                            @click="editForm.enableRepeat = false; editForm.repeatType = 'never'; editForm.repeatEndDate = null; editForm.repeatDays = []"
+                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="移除重複"
+                          >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      
+                      <!-- 重複詳細設定 -->
+                      <div v-if="editForm.repeatType !== 'never'" class="space-y-4">
+                        <!-- 每週指定日期選擇 -->
+                        <div v-if="editForm.repeatType === 'weekdays'" class="bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
+                          <label class="block text-sm font-medium text-gray-700 mb-3">重複於</label>
+                          <div class="grid grid-cols-7 gap-2">
+                            <button
+                              v-for="(day, index) in ['日', '一', '二', '三', '四', '五', '六']"
+                              :key="index"
+                              type="button"
+                              @click="toggleRepeatDay(index)"
+                              :class="[
+                                'aspect-square flex items-center justify-center text-sm font-bold rounded-lg transition-all',
+                                editForm.repeatDays.includes(index)
+                                  ? 'bg-indigo-600 text-white shadow-md'
+                                  : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'
+                              ]"
+                            >
+                              {{ day }}
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <!-- 結束日期 -->
+                        <div class="bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
+                          <label class="block text-sm font-medium text-gray-700 mb-3">結束</label>
+                          <div class="space-y-3">
+                            <!-- 永不結束選項 -->
+                            <div class="flex items-center">
+                              <input
+                                type="radio"
+                                id="never-end"
+                                :checked="!editForm.repeatEndDate"
+                                @change="editForm.repeatEndDate = null"
+                                class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                              />
+                              <label for="never-end" class="ml-3 text-sm font-medium text-gray-700">
+                                永不結束
+                              </label>
+                            </div>
+                            
+                            <!-- 選擇結束日期 -->
+                            <div class="flex items-start">
+                              <input
+                                type="radio"
+                                id="end-date"
+                                :checked="!!editForm.repeatEndDate"
+                                @change="enableEndDate"
+                                class="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500 mt-2"
+                              />
+                              <label for="end-date" class="ml-3 flex-1">
+                                <span class="block text-sm font-medium text-gray-700 mb-2">結束於</span>
+                                <input
+                                  type="date"
+                                  v-model="editForm.repeatEndDate"
+                                  @focus="setDefaultEndDate"
+                                  :min="editForm.start ? formatDateTimeLocal(editForm.start).split('T')[0] : ''"
+                                  class="w-full px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 disabled:bg-gray-100"
+                                  :disabled="!editForm.repeatEndDate"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- 預覽提示 -->
+                        <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                          <div class="flex items-start gap-3">
+                            <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                            <div class="flex-1">
+                              <p class="text-sm font-medium text-blue-900">
+                                {{ getRepeatSummary() }}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
@@ -1223,7 +1747,7 @@ onMounted(() => {
       <div 
         v-if="toast.show" 
         :class="[
-          'fixed top-4 right-4 md:top-6 md:right-6 px-5 py-4 rounded-xl text-sm font-semibold shadow-2xl z-20 max-w-sm flex items-center gap-3',
+          'fixed top-4 right-4 md:top-6 md:right-6 px-5 py-4 rounded-xl text-sm font-semibold shadow-2xl z-[9999] max-w-sm flex items-center gap-3',
           toast.type === 'success' 
             ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-200' 
             : 'bg-red-50 text-red-800 border-2 border-red-200'
@@ -1864,6 +2388,16 @@ onMounted(() => {
     padding: 8px 2px !important;
     font-size: 11px !important;
   }
+}
+
+/* 隱藏滾動條但保持滾動功能 */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 </style>
 
