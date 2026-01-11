@@ -455,7 +455,7 @@
               <div>
                 <h4 class="text-sm font-medium text-gray-900">取得 Channel Secret</h4>
                 <p class="text-sm text-gray-600 mt-1">
-                  選擇您的 Channel → 點選「Basic settings」→ 複製「Channel secret」
+                  選擇您的 Channel → 點選「Basic settings」→ 複製「Channel secret」→ 貼到上方設定中的 Channel Secret 欄位
                 </p>
               </div>
             </div>
@@ -472,22 +472,34 @@
                 </p>
               </div>
             </div>
-            
+
             <div class="flex items-start">
               <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
                 <span class="text-xs font-semibold text-blue-600">4</span>
               </div>
               <div>
+                <h4 class="text-sm font-medium text-gray-900">開啟 Use webhook</h4>
+                <p class="text-sm text-gray-600 mt-1">
+                  在「Webhook URL」下方，開啟「Use webhook」（綠色顯示為正確）<br>
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
+                <span class="text-xs font-semibold text-blue-600">5</span>
+              </div>
+              <div>
                 <h4 class="text-sm font-medium text-gray-900">取得 Channel Access Token</h4>
                 <p class="text-sm text-gray-600 mt-1">
-                  在同一個「Messaging API」頁面，滑到最下面找到「Channel access token」並複製
+                  在同一個「Messaging API」頁面，滑到最下面找到「Channel access token」並複製 → 貼到上方設定中的 Channel Access Token 欄位
                 </p>
               </div>
             </div>
             
             <div class="flex items-start">
               <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
-                <span class="text-xs font-semibold text-blue-600">5</span>
+                <span class="text-xs font-semibold text-blue-600">6</span>
               </div>
               <div>
                 <h4 class="text-sm font-medium text-gray-900">完成設定</h4>
