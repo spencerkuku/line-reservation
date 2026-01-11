@@ -22,7 +22,8 @@ async function getCsrfCookie() {
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'ngrok-skip-browser-warning': 'true'
             }
         });
         
@@ -95,6 +96,7 @@ async function apiRequest(url, options = {}) {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
+            'ngrok-skip-browser-warning': 'true',
             ...(token && { 'Authorization': `Bearer ${token}` }),
             ...(csrfToken && { 'X-XSRF-TOKEN': csrfToken })
         }
