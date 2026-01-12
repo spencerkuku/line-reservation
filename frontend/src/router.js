@@ -17,6 +17,7 @@ import Tenants from './pages/Tenants.vue'
 import ForceChangePassword from './pages/ForceChangePassword.vue'
 import ActivityLogs from './pages/ActivityLogs.vue'
 import LineMessageLogs from './pages/LineMessageLogs.vue'
+import Subscription from './pages/Subscription.vue'
 import { validateToken } from "./utils/api.js"
 
 const routes = [
@@ -31,6 +32,7 @@ const routes = [
             { path: 'available-times', name: 'AvailableTimes', component: AvailableTimes },
             { path: 'reservations', name: 'Reservations', component: Reservations },
             { path: 'profile', name: 'Profile', component: Profile },
+            { path: 'subscription', name: 'Subscription', component: Subscription },
             { path: 'settings', name: 'Settings', component: Settings },
             // 系統管理員專用
             { path: 'tenants', name: 'Tenants', component: Tenants, meta: { requiresSystemAdmin: true } },

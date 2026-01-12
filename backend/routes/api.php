@@ -69,6 +69,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/auth/password', [AuthController::class, 'updatePassword']);
     
+    // 訂閱管理
+    Route::get('/subscription', [AuthController::class, 'getSubscription']);
+    Route::get('/subscription/usage', [AuthController::class, 'getSubscriptionUsage']);
+    
     // 強制修改密碼
     Route::post('/auth/force-change-password', [AuthController::class, 'forceChangePassword']);
 });

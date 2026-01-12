@@ -322,4 +322,13 @@ export async function validateToken() {
     }
 }
 
+// 訂閱相關 API
+export async function getSubscription() {
+    return await apiGet('/subscription')
+}
+
+export async function getSubscriptionUsage() {
+    return await apiGet('/subscription/usage')
+}
+
 export { API_BASE_URL, getCsrfCookie, getCsrfTokenFromCookie }

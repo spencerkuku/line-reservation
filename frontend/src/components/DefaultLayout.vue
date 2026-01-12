@@ -113,7 +113,6 @@
               >
                 <div v-if="!sidebarCollapsed" class="ml-3 flex-1 text-left">
                   <div class="text-sm font-medium text-gray-900 truncate">{{ user.name }}</div>
-                  <div class="text-xs text-gray-500 truncate">{{ user.role === 'system_admin' ? '系統管理員' : '管理員' }}</div>
                 </div>
               </transition>
               <transition
@@ -151,6 +150,18 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     個人資訊
+                  </RouterLink>
+                </MenuItem>
+                
+                <MenuItem>
+                  <RouterLink
+                    :to="{ name: 'Subscription' }"
+                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg class="h-4 w-4 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    訂閱資訊
                   </RouterLink>
                 </MenuItem>
                 
@@ -260,6 +271,30 @@
                       <div class="text-sm text-gray-500 truncate">{{ user.email }}</div>
                     </div>
                   </div>
+                </div>
+                
+                <div class="border-t border-gray-200 px-3 py-2 space-y-1">
+                  <RouterLink
+                    :to="{ name: 'Profile' }"
+                    @click="close"
+                    class="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg class="h-5 w-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    個人資訊
+                  </RouterLink>
+                  
+                  <RouterLink
+                    :to="{ name: 'Subscription' }"
+                    @click="close"
+                    class="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <svg class="h-5 w-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    訂閱資訊
+                  </RouterLink>
                 </div>
                 
                 <div class="border-t border-gray-200 p-3">

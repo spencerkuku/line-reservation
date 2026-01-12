@@ -301,4 +301,98 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * 獲取訂閱信息
+     */
+    public function getSubscription(Request $request)
+    {
+        $user = $request->user();
+        
+        // 系統管理員沒有租戶訂閱信息
+        if ($user->role === 'system_admin') {
+            return response()->json([
+                'success' => false,
+                'message' => '系統管理員無訂閱信息'
+            ], 400);
+        }
+        
+        $tenant = $user->tenant;
+        
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => '找不到租戶信息'
+            ], 404);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'tenant' => [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'email' => $tenant->email,
+                    'phone' => $tenant->phone,
+                ],
+                'subscription' => [
+                    'status' => $tenant->status,
+                    'plan' => $tenant->plan,
+                    'trial_ends_at' => $tenant->trial_ends_at ? $tenant->trial_ends_at->format('Y-m-d') : null,
+                    'subscription_ends_at' => $tenant->subscription_ends_at ? $tenant->subscription_ends_at->format('Y-m-d') : null,
+                ],
+            ]
+        ]);
+    }
+
+    /**
+     * 獲取訂閱使用量
+     */
+    public function getSubscriptionUsage(Request $request)
+    {
+        $user = $request->user();
+        
+        if ($user->role === 'system_admin') {
+            return response()->json([
+                'success' => false,
+                'message' => '系統管理員無使用量信息'
+            ], 400);
+        }
+        
+        $tenant = $user->tenant;
+        
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => '找不到租戶信息'
+            ], 404);
+        }
+
+        // 計算本月使用量
+        $startOfMonth = now()->startOfMonth();
+        $endOfMonth = now()->endOfMonth();
+        
+        $monthlyReservations = $tenant->reservations()
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->count();
+            
+        $totalCustomers = $tenant->customers()->count();
+        $totalServices = $tenant->services()->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'usage' => [
+                    'reservations' => $monthlyReservations,
+                    'customers' => $totalCustomers,
+                    'services' => $totalServices,
+                ],
+                'period' => [
+                    'start' => $startOfMonth->format('Y-m-d'),
+                    'end' => $endOfMonth->format('Y-m-d'),
+                ]
+            ]
+        ]);
+    }
+
 }

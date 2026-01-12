@@ -441,6 +441,18 @@
                 <span class="text-xs font-semibold text-blue-600">1</span>
               </div>
               <div>
+                <h4 class="text-sm font-medium text-gray-900">啟用 Messaging API</h4>
+                <p class="text-sm text-gray-600 mt-1">
+                  訪問 <a href="https://manager.line.biz/" target="_blank" class="text-blue-600 hover:text-blue-700 underline">LINE 官方帳號管理頁面</a> 並點選右上角「設定」→ 在左側選單點選「Messaging API」→ 點選「啟用 Messaging API」→ 點選「啟用 Message API」。
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-start">
+              <div class="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-4 mt-0.5">
+                <span class="text-xs font-semibold text-blue-600">1</span>
+              </div>
+              <div>
                 <h4 class="text-sm font-medium text-gray-900">登入 LINE Developers Console</h4>
                 <p class="text-sm text-gray-600 mt-1">
                   訪問 <a href="https://developers.line.biz/" target="_blank" class="text-blue-600 hover:text-blue-700 underline">LINE Developers Console</a> 並登入您的帳號
