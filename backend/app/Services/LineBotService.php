@@ -243,7 +243,14 @@ class LineBotService
             Log::info('Processing text message: ' . $text);
 
             // 只回覆關鍵字
-            if ($this->isCancelKeyword($text)) {
+            // 注意：需要先檢查更具體的關鍵字（如「取消預約」）再檢查通用關鍵字（如「取消」）
+            if ($this->isCancelReservationKeyword($text)) {
+                Log::info('Cancel reservation keyword detected, showing cancellable reservations');
+                $this->sendCancelReservationQuery($replyToken, $userId);
+            } elseif ($this->isQueryReservationKeyword($text)) {
+                Log::info('Query reservation keyword detected, showing reservations');
+                $this->sendReservationQuery($replyToken, $userId);
+            } elseif ($this->isCancelKeyword($text)) {
                 LoggingService::logLineBotEvent('cancel_command', $userId, ['text' => $text]);
                 Log::info('Cancel keyword detected, clearing reservation context');
                 $this->handleCancelCommand($replyToken, $userId);
@@ -258,9 +265,6 @@ class LineBotService
                     'userId' => $userId
                 ]);
                 $this->processCustomerInfo($text, $replyToken, $userId);
-            } elseif ($this->isQueryReservationKeyword($text)) {
-                Log::info('Query reservation keyword detected, showing reservations');
-                $this->sendReservationQuery($replyToken, $userId);
             } elseif ($this->isReservationKeyword($text)) {
                 Log::info('Reservation keyword detected, sending service selection');
                 $this->sendServiceSelection($replyToken);
@@ -385,29 +389,76 @@ class LineBotService
 
     private function isReservationKeyword($text)
     {
-        $keywords = ['預約', '我要預約'];
+        // 要求使用 / 前綴來觸發命令，避免與聊天內容衝突
+        $keywords = ['/預約', '/我要預約'];
+        // 向後兼容：如果文字是「預約」或「我要預約」且沒有其他文字
+        $simpleKeywords = ['預約', '我要預約'];
+        
         foreach ($keywords as $keyword) {
             if (strpos($text, $keyword) !== false) {
                 return true;
             }
         }
+        
+        // 只有在完全匹配簡單關鍵字時才觸發（向後兼容）
+        foreach ($simpleKeywords as $keyword) {
+            if ($text === $keyword) {
+                return true;
+            }
+        }
+        
         return false;
     }
 
     private function isQueryReservationKeyword($text)
     {
-        $keywords = ['查詢預約', '我的預約', '預約查詢', '預約記錄', '預約紀錄', '預約情況'];
+        // 要求使用 / 前綴來觸發命令，避免與聊天內容衝突
+        $keywords = ['/查詢預約', '/我的預約', '/預約查詢', '/預約記錄', '/預約紀錄', '/預約情況'];
+        // 向後兼容：如果文字是關鍵字且沒有其他文字
+        $simpleKeywords = ['查詢預約', '我的預約', '預約查詢', '預約記錄', '預約紀錄', '預約情況'];
+        
         foreach ($keywords as $keyword) {
             if (strpos($text, $keyword) !== false) {
                 return true;
             }
         }
+        
+        // 只有在完全匹配簡單關鍵字時才觸發（向後兼容）
+        foreach ($simpleKeywords as $keyword) {
+            if ($text === $keyword) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    private function isCancelReservationKeyword($text)
+    {
+        // 要求使用 / 前綴來觸發命令，避免與聊天內容衝突
+        $keywords = ['/取消預約', '/我要取消', '/預約取消', '/取消訂單'];
+        // 向後兼容：如果文字是關鍵字且沒有其他文字
+        $simpleKeywords = ['取消預約', '我要取消', '預約取消', '取消訂單'];
+        
+        foreach ($keywords as $keyword) {
+            if (strpos($text, $keyword) !== false) {
+                return true;
+            }
+        }
+        
+        // 只有在完全匹配簡單關鍵字時才觸發（向後兼容）
+        foreach ($simpleKeywords as $keyword) {
+            if ($text === $keyword) {
+                return true;
+            }
+        }
+        
         return false;
     }
 
     private function isCancelKeyword($text)
     {
-        $keywords = ['取消', '重新開始', '停止', '中止', '退出', '結束', 'cancel', 'stop', 'reset'];
+        $keywords = ['重新開始', '停止', '中止', '退出', '結束'];
         foreach ($keywords as $keyword) {
             if (strpos($text, $keyword) !== false) {
                 return true;
@@ -1278,7 +1329,7 @@ class LineBotService
                     'flex' => 1,
                     'action' => [
                         'type' => 'postback',
-                        'label' => '編輯',
+                        'label' => '編輯預約',
                         'data' => "action=edit_reservation&reservation_id={$reservation->id}"
                     ]
                 ];
@@ -1291,7 +1342,7 @@ class LineBotService
                     'flex' => 1,
                     'action' => [
                         'type' => 'postback',
-                        'label' => '取消',
+                        'label' => '取消預約',
                         'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
                     ]
                 ];
@@ -1350,6 +1401,508 @@ class LineBotService
                     'paddingAll' => 'lg'
                 ];
             }
+        }
+
+        return $bubble;
+    }
+
+    /**
+     * 發送可取消的預約查詢結果
+     * 只顯示有效預約（未過期且未取消），按鈕只有取消預約
+     */
+    private function sendCancelReservationQuery($replyToken, $userId)
+    {
+        $customer = Customer::where('line_user_id', $userId)->first();
+        
+        if (!$customer) {
+            $this->replyMessage($replyToken, [
+                'type' => 'text',
+                'text' => '找不到您的客戶資料，請先完成一次預約。'
+            ]);
+            return;
+        }
+
+        // 獲取客戶的有效預約記錄（未過期、未取消、未完成）
+        $reservations = Reservation::where('customer_id', $customer->id)
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->with(['service', 'availableTime'])
+            ->get();
+
+        // 篩選未過期的預約
+        $activeReservations = collect();
+        foreach ($reservations as $reservation) {
+            $reservationDateTime = $reservation->getReservationDateTime();
+            if (!$reservationDateTime->isPast()) {
+                $activeReservations->push($reservation);
+            }
+        }
+        
+        // 排序：待確認優先，然後按時間排序
+        $activeReservations = $activeReservations->sortBy(function ($reservation) {
+            $reservationDateTime = $reservation->getReservationDateTime();
+            if ($reservation->status === 'pending') {
+                return $reservationDateTime->timestamp - 100000;
+            }
+            return $reservationDateTime->timestamp;
+        });
+
+        // 如果沒有可取消的預約
+        if ($activeReservations->isEmpty()) {
+            $this->replyMessage($replyToken, [
+                'type' => 'flex',
+                'altText' => '查詢結果',
+                'contents' => [
+                    'type' => 'bubble',
+                    'header' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'text',
+                                'text' => '取消預約',
+                                'weight' => 'bold',
+                                'color' => '#ffffff',
+                                'size' => 'xl',
+                                'align' => 'center'
+                            ]
+                        ],
+                        'backgroundColor' => '#E74C3C',
+                        'paddingAll' => 'lg'
+                    ],
+                    'body' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'text',
+                                'text' => '目前沒有可取消的預約',
+                                'size' => 'lg',
+                                'color' => '#333333',
+                                'align' => 'center',
+                                'weight' => 'bold'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => '您目前沒有任何可取消的預約記錄。',
+                                'size' => 'md',
+                                'color' => '#666666',
+                                'margin' => 'lg',
+                                'align' => 'center',
+                                'wrap' => true
+                            ]
+                        ],
+                        'paddingAll' => 'xl'
+                    ],
+                    'footer' => [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'button',
+                                'style' => 'primary',
+                                'height' => 'sm',
+                                'color' => '#27AE60',
+                                'action' => [
+                                    'type' => 'message',
+                                    'label' => '立即預約',
+                                    'text' => '我要預約'
+                                ]
+                            ]
+                        ],
+                        'paddingAll' => 'lg'
+                    ]
+                ]
+            ]);
+            return;
+        }
+
+        // 建立預約記錄的 Carousel
+        $bubbles = [];
+        
+        // 添加標題泡泡
+        $bubbles[] = [
+            'type' => 'bubble',
+            'body' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '📋 可取消的預約',
+                        'weight' => 'bold',
+                        'color' => '#ffffff',
+                        'size' => 'xl',
+                        'align' => 'center'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => "共 {$activeReservations->count()} 筆預約",
+                        'color' => '#ffffff',
+                        'size' => 'md',
+                        'align' => 'center',
+                        'margin' => 'md'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => '請選擇要取消的預約',
+                        'color' => '#ffffff',
+                        'size' => 'sm',
+                        'align' => 'center',
+                        'margin' => 'sm'
+                    ]
+                ],
+                'paddingAll' => 'xl',
+                'backgroundColor' => '#E74C3C'
+            ]
+        ];
+        
+        // 添加預約記錄（最多10筆）
+        foreach ($activeReservations->take(10) as $reservation) {
+            $bubbles[] = $this->createCancelReservationBubble($reservation);
+        }
+
+        // 如果超過10筆，添加提示
+        if ($activeReservations->count() > 10) {
+            $bubbles[] = [
+                'type' => 'bubble',
+                'body' => [
+                    'type' => 'box',
+                    'layout' => 'vertical',
+                    'contents' => [
+                        [
+                            'type' => 'text',
+                            'text' => '查看更多預約',
+                            'size' => 'lg',
+                            'color' => '#333333',
+                            'align' => 'center',
+                            'weight' => 'bold'
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => "您還有 " . ($activeReservations->count() - 10) . " 筆可取消的預約",
+                            'size' => 'md',
+                            'color' => '#666666',
+                            'margin' => 'lg',
+                            'align' => 'center',
+                            'wrap' => true
+                        ]
+                    ],
+                    'paddingAll' => 'xl'
+                ]
+            ];
+        }
+
+        $message = [
+            'type' => 'flex',
+            'altText' => '可取消的預約列表',
+            'contents' => [
+                'type' => 'carousel',
+                'contents' => $bubbles
+            ]
+        ];
+
+        $this->replyMessage($replyToken, $message);
+    }
+
+    /**
+     * 建立可取消預約的資訊泡泡
+     * 只顯示取消預約按鈕
+     */
+    private function createCancelReservationBubble($reservation)
+    {
+        $service = $reservation->service;
+        $customer = $reservation->customer;
+        
+        $dateTime = $reservation->getReservationDateTime();
+        
+        // 根據預約狀態決定顯示的狀態文字
+        $statusText = '';
+        $statusColor = '';
+        
+        if ($reservation->status === 'confirmed') {
+            $statusText = '已確認';
+            $statusColor = '#27AE60';
+        } elseif ($reservation->status === 'pending') {
+            $statusText = '待確認';
+            $statusColor = '#F39C12';
+        } else {
+            $statusText = '未知狀態';
+            $statusColor = '#95A5A6';
+        }
+
+        // 建立基本資訊內容
+        $infoContents = [
+            [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '服務項目',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $service->name,
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3,
+                        'wrap' => true
+                    ]
+                ]
+            ],
+            [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '預約日期',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $dateTime->format('Y年m月d日'),
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3
+                    ]
+                ]
+            ],
+            [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '預約時間',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $dateTime->format('H:i'),
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3
+                    ]
+                ]
+            ]
+        ];
+        
+        // 顯示預約姓名
+        $displayName = $reservation->reservation_name ?: ($customer ? ($customer->line_display_name ?: $customer->name) : '');
+        if ($displayName) {
+            $infoContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '預約姓名',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $displayName,
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3,
+                        'wrap' => true
+                    ]
+                ]
+            ];
+        }
+        
+        // 顯示聯絡電話
+        $displayPhone = $reservation->reservation_phone ?: ($customer ? $customer->phone : '');
+        if ($displayPhone) {
+            $infoContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '聯絡電話',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $displayPhone,
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3
+                    ]
+                ]
+            ];
+        }
+        
+        // 顯示備註
+        $displayNotes = $reservation->reservation_notes ?: $reservation->notes;
+        if ($displayNotes && trim($displayNotes)) {
+            $infoContents[] = [
+                'type' => 'box',
+                'layout' => 'horizontal',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => '備註事項',
+                        'size' => 'sm',
+                        'color' => '#666666',
+                        'flex' => 2
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => $displayNotes,
+                        'size' => 'sm',
+                        'color' => '#333333',
+                        'weight' => 'bold',
+                        'flex' => 3,
+                        'wrap' => true
+                    ]
+                ]
+            ];
+        }
+
+        $bubble = [
+            'type' => 'bubble',
+            'header' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'text',
+                        'text' => $statusText,
+                        'weight' => 'bold',
+                        'color' => '#ffffff',
+                        'size' => 'lg',
+                        'align' => 'center'
+                    ],
+                    [
+                        'type' => 'text',
+                        'text' => "#{$reservation->id}",
+                        'color' => '#ffffff',
+                        'size' => 'sm',
+                        'align' => 'center',
+                        'margin' => 'xs'
+                    ]
+                ],
+                'backgroundColor' => $statusColor,
+                'paddingAll' => 'lg'
+            ],
+            'body' => [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => [
+                    [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'contents' => [
+                            [
+                                'type' => 'text',
+                                'text' => '狀態',
+                                'size' => 'sm',
+                                'color' => '#999999',
+                                'weight' => 'bold'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $statusText,
+                                'size' => 'lg',
+                                'color' => $statusColor,
+                                'weight' => 'bold',
+                                'margin' => 'xs'
+                            ]
+                        ],
+                        'backgroundColor' => '#F8F9FA',
+                        'cornerRadius' => '8px',
+                        'paddingAll' => 'md',
+                        'margin' => 'none'
+                    ],
+                    [
+                        'type' => 'separator',
+                        'margin' => 'xl'
+                    ],
+                    [
+                        'type' => 'box',
+                        'layout' => 'vertical',
+                        'margin' => 'xl',
+                        'spacing' => 'md',
+                        'contents' => $infoContents
+                    ]
+                ],
+                'paddingAll' => 'xl'
+            ]
+        ];
+
+        // 根據預約時間和狀態決定是否顯示取消按鈕
+        $reservationDateTime = $reservation->getReservationDateTime();
+        $hoursUntilReservation = now()->diffInHours($reservationDateTime, false);
+        
+        $footerContents = [];
+        
+        if ($reservation->status === 'pending') {
+            // 待確認狀態 - 隨時可以取消
+            $footerContents[] = [
+                'type' => 'button',
+                'style' => 'primary',
+                'height' => 'sm',
+                'color' => '#E74C3C',
+                'action' => [
+                    'type' => 'postback',
+                    'label' => '取消預約',
+                    'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
+                ]
+            ];
+        } elseif ($reservation->status === 'confirmed') {
+            // 已確認的預約 - 根據時間判斷是否可以取消
+            if ($hoursUntilReservation <= 24) {
+                // 24小時內 - 顯示聯絡客服說明
+                $footerContents[] = [
+                    'type' => 'text',
+                    'text' => '已確認預約如需取消，請聯絡客服',
+                    'size' => 'sm',
+                    'color' => '#666666',
+                    'align' => 'center',
+                    'wrap' => true
+                ];
+            } else {
+                // 超過24小時 - 提供取消按鈕
+                $footerContents[] = [
+                    'type' => 'button',
+                    'style' => 'primary',
+                    'height' => 'sm',
+                    'color' => '#E74C3C',
+                    'action' => [
+                        'type' => 'postback',
+                        'label' => '取消預約',
+                        'data' => "action=cancel_reservation&reservation_id={$reservation->id}"
+                    ]
+                ];
+            }
+        }
+        
+        if (!empty($footerContents)) {
+            $bubble['footer'] = [
+                'type' => 'box',
+                'layout' => 'vertical',
+                'contents' => $footerContents,
+                'paddingAll' => 'lg'
+            ];
         }
 
         return $bubble;
