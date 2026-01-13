@@ -56,11 +56,7 @@ deploy_unified() {
     
     # 3. 取得專案代碼
     log_step "步驟 3/12: 取得專案代碼..."
-    if [ -d "$PROJECT_DIR/.git" ]; then
-        git_pull "$PROJECT_DIR"
-    else
-        git_clone "$GIT_REPO_URL" "$PROJECT_DIR"
-    fi
+    deploy_from_source "$DEPLOY_SOURCE" "$PROJECT_DIR"
     
     # 4. 後端設置
     log_step "步驟 4/12: 安裝後端套件..."
@@ -137,11 +133,7 @@ deploy_api_only() {
     
     # 3. 取得專案代碼
     log_step "步驟 3/12: 取得專案代碼..."
-    if [ -d "$PROJECT_DIR/.git" ]; then
-        git_pull "$PROJECT_DIR"
-    else
-        git_clone "$GIT_REPO_URL" "$PROJECT_DIR"
-    fi
+    deploy_from_source "$DEPLOY_SOURCE" "$PROJECT_DIR"
     
     # 4. 後端設置
     log_step "步驟 4/12: 安裝後端套件..."
@@ -260,6 +252,19 @@ interactive_deploy() {
         exit 0
     fi
     
+    # 選擇部署來源
+    local deploy_source=$(prompt_deploy_source)
+    export DEPLOY_SOURCE="$deploy_source"
+    
+    # 如果選擇 release，詢問版本和目標目錄
+    if [ "$deploy_source" = "release" ]; then
+        local release_tag=$(prompt_release_tag)
+        export GITHUB_RELEASE_TAG="$release_tag"
+        
+        local target_dir=$(prompt_target_directory "$USER_HOME/line-reservation")
+        export PROJECT_DIR="$target_dir"
+    fi
+    
     # 取得域名配置
     local domain
     domain=$(prompt_domain_config "$mode")
@@ -293,11 +298,23 @@ interactive_deploy() {
         echo "   前端域名: $cloudflare_domain (Cloudflare Pages)"
     fi
     echo "   使用 SSL: $([ "$use_ssl" = "true" ] && echo "是" || echo "否")"
+    echo "   部署來源: $([ "$deploy_source" = "release" ] && echo "GitHub Release" || echo "Git Repository")"
+    if [ "$deploy_source" = "release" ]; then
+        echo "   Release 版本: $release_tag"
+    fi
+    echo "   安裝路徑: $PROJECT_DIR"
     echo ""
     
     if ! confirm_action "確認以上配置並開始部署?"; then
         log_info "已取消部署"
         exit 0
+    fi
+    
+    # 儲存部署源配置
+    save_config_item "DEPLOY_SOURCE" "$deploy_source"
+    if [ "$deploy_source" = "release" ]; then
+        save_config_item "GITHUB_RELEASE_TAG" "$release_tag"
+        save_config_item "DEPLOY_TARGET_DIR" "$PROJECT_DIR"
     fi
     
     # 執行部署
@@ -322,12 +339,17 @@ show_help() {
     echo "  --cloudflare=<域名>    設定 Cloudflare Pages 域名 (API 模式必需)"
     echo "  --ssl                  啟用 SSL 憑證"
     echo "  --no-ssl               不使用 SSL"
+    echo "  --source=<git|release> 部署來源 (git 或 release，默認: release)"
+    echo "  --tag=<版本>           Release 版本標籤 (僅限 release 來源，默認: latest)"
+    echo "  --target=<目錄>        安裝目錄 (默認: ~/line-reservation)"
     echo "  --help                 顯示此幫助訊息"
     echo ""
     echo "範例:"
     echo "  ./deploy.sh                                    # 互動式部署"
     echo "  ./deploy.sh --unified --domain=example.com --ssl"
     echo "  ./deploy.sh --api-only --domain=api.example.com --cloudflare=app.pages.dev --ssl"
+    echo "  ./deploy.sh --unified --domain=example.com --source=release --tag=v1.0.0"
+    echo "  ./deploy.sh --unified --domain=example.com --source=git"
     echo ""
 }
 
@@ -337,6 +359,9 @@ parse_args() {
     DEPLOY_DOMAIN=""
     CLOUDFLARE_DOMAIN=""
     USE_SSL=""
+    DEPLOY_SOURCE_ARG=""
+    RELEASE_TAG_ARG=""
+    TARGET_DIR_ARG=""
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -362,6 +387,18 @@ parse_args() {
                 ;;
             --no-ssl)
                 USE_SSL="false"
+                shift
+                ;;
+            --source=*)
+                DEPLOY_SOURCE_ARG="${1#*=}"
+                shift
+                ;;
+            --tag=*)
+                RELEASE_TAG_ARG="${1#*=}"
+                shift
+                ;;
+            --target=*)
+                TARGET_DIR_ARG="${1#*=}"
                 shift
                 ;;
             --help|-h)
@@ -399,6 +436,19 @@ main() {
         if [ "$DEPLOY_MODE" = "api_only" ] && [ -z "$CLOUDFLARE_DOMAIN" ]; then
             log_error "API 模式需要指定 --cloudflare=<域名>"
             exit 1
+        fi
+        
+        # 設置部署源配置
+        if [ -n "$DEPLOY_SOURCE_ARG" ]; then
+            export DEPLOY_SOURCE="$DEPLOY_SOURCE_ARG"
+        fi
+        
+        if [ -n "$RELEASE_TAG_ARG" ]; then
+            export GITHUB_RELEASE_TAG="$RELEASE_TAG_ARG"
+        fi
+        
+        if [ -n "$TARGET_DIR_ARG" ]; then
+            export PROJECT_DIR="$TARGET_DIR_ARG"
         fi
         
         # 預設 SSL

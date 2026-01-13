@@ -5,8 +5,8 @@
 # ===================================================
 
 # ===== 專案路徑配置 =====
-export PROJECT_DIR="/var/www/line-reservation"
 export USER_HOME=$(eval echo "~$USER")
+export PROJECT_DIR="${PROJECT_DIR:-$USER_HOME/line-reservation}"
 export BACKUP_BASE_DIR="$USER_HOME/line-reservation-backups"
 export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export LIB_DIR="$SCRIPTS_DIR/lib"
@@ -42,6 +42,13 @@ export DB_PORT="${DB_PORT:-3306}"
 export GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/spencerkuku/line-reservation.git}"
 export GIT_BRANCH="${GIT_BRANCH:-main}"
 
+# ===== 部署源配置 =====
+# "git"     = 從 Git 倉庫 clone/pull (開發用)
+# "release" = 從 GitHub Release 下載 (生產用)
+export DEPLOY_SOURCE="${DEPLOY_SOURCE:-release}"
+export GITHUB_RELEASE_TAG="${GITHUB_RELEASE_TAG:-latest}"
+export DEPLOY_TARGET_DIR="${DEPLOY_TARGET_DIR:-$USER_HOME/line-reservation}"
+
 # ===== 備份配置 =====
 export BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 export PROJECT_BACKUP_RETENTION_DAYS="${PROJECT_BACKUP_RETENTION_DAYS:-14}"
@@ -72,6 +79,9 @@ load_saved_config() {
                 BACKEND_DOMAIN) export BACKEND_DOMAIN="$value" ;;
                 BACKEND_PROTOCOL) export BACKEND_PROTOCOL="$value" ;;
                 USE_SSL) export USE_SSL="$value" ;;
+                DEPLOY_SOURCE) export DEPLOY_SOURCE="$value" ;;
+                GITHUB_RELEASE_TAG) export GITHUB_RELEASE_TAG="$value" ;;
+                DEPLOY_TARGET_DIR) export DEPLOY_TARGET_DIR="$value" ;;
                 GIT_REPO_URL) export GIT_REPO_URL="$value" ;;
                 GIT_BRANCH) export GIT_BRANCH="$value" ;;
             esac
@@ -123,6 +133,9 @@ CLOUDFLARE_FRONTEND_PROTOCOL=${CLOUDFLARE_FRONTEND_PROTOCOL}
 BACKEND_DOMAIN=${BACKEND_DOMAIN}
 BACKEND_PROTOCOL=${BACKEND_PROTOCOL}
 USE_SSL=${USE_SSL}
+DEPLOY_SOURCE=${DEPLOY_SOURCE}
+GITHUB_RELEASE_TAG=${GITHUB_RELEASE_TAG}
+DEPLOY_TARGET_DIR=${DEPLOY_TARGET_DIR}
 GIT_REPO_URL=${GIT_REPO_URL}
 GIT_BRANCH=${GIT_BRANCH}
 EOF

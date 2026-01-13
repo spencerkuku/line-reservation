@@ -301,4 +301,164 @@ interactive_git_pull() {
     git_pull "$project_dir" "$branch"
 }
 
+# ===== GitHub Release 部署 =====
+download_github_release() {
+    local repo="${1}"  # 格式: owner/repo
+    local tag="${2:-latest}"
+    local target_dir="${3:-$DEPLOY_TARGET_DIR}"
+    
+    log_step "下載 GitHub Release: $repo ($tag)"
+    
+    # 確保 jq 已安裝
+    if ! command -v jq &>/dev/null; then
+        log_step "安裝 jq..."
+        sudo apt-get update -qq
+        sudo apt-get install -y jq
+    fi
+    
+    # 確保 curl 已安裝
+    if ! command -v curl &>/dev/null; then
+        log_error "需要 curl，請先安裝: sudo apt-get install curl"
+        return 1
+    fi
+    
+    local release_url
+    if [ "$tag" = "latest" ]; then
+        release_url="https://api.github.com/repos/$repo/releases/latest"
+    else
+        release_url="https://api.github.com/repos/$repo/releases/tags/$tag"
+    fi
+    
+    log_step "獲取 Release 資訊..."
+    local release_info=$(curl -sL "$release_url")
+    
+    if [ $? -ne 0 ] || [ -z "$release_info" ]; then
+        log_error "無法獲取 Release 資訊"
+        return 1
+    fi
+    
+    # 檢查是否找到 release
+    local error_msg=$(echo "$release_info" | jq -r '.message // empty' 2>/dev/null)
+    if [ "$error_msg" = "Not Found" ]; then
+        log_error "找不到指定的 Release: $tag"
+        return 1
+    fi
+    
+    # 獲取 tarball URL
+    local tarball_url=$(echo "$release_info" | jq -r '.tarball_url')
+    local release_tag=$(echo "$release_info" | jq -r '.tag_name')
+    local release_name=$(echo "$release_info" | jq -r '.name // .tag_name')
+    
+    log_info "Release: $release_name ($release_tag)"
+    
+    # 創建臨時目錄
+    local temp_dir=$(mktemp -d)
+    local tar_file="$temp_dir/release.tar.gz"
+    
+    # 下載 tarball
+    log_step "下載 Release 包..."
+    if ! curl -sL -o "$tar_file" "$tarball_url"; then
+        log_error "下載失敗"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # 解壓縮
+    log_step "解壓縮到 $target_dir..."
+    
+    # 備份現有目錄（如果存在）
+    if [ -d "$target_dir" ]; then
+        local backup_name="$target_dir.backup.$(date +%Y%m%d_%H%M%S)"
+        log_step "備份現有目錄到: $backup_name"
+        mv "$target_dir" "$backup_name"
+    fi
+    
+    # 創建目標目錄
+    mkdir -p "$target_dir"
+    
+    # 解壓（GitHub tarball 會在頂層創建一個目錄）
+    tar -xzf "$tar_file" -C "$temp_dir"
+    
+    # 移動內容到目標目錄
+    local extracted_dir=$(find "$temp_dir" -mindepth 1 -maxdepth 1 -type d | head -1)
+    if [ -z "$extracted_dir" ]; then
+        log_error "解壓縮失敗"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # 移動所有文件
+    mv "$extracted_dir"/* "$target_dir/"
+    mv "$extracted_dir"/.[!.]* "$target_dir/" 2>/dev/null || true
+    
+    # 清理
+    rm -rf "$temp_dir"
+    
+    # 設置擁有者
+    sudo chown -R $USER:$USER "$target_dir"
+    
+    # 儲存 release 資訊
+    echo "$release_tag" > "$target_dir/.release_version"
+    
+    log_success "Release 下載完成: $release_name"
+    log_info "安裝路徑: $target_dir"
+    
+    return 0
+}
+
+get_current_release_version() {
+    local project_dir="${1:-$PROJECT_DIR}"
+    
+    if [ -f "$project_dir/.release_version" ]; then
+        cat "$project_dir/.release_version"
+    else
+        echo "unknown"
+    fi
+}
+
+check_for_updates() {
+    local repo="${1}"
+    local current_version="${2}"
+    
+    log_step "檢查更新..."
+    
+    local latest_info=$(curl -sL "https://api.github.com/repos/$repo/releases/latest")
+    local latest_tag=$(echo "$latest_info" | jq -r '.tag_name')
+    
+    if [ "$current_version" = "$latest_tag" ]; then
+        log_success "已是最新版本: $current_version"
+        return 1
+    else
+        log_info "當前版本: $current_version"
+        log_info "最新版本: $latest_tag"
+        return 0
+    fi
+}
+
+# ===== 部署源管理 =====
+deploy_from_source() {
+    local source="${1:-$DEPLOY_SOURCE}"
+    local target_dir="${2:-$PROJECT_DIR}"
+    
+    case "$source" in
+        git)
+            log_header "使用 Git 部署"
+            if [ -d "$target_dir/.git" ]; then
+                git_pull "$target_dir"
+            else
+                git_clone "$GIT_REPO_URL" "$target_dir" "$GIT_BRANCH"
+            fi
+            ;;
+        release)
+            log_header "使用 GitHub Release 部署"
+            local repo=$(echo "$GIT_REPO_URL" | sed -E 's|https://github.com/||' | sed -E 's|\.git$||')
+            download_github_release "$repo" "$GITHUB_RELEASE_TAG" "$target_dir"
+            ;;
+        *)
+            log_error "未知的部署源: $source"
+            return 1
+            ;;
+    esac
+}
+
 log_info "Git 模組已載入"

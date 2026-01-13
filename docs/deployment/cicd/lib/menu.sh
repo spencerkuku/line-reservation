@@ -57,6 +57,72 @@ prompt_deployment_mode() {
     esac
 }
 
+prompt_deploy_source() {
+    echo ""
+    log_step "選擇部署來源..."
+    echo ""
+    echo "請選擇代碼部署方式:"
+    echo ""
+    echo "  1) 📦 GitHub Release (推薦用於生產環境)"
+    echo "     - 穩定的發行版本"
+    echo "     - 無需 Git 環境"
+    echo "     - 安裝到用戶目錄"
+    echo ""
+    echo "  2) 🔧 Git Repository (開發/測試用)"
+    echo "     - 直接從 Git 倉庫 clone/pull"
+    echo "     - 可切換分支"
+    echo "     - 需要 Git 環境"
+    echo ""
+    
+    local choice
+    read -p "請選擇 [1/2]: " choice
+    
+    case "$choice" in
+        1) echo "release" ;;
+        2) echo "git" ;;
+        *) 
+            log_error "無效選項，請重新選擇"
+            prompt_deploy_source
+            ;;
+    esac
+}
+
+prompt_release_tag() {
+    echo ""
+    log_step "選擇 Release 版本..."
+    echo ""
+    echo "請輸入要部署的 Release 版本"
+    echo "範例: v1.0.0"
+    echo "留空使用最新版本 (latest)"
+    echo ""
+    
+    local tag
+    read -p "Release 版本 [latest]: " tag
+    tag=${tag:-latest}
+    
+    echo "$tag"
+}
+
+prompt_target_directory() {
+    local default_dir="${1:-$USER_HOME/line-reservation}"
+    
+    echo ""
+    log_step "選擇安裝目錄..."
+    echo ""
+    echo "請輸入專案安裝目錄"
+    echo "範例: $USER_HOME/line-reservation"
+    echo ""
+    
+    local dir
+    read -p "安裝目錄 [$default_dir]: " dir
+    dir=${dir:-$default_dir}
+    
+    # 展開波浪符號
+    dir="${dir/#\~/$HOME}"
+    
+    echo "$dir"
+}
+
 prompt_domain_config() {
     local mode="${1:-unified}"
     
