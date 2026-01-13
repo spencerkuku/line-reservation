@@ -256,15 +256,17 @@ interactive_deploy() {
     local deploy_source=$(prompt_deploy_source)
     export DEPLOY_SOURCE="$deploy_source"
     
-    # 如果選擇 release，詢問版本和目標目錄
+    # 如果選擇 release，詢問版本
     local release_tag="latest"
     if [ "$deploy_source" = "release" ]; then
         release_tag=$(prompt_release_tag)
         export GITHUB_RELEASE_TAG="$release_tag"
-        
-        local target_dir=$(prompt_target_directory "/var/www/line-reservation")
-        export PROJECT_DIR="$target_dir"
     fi
+    
+    # 修改：將路徑選擇移到 if 外面，確保所有模式（Git/Release）都詢問安裝路徑
+    # 預設值會讀取 config.sh 中的設定（現在是 /var/www/line-reservation）
+    local target_dir=$(prompt_target_directory "$PROJECT_DIR")
+    export PROJECT_DIR="$target_dir"
     
     # 取得域名配置
     local domain

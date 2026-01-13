@@ -52,7 +52,10 @@ setup_database() {
 }
 
 generate_db_password() {
-    openssl rand -hex 16
+    # 修改：產生高強度密碼以通過 MySQL validate_password 策略
+    # 使用 base64 確保有大小寫，tr -dc 'a-zA-Z0-9' 過濾掉可能導致 SQL 語法錯誤的特殊符號
+    # 取 24 碼長度，確保足夠安全
+    openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24
 }
 
 save_db_credentials() {

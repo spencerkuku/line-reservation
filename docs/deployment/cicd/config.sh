@@ -6,7 +6,7 @@
 
 # ===== 專案路徑配置 =====
 export USER_HOME=$(eval echo "~$USER")
-export PROJECT_DIR="${PROJECT_DIR:-$USER_HOME/line-reservation}"
+export PROJECT_DIR="${PROJECT_DIR:-/var/www/line-reservation}"
 export BACKUP_BASE_DIR="$USER_HOME/line-reservation-backups"
 export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export LIB_DIR="$SCRIPTS_DIR/lib"
