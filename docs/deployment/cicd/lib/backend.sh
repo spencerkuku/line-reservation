@@ -136,7 +136,19 @@ setup_laravel_env() {
         update_env_var "DB_PASSWORD" "$db_password" "$env_file"
     fi
     
+    # 暫時使用 file cache (migration 前表不存在)
+    update_env_var "CACHE_DRIVER" "file" "$env_file"
+    
     log_success "Laravel 環境配置完成"
+}
+
+enable_database_cache() {
+    local project_dir="$1"
+    local env_file="$project_dir/backend/.env"
+    
+    log_step "啟用資料庫快取..."
+    update_env_var "CACHE_DRIVER" "database" "$env_file"
+    log_success "已切換至資料庫快取"
 }
 
 configure_laravel_for_unified() {
