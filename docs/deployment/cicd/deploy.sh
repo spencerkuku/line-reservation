@@ -52,7 +52,7 @@ deploy_unified() {
     
     # 2. 資料庫設置
     log_step "步驟 2/12: 設置資料庫..."
-    setup_database
+    DB_PASSWORD=$(setup_database)
     
     # 3. 取得專案代碼
     log_step "步驟 3/12: 取得專案代碼..."
@@ -129,7 +129,7 @@ deploy_api_only() {
     
     # 2. 資料庫設置
     log_step "步驟 2/12: 設置資料庫..."
-    setup_database
+    DB_PASSWORD=$(setup_database)
     
     # 3. 取得專案代碼
     log_step "步驟 3/12: 取得專案代碼..."
