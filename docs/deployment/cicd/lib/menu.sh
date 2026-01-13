@@ -73,7 +73,14 @@ prompt_domain_config() {
     echo ""
     
     local domain
-    domain=$(read_with_default "域名/IP" "$(get_server_ip)")
+    local default_ip=$(get_server_ip)
+    read -p "域名/IP [$default_ip]: " domain
+    domain=${domain:-$default_ip}
+    
+    # 移除協議前綴和尾部斜線
+    domain="${domain#http://}"
+    domain="${domain#https://}"
+    domain="${domain%/}"
     
     echo "$domain"
 }
@@ -82,17 +89,19 @@ prompt_ssl_config() {
     local domain="$1"
     
     echo ""
-    log_step "SSL 配置..."
-    echo ""
     
     # IP 地址無法使用 SSL
     if is_ip_address "$domain"; then
-        log_info "IP 地址無法使用 SSL 憑證"
+        log_warning "IP 地址無法使用 SSL 憑證，將跳過 SSL 設置"
         echo "false"
-        return
+        return 0
     fi
     
-    if confirm_action "是否要設置 SSL 憑證? (需要有效域名)"; then
+    local response
+    read -p "是否要設置 SSL 憑證? (需要有效域名) (y/N): " response
+    response=${response:-N}
+    
+    if [[ "$response" =~ ^[Yy]$ ]]; then
         echo "true"
     else
         echo "false"

@@ -261,10 +261,12 @@ interactive_deploy() {
     fi
     
     # 取得域名配置
-    local domain=$(prompt_domain_config "$mode")
+    local domain
+    domain=$(prompt_domain_config "$mode")
     
     # SSL 配置
-    local use_ssl=$(prompt_ssl_config "$domain")
+    local use_ssl
+    use_ssl=$(prompt_ssl_config "$domain")
     
     # API Only 模式需要 Cloudflare 域名
     local cloudflare_domain=""
@@ -282,13 +284,15 @@ interactive_deploy() {
     log_header "部署配置確認"
     echo ""
     echo "📋 部署配置:"
-    echo "   部署模式: $([ "$mode" = "unified" ] && echo "統一部署" || echo "純 API 模式")"
-    echo "   後端域名: $domain"
-    echo "   使用 SSL: $([ "$use_ssl" = "true" ] && echo "是" || echo "否")"
-    
-    if [ "$mode" = "api_only" ]; then
+    if [ "$mode" = "unified" ]; then
+        echo "   部署模式: 統一部署 (前後端同伺服器)"
+        echo "   域名/IP: $domain"
+    else
+        echo "   部署模式: 純 API 模式 (Headless)"
+        echo "   後端域名: $domain"
         echo "   前端域名: $cloudflare_domain (Cloudflare Pages)"
     fi
+    echo "   使用 SSL: $([ "$use_ssl" = "true" ] && echo "是" || echo "否")"
     echo ""
     
     if ! confirm_action "確認以上配置並開始部署?"; then
