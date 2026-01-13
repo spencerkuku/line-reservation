@@ -96,9 +96,16 @@ update_env_var() {
     local dir=$(dirname "$file")
     sudo chmod 755 "$dir" 2>/dev/null || true
     
+    # 修改：使用 awk 替代 sed，避免特殊字符問題（如密碼中的 $、&、/ 等）
     if grep -q "^${key}=" "$file" 2>/dev/null; then
-        # 使用 | 作為分隔符避免 URL 中的 / 造成問題
-        sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+        # 創建臨時文件
+        local temp_file="${file}.tmp"
+        awk -v key="$key" -v value="$value" '
+            BEGIN { found=0 }
+            $0 ~ "^" key "=" { print key "=" value; found=1; next }
+            { print }
+        ' "$file" > "$temp_file"
+        mv "$temp_file" "$file"
     else
         echo "${key}=${value}" >> "$file"
     fi
