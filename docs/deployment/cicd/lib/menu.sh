@@ -75,7 +75,7 @@ prompt_deploy_source() {
     echo ""
     
     local choice
-    read -p "請選擇 [1/2]: " choice
+    read -p "請選擇部署來源 [1-Release/2-Git]: " choice
     
     case "$choice" in
         1) echo "release" ;;
