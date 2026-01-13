@@ -41,7 +41,7 @@ show_deploy_menu() {
 }
 
 prompt_deployment_mode() {
-    show_deploy_menu
+    show_deploy_menu >&2
     
     local choice
     read -p "請選擇 [1/2/0]: " choice
@@ -51,7 +51,7 @@ prompt_deployment_mode() {
         2) echo "api_only" ;;
         0) echo "exit" ;;
         *) 
-            log_error "無效選項，請重新選擇"
+            log_error "無效選項，請重新選擇" >&2
             prompt_deployment_mode
             ;;
     esac
@@ -104,13 +104,18 @@ prompt_release_tag() {
 }
 
 prompt_target_directory() {
-    local default_dir="${1:-$USER_HOME/line-reservation}"
+    local default_dir="${1:-/var/www/line-reservation}"
     
     echo "" >&2
     log_step "選擇安裝目錄..." >&2
     echo "" >&2
     echo "請輸入專案安裝目錄" >&2
-    echo "範例: $USER_HOME/line-reservation" >&2
+    echo "" >&2
+    echo "建議路徑:" >&2
+    echo "  - /var/www/line-reservation (生產環境，需要 sudo)" >&2
+    echo "  - $USER_HOME/line-reservation (開發/測試環境)" >&2
+    echo "" >&2
+    echo "⚠️  注意：安裝目錄不應與腳本執行目錄相同" >&2
     echo "" >&2
     
     local dir

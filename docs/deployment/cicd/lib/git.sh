@@ -370,11 +370,11 @@ download_github_release() {
     if [ -d "$target_dir" ]; then
         local backup_name="$target_dir.backup.$(date +%Y%m%d_%H%M%S)"
         log_step "備份現有目錄到: $backup_name"
-        mv "$target_dir" "$backup_name"
+        sudo mv "$target_dir" "$backup_name"
     fi
     
-    # 創建目標目錄
-    mkdir -p "$target_dir"
+    # 創建目標目錄（可能需要 sudo 權限）
+    sudo mkdir -p "$target_dir"
     
     # 解壓（GitHub tarball 會在頂層創建一個目錄）
     tar -xzf "$tar_file" -C "$temp_dir"
@@ -387,14 +387,13 @@ download_github_release() {
         return 1
     fi
     
-    # 移動所有文件
-    mv "$extracted_dir"/* "$target_dir/"
-    mv "$extracted_dir"/.[!.]* "$target_dir/" 2>/dev/null || true
+    # 複製所有文件（使用 cp -a 保留權限和隱藏檔，比 mv 更安全）
+    sudo cp -a "$extracted_dir"/. "$target_dir/"
     
     # 清理
     rm -rf "$temp_dir"
     
-    # 設置擁有者
+    # 設置擁有者為當前用戶（後續 deploy.sh 需要寫入 .env 等檔案）
     sudo chown -R $USER:$USER "$target_dir"
     
     # 儲存 release 資訊

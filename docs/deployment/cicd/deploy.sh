@@ -262,7 +262,7 @@ interactive_deploy() {
         release_tag=$(prompt_release_tag)
         export GITHUB_RELEASE_TAG="$release_tag"
         
-        local target_dir=$(prompt_target_directory "$USER_HOME/line-reservation")
+        local target_dir=$(prompt_target_directory "/var/www/line-reservation")
         export PROJECT_DIR="$target_dir"
     fi
     
