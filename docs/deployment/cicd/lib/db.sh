@@ -18,11 +18,11 @@ setup_database() {
     local db_name="${1:-$DB_NAME}"
     local db_user="${2:-$DB_USER}"
     
-    log_step "設置 MySQL 資料庫..."
+    log_step "設置 MySQL 資料庫..." >&2
     
     # 啟動 MySQL 服務
-    sudo systemctl start mysql
-    sudo systemctl enable mysql
+    sudo systemctl start mysql >&2 2>&1
+    sudo systemctl enable mysql >&2 2>&1
     
     # 生成密碼
     local db_pass=$(generate_db_password)
@@ -30,24 +30,24 @@ setup_database() {
     # 獲取 MySQL 命令
     local mysql_cmd=$(get_mysql_command)
     if [ -z "$mysql_cmd" ]; then
-        log_error "無法連接 MySQL"
+        log_error "無法連接 MySQL" >&2
         return 1
     fi
     
     # 建立資料庫和使用者
-    log_step "建立資料庫: $db_name"
-    $mysql_cmd -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    log_step "建立資料庫: $db_name" >&2
+    $mysql_cmd -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" >&2 2>&1
     
-    log_step "建立使用者: $db_user"
-    $mysql_cmd -e "CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${db_pass}';"
-    $mysql_cmd -e "ALTER USER '${db_user}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${db_pass}';"
-    $mysql_cmd -e "GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';"
-    $mysql_cmd -e "FLUSH PRIVILEGES;"
+    log_step "建立使用者: $db_user" >&2
+    $mysql_cmd -e "CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${db_pass}';" >&2 2>&1
+    $mysql_cmd -e "ALTER USER '${db_user}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${db_pass}';" >&2 2>&1
+    $mysql_cmd -e "GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';" >&2 2>&1
+    $mysql_cmd -e "FLUSH PRIVILEGES;" >&2 2>&1
     
     # 保存憑證
-    save_db_credentials "$db_name" "$db_user" "$db_pass"
+    save_db_credentials "$db_name" "$db_user" "$db_pass" >&2 2>&1
     
-    log_success "資料庫設置完成"
+    log_success "資料庫設置完成" >&2
     echo "$db_pass"
 }
 
