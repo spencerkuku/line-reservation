@@ -1,4 +1,6 @@
-# 多租戶 B2B 資料庫設計文件
+# LINE 預約系統 - 資料庫設計文件
+
+> 多租戶 SaaS 平台的資料庫架構與 Schema 設計
 
 ## 目錄
 
@@ -11,16 +13,18 @@
 - [資料字典](#資料字典)
 - [遷移管理](#遷移管理)
 
+---
+
 ## 資料庫概覽
 
 ### 基本資訊
 
-- **資料庫引擎**: MySQL 8.0+
+- **資料庫引擎**: MySQL 8.0+ / MariaDB 10.6+
 - **字元編碼**: utf8mb4
 - **排序規則**: utf8mb4_unicode_ci
-- **時區**: Asia/Taipei
-- **資料庫名稱**: line_reservation_b2b
-- **架構模式**: 多租戶共享資料庫 (Shared Database)
+- **時區**: Asia/Taipei (UTC+8)
+- **資料庫名稱**: line_reservation
+- **架構模式**: 多租戶共享資料庫 (Shared Database with Tenant Scope)
 
 ### 多租戶資料表清單
 
