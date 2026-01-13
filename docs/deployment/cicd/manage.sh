@@ -76,6 +76,7 @@ quick_update() {
     fi
     
     log_step "4/4 重建快取..."
+    set_secure_permissions "$PROJECT_DIR"
     rebuild_cache "$PROJECT_DIR"
     restart_web_services
     
