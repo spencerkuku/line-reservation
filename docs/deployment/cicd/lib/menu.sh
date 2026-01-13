@@ -58,21 +58,21 @@ prompt_deployment_mode() {
 }
 
 prompt_deploy_source() {
-    echo ""
-    log_step "選擇部署來源..."
-    echo ""
-    echo "請選擇代碼部署方式:"
-    echo ""
-    echo "  1) 📦 GitHub Release (推薦用於生產環境)"
-    echo "     - 穩定的發行版本"
-    echo "     - 無需 Git 環境"
-    echo "     - 安裝到用戶目錄"
-    echo ""
-    echo "  2) 🔧 Git Repository (開發/測試用)"
-    echo "     - 直接從 Git 倉庫 clone/pull"
-    echo "     - 可切換分支"
-    echo "     - 需要 Git 環境"
-    echo ""
+    echo "" >&2
+    log_step "選擇部署來源..." >&2
+    echo "" >&2
+    echo "請選擇代碼部署方式:" >&2
+    echo "" >&2
+    echo "  1) 📦 GitHub Release (推薦用於生產環境)" >&2
+    echo "     - 穩定的發行版本" >&2
+    echo "     - 無需 Git 環境" >&2
+    echo "     - 安裝到用戶目錄" >&2
+    echo "" >&2
+    echo "  2) 🔧 Git Repository (開發/測試用)" >&2
+    echo "     - 直接從 Git 倉庫 clone/pull" >&2
+    echo "     - 可切換分支" >&2
+    echo "     - 需要 Git 環境" >&2
+    echo "" >&2
     
     local choice
     read -p "請選擇部署來源 [1-Release/2-Git]: " choice
@@ -81,20 +81,20 @@ prompt_deploy_source() {
         1) echo "release" ;;
         2) echo "git" ;;
         *) 
-            log_error "無效選項，請重新選擇"
+            log_error "無效選項，請重新選擇" >&2
             prompt_deploy_source
             ;;
     esac
 }
 
 prompt_release_tag() {
-    echo ""
-    log_step "選擇 Release 版本..."
-    echo ""
-    echo "請輸入要部署的 Release 版本"
-    echo "範例: v1.0.0"
-    echo "留空使用最新版本 (latest)"
-    echo ""
+    echo "" >&2
+    log_step "選擇 Release 版本..." >&2
+    echo "" >&2
+    echo "請輸入要部署的 Release 版本" >&2
+    echo "範例: v1.0.0" >&2
+    echo "留空使用最新版本 (latest)" >&2
+    echo "" >&2
     
     local tag
     read -p "Release 版本 [latest]: " tag
@@ -106,12 +106,12 @@ prompt_release_tag() {
 prompt_target_directory() {
     local default_dir="${1:-$USER_HOME/line-reservation}"
     
-    echo ""
-    log_step "選擇安裝目錄..."
-    echo ""
-    echo "請輸入專案安裝目錄"
-    echo "範例: $USER_HOME/line-reservation"
-    echo ""
+    echo "" >&2
+    log_step "選擇安裝目錄..." >&2
+    echo "" >&2
+    echo "請輸入專案安裝目錄" >&2
+    echo "範例: $USER_HOME/line-reservation" >&2
+    echo "" >&2
     
     local dir
     read -p "安裝目錄 [$default_dir]: " dir
@@ -126,17 +126,17 @@ prompt_target_directory() {
 prompt_domain_config() {
     local mode="${1:-unified}"
     
-    echo ""
-    log_step "配置域名/IP..."
-    echo ""
+    echo "" >&2
+    log_step "配置域名/IP..." >&2
+    echo "" >&2
     
     if [ "$mode" = "api_only" ]; then
-        echo "請輸入後端 API 伺服器的域名或 IP"
+        echo "請輸入後端 API 伺服器的域名或 IP" >&2
     else
-        echo "請輸入伺服器的域名或 IP"
+        echo "請輸入伺服器的域名或 IP" >&2
     fi
-    echo "範例: example.com 或 192.168.1.100"
-    echo ""
+    echo "範例: example.com 或 192.168.1.100" >&2
+    echo "" >&2
     
     local domain
     local default_ip=$(get_server_ip)
@@ -154,11 +154,11 @@ prompt_domain_config() {
 prompt_ssl_config() {
     local domain="$1"
     
-    echo ""
+    echo "" >&2
     
     # IP 地址無法使用 SSL
     if is_ip_address "$domain"; then
-        log_warning "IP 地址無法使用 SSL 憑證，將跳過 SSL 設置"
+        log_warning "IP 地址無法使用 SSL 憑證，將跳過 SSL 設置" >&2
         echo "false"
         return 0
     fi
@@ -175,14 +175,14 @@ prompt_ssl_config() {
 }
 
 prompt_cloudflare_config() {
-    echo ""
-    log_step "Cloudflare Pages 配置..."
-    echo ""
-    echo "請輸入您的 Cloudflare Pages 前端域名"
-    echo "範例:"
-    echo "  - myapp.pages.dev (Cloudflare 自動分配)"
-    echo "  - app.example.com (自訂域名)"
-    echo ""
+    echo "" >&2
+    log_step "Cloudflare Pages 配置..." >&2
+    echo "" >&2
+    echo "請輸入您的 Cloudflare Pages 前端域名" >&2
+    echo "範例:" >&2
+    echo "  - myapp.pages.dev (Cloudflare 自動分配)" >&2
+    echo "  - app.example.com (自訂域名)" >&2
+    echo "" >&2
     
     local domain
     read -p "Cloudflare Pages 域名: " domain

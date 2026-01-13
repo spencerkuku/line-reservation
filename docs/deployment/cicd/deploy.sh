@@ -257,8 +257,9 @@ interactive_deploy() {
     export DEPLOY_SOURCE="$deploy_source"
     
     # 如果選擇 release，詢問版本和目標目錄
+    local release_tag="latest"
     if [ "$deploy_source" = "release" ]; then
-        local release_tag=$(prompt_release_tag)
+        release_tag=$(prompt_release_tag)
         export GITHUB_RELEASE_TAG="$release_tag"
         
         local target_dir=$(prompt_target_directory "$USER_HOME/line-reservation")
