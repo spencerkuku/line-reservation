@@ -1,4 +1,6 @@
-# 多租戶 B2B 前端架構文件
+# LINE 預約系統 - 前端架構文件
+
+> 基於 Vue.js 3 的多租戶管理後台架構設計
 
 ## 目錄
 
@@ -13,9 +15,11 @@
 - [UI 設計規範](#ui-設計規範)
 - [最佳實踐](#最佳實踐)
 
+---
+
 ## 前端概覽
 
-多租戶 B2B LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 **Tailwind CSS** 作為 UI 框架，透過 **Vite** 進行快速構建。支援多租戶獨立運營的企業級管理介面。
+LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 **Tailwind CSS** 作為 UI 框架，透過 **Vite** 進行快速建置。提供響應式的企業級管理介面，支援多租戶獨立運營、儀表板數據視覺化、預約管理、LINE 訊息日誌查詢等功能。
 
 ### 核心特性
 
@@ -40,14 +44,16 @@
 
 | 技術 | 版本 | 用途 |
 |------|------|------|
-| Vue.js | 3.5.17 | 前端框架 |
-| Vite | 7.0.0 | 構建工具 |
-| Vue Router | 4.5.1 | 路由管理 |
-| Pinia | 3.0.3 | 狀態管理 |
-| Axios | 1.10.0 | HTTP 客戶端 |
-| Tailwind CSS | 3.4 | CSS 框架 |
-| Heroicons | 2.2.0 | 圖示庫 |
-| FullCalendar | 6.1.18 | 日曆組件 |
+| **Vue.js** | 3.5.17 | 前端框架 (Composition API) |
+| **Vite** | 6.0 | 建置工具與開發伺服器 |
+| **Vue Router** | 4.5.1 | 單頁應用路由管理 |
+| **Pinia** | 3.0.3 | 狀態管理 (Vuex 替代方案) |
+| **Axios** | 1.10.0 | HTTP 客戶端 (API 請求) |
+| **Tailwind CSS** | 3.4 | 實用優先的 CSS 框架 |
+| **Headless UI** | 1.7.23 | 無樣式 UI 元件庫 |
+| **Heroicons** | 2.2.0 | SVG 圖示庫 |
+| **FullCalendar** | 6.1.18 | 行事曆與時段管理元件 |
+| **DOMPurify** | 3.1.7 | XSS 防護 (HTML 淨化) |
 | DOMPurify | 3.1.7 | XSS 防護 |
 
 ## 專案結構

@@ -1,4 +1,6 @@
-# 多租戶 B2B API 文件
+# LINE 預約系統 - API 文件
+
+> 多租戶 SaaS 預約平台的 RESTful API 完整規範
 
 ## 目錄
 
@@ -19,9 +21,11 @@
 - [LINE Webhook](#line-webhook)
 - [錯誤碼](#錯誤碼)
 
+---
+
 ## API 概覽
 
-多租戶 B2B LINE 預約系統提供 RESTful API，支援多租戶架構。每個租戶擁有獨立的資料空間和 API 資源。
+LINE 預約系統提供完整的 RESTful API，支援多租戶 SaaS 架構。每個租戶擁有獨立的資料空間、LINE Bot 配置和 API 資源。
 
 ### Base URL
 

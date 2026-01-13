@@ -1,4 +1,6 @@
-# 多租戶 B2B 系統貢獻指南
+# LINE 預約系統 - 開發貢獻指南
+
+> 多租戶 SaaS 預約系統的開發規範與最佳實踐
 
 ## 目錄
 
@@ -11,54 +13,75 @@
 - [程式碼審查](#程式碼審查)
 - [測試要求](#測試要求)
 
+---
+
 ## 開發流程
 
-本專案為多租戶 B2B 預約系統，開發時需特別注意租戶隔離與資料安全性。
+本專案為多租戶 SaaS 預約管理平台，整合 LINE Messaging API，開發時需特別注意租戶資料隔離與安全性。
 
 ### 1. 設定開發環境
 
 ```bash
-# Fork 專案到你的 GitHub 帳號
-
-# Clone 你的 fork
-git clone https://github.com/YOUR_USERNAME/line-reservation.git
+# Clone 專案
+git clone https://github.com/spencerkuku/line-reservation.git
 cd line-reservation
 
-# 加入上游倉庫
-git remote add upstream https://github.com/ORIGINAL_OWNER/line-reservation.git
+# 安裝後端依賴
+cd backend
+composer install
+cp .env.example .env
+php artisan key:generate
 
-# 驗證遠端倉庫
-git remote -v
+# 設定資料庫
+php artisan migrate
+php artisan db:seed --class=MultiTenantSeeder
+
+# 安裝前端依賴
+cd ../frontend
+npm install
+cp .env.example .env
+
+# 啟動開發伺服器
+npm run dev
 ```
 
-### 2. 保持同步
+### 2. 開發新功能
 
 ```bash
-# 定期從上游拉取最新變更
-git fetch upstream
+# 確保在最新的 main 分支
 git checkout main
-git merge upstream/main
+git pull origin main
 
-# 推送到你的 fork
-git push origin main
-```
-
-### 3. 開發新功能
-
-```bash
 # 建立功能分支
 git checkout -b feature/your-feature-name
 
 # 進行開發...
 
+# 執行測試確保功能正常
+cd backend
+php artisan test
+
 # 提交變更
 git add .
 git commit -m "feat: add your feature description"
 
-# 推送到你的 fork
+# 推送分支
 git push origin feature/your-feature-name
+```
 
-# 在 GitHub 上建立 Pull Request
+### 3. 合併到主分支
+
+```bash
+# 切換到 main 並合併
+git checkout main
+git merge feature/your-feature-name
+
+# 推送到遠端
+git push origin main
+
+# 刪除功能分支
+git branch -d feature/your-feature-name
+git push origin --delete feature/your-feature-name
 ```
 
 ## 🌿 分支策略
