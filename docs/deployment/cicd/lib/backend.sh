@@ -232,14 +232,15 @@ generate_app_key() {
     
     cd "$project_dir/backend"
     
-    # 檢查是否已有 key
-    local current_key=$(grep "^APP_KEY=" .env | cut -d= -f2)
+    # 檢查是否已有有效的 key（不只是空行）
+    local current_key=$(grep "^APP_KEY=" .env 2>/dev/null | cut -d= -f2 | tr -d ' ')
     
-    if [ -n "$current_key" ] && [ "$current_key" != "" ]; then
-        log_info "APP_KEY 已存在"
+    if [ -n "$current_key" ] && [ "$current_key" != "base64:" ]; then
+        log_info "APP_KEY 已存在: ${current_key:0:20}..."
         return 0
     fi
     
+    log_info "生成新的 APP_KEY..."
     php artisan key:generate --force
     
     if [ $? -eq 0 ]; then
