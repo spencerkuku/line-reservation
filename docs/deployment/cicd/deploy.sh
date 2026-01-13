@@ -58,12 +58,8 @@ deploy_unified() {
     log_step "步驟 3/12: 取得專案代碼..."
     deploy_from_source "$DEPLOY_SOURCE" "$PROJECT_DIR"
     
-    # 4. 後端設置
-    log_step "步驟 4/12: 安裝後端套件..."
-    composer_install "$PROJECT_DIR" "true"
-    
-    # 5. Laravel 環境配置
-    log_step "步驟 5/12: 配置 Laravel 環境..."
+    # 4. Laravel 環境配置（修改：必須在 composer install 之前）
+    log_step "步驟 4/12: 配置 Laravel 環境..."
     local protocol="http"
     [ "$use_ssl" = "true" ] && protocol="https"
     
@@ -71,6 +67,10 @@ deploy_unified() {
         "$DB_NAME" "$DB_USER" "$DB_PASSWORD"
     configure_laravel_for_unified "$PROJECT_DIR" "$domain" "$protocol"
     generate_app_key "$PROJECT_DIR"
+    
+    # 5. 後端設置（修改：移到 .env 配置之後）
+    log_step "步驟 5/12: 安裝後端套件..."
+    composer_install "$PROJECT_DIR" "true"
     
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
@@ -135,12 +135,8 @@ deploy_api_only() {
     log_step "步驟 3/12: 取得專案代碼..."
     deploy_from_source "$DEPLOY_SOURCE" "$PROJECT_DIR"
     
-    # 4. 後端設置
-    log_step "步驟 4/12: 安裝後端套件..."
-    composer_install "$PROJECT_DIR" "true"
-    
-    # 5. Laravel 環境配置 (API 模式)
-    log_step "步驟 5/12: 配置 Laravel 環境 (API 模式)..."
+    # 4. Laravel 環境配置 (API 模式)（修改：必須在 composer install 之前）
+    log_step "步驟 4/12: 配置 Laravel 環境 (API 模式)..."
     local backend_protocol="https"
     local frontend_protocol="https"
     
@@ -149,6 +145,10 @@ deploy_api_only() {
     configure_laravel_for_api_only "$PROJECT_DIR" "$backend_domain" "$frontend_domain" \
         "$backend_protocol" "$frontend_protocol"
     generate_app_key "$PROJECT_DIR"
+    
+    # 5. 後端設置（修改：移到 .env 配置之後）
+    log_step "步驟 5/12: 安裝後端套件..."
+    composer_install "$PROJECT_DIR" "true"
     
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
