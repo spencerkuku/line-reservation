@@ -53,9 +53,16 @@ setup_database() {
 
 generate_db_password() {
     # 修改：產生高強度密碼以通過 MySQL validate_password 策略
-    # 使用 base64 確保有大小寫，tr -dc 'a-zA-Z0-9' 過濾掉可能導致 SQL 語法錯誤的特殊符號
-    # 取 24 碼長度，確保足夠安全
-    openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 24
+    # 確保包含大寫、小寫、數字、特殊符號，長度 24 碼
+    # MySQL 安全的特殊符號：!@#$%^&*()-_=+
+    local upper=$(tr -dc 'A-Z' < /dev/urandom | head -c 6)
+    local lower=$(tr -dc 'a-z' < /dev/urandom | head -c 6)
+    local digit=$(tr -dc '0-9' < /dev/urandom | head -c 6)
+    local special=$(tr -dc '!@#$%^&*()-_=+' < /dev/urandom | head -c 6)
+    
+    # 混合並隨機排序
+    echo "${upper}${lower}${digit}${special}" | fold -w1 | shuf | tr -d '\n' | head -c 24
+    echo  # 添加換行符
 }
 
 save_db_credentials() {
