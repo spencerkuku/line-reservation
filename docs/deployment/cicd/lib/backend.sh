@@ -394,8 +394,7 @@ create_storage_link() {
         rm -f "$project_dir/backend/public/storage"
     fi
     
-    # 修正：使用 www-data 身份建立連結
-    sudo -u www-data php artisan storage:link
+    sudo php artisan storage:link
     
     if [ $? -eq 0 ]; then
         log_success "Storage 連結建立成功"
