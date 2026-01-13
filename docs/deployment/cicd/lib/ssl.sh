@@ -130,7 +130,7 @@ check_ssl_expiry() {
     
     local cert_file="/etc/letsencrypt/live/$domain/fullchain.pem"
     
-    if [ ! -f "$cert_file" ]; then
+    if ! sudo test -f "$cert_file"; then
         log_error "找不到憑證檔案: $cert_file"
         return 1
     fi
@@ -163,7 +163,7 @@ verify_ssl_files() {
     local cert_file="/etc/letsencrypt/live/$domain/fullchain.pem"
     local key_file="/etc/letsencrypt/live/$domain/privkey.pem"
     
-    if [ -f "$cert_file" ] && [ -f "$key_file" ]; then
+    if sudo test -f "$cert_file" && sudo test -f "$key_file"; then
         echo ""
         echo "📜 憑證檔案:"
         echo "   憑證: $cert_file"

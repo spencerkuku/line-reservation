@@ -363,19 +363,19 @@ rebuild_cache() {
     
     cd "$project_dir/backend"
     
-    # 清除
-    php artisan optimize:clear 2>/dev/null || {
-        php artisan config:clear
-        php artisan route:clear
-        php artisan view:clear
-        php artisan cache:clear
+    # 修正：使用 sudo -u www-data 執行，確保能讀取 .env 並寫入 storage
+    sudo -u www-data php artisan optimize:clear 2>/dev/null || {
+        sudo -u www-data php artisan config:clear
+        sudo -u www-data php artisan route:clear
+        sudo -u www-data php artisan view:clear
+        sudo -u www-data php artisan cache:clear
     }
     
-    # 重建
-    php artisan optimize 2>/dev/null || {
-        php artisan config:cache
-        php artisan route:cache
-        php artisan view:cache
+    # 重建快取
+    sudo -u www-data php artisan optimize 2>/dev/null || {
+        sudo -u www-data php artisan config:cache
+        sudo -u www-data php artisan route:cache
+        sudo -u www-data php artisan view:cache
     }
     
     log_success "快取重建完成"
@@ -394,7 +394,8 @@ create_storage_link() {
         rm -f "$project_dir/backend/public/storage"
     fi
     
-    php artisan storage:link
+    # 修正：使用 www-data 身份建立連結
+    sudo -u www-data php artisan storage:link
     
     if [ $? -eq 0 ]; then
         log_success "Storage 連結建立成功"
