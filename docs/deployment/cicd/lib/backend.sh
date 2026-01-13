@@ -136,8 +136,11 @@ setup_laravel_env() {
         update_env_var "DB_PASSWORD" "$db_password" "$env_file"
     fi
     
-    # 暫時使用 file cache (migration 前表不存在)
+    # 強制將 Cache 和 Session 設為 file，避免因為 migration 尚未執行導致報錯
+    log_info "設定 Cache/Session 為 file 模式以確保安裝順利..."
     update_env_var "CACHE_DRIVER" "file" "$env_file"
+    update_env_var "SESSION_DRIVER" "file" "$env_file"
+    update_env_var "CACHE_STORE" "file" "$env_file"
     
     log_success "Laravel 環境配置完成"
 }
