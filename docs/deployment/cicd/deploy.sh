@@ -66,12 +66,12 @@ deploy_unified() {
     setup_laravel_env "$PROJECT_DIR" "$domain" "$protocol" \
         "$DB_NAME" "$DB_USER" "$DB_PASSWORD"
     configure_laravel_for_unified "$PROJECT_DIR" "$domain" "$protocol"
-    generate_app_key "$PROJECT_DIR"
     
     # 5. 後端設置（修改：移到 .env 配置之後）
     log_step "步驟 5/12: 安裝後端套件..."
     composer_install "$PROJECT_DIR" "true"
-    
+    generate_app_key "$PROJECT_DIR"
+
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
     run_migrations "$PROJECT_DIR" "true"
@@ -147,12 +147,12 @@ deploy_api_only() {
         "$DB_NAME" "$DB_USER" "$DB_PASSWORD"
     configure_laravel_for_api_only "$PROJECT_DIR" "$backend_domain" "$frontend_domain" \
         "$backend_protocol" "$frontend_protocol"
-    generate_app_key "$PROJECT_DIR"
     
     # 5. 後端設置（修改：移到 .env 配置之後）
     log_step "步驟 5/12: 安裝後端套件..."
     composer_install "$PROJECT_DIR" "true"
-    
+    generate_app_key "$PROJECT_DIR"
+
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
     run_migrations "$PROJECT_DIR" "true"
