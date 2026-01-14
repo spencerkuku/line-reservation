@@ -123,7 +123,7 @@ update_env_var() {
 set_secure_permissions() {
     local project_dir="${1:-$PROJECT_DIR}"
     
-    log_step "設置生產環境安全權限 (修正版)..."
+    log_step "設置生產環境安全權限..."
     
     # 1. 設置基本擁有者權限 (統一設為 www-data)
     sudo chown -R www-data:www-data "$project_dir"
