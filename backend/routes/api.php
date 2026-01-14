@@ -10,7 +10,6 @@ use App\Http\Controllers\Api\AvailableTimeController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\LineWebhookController;
-use App\Http\Controllers\Api\TestController;
 use App\Http\Controllers\Api\FrontendLogController;
 use App\Http\Controllers\Api\CheckInController;
 use App\Http\Controllers\Api\CustomerController;
@@ -27,9 +26,6 @@ Route::post('/webhook/{webhook_token}', [LineWebhookController::class, 'handle']
     ->middleware('webhook.tenant')
     ->where('webhook_token', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
 
-// LINE Webhook 路由 - 舊版（向後兼容）
-Route::post('/line/webhook', [LineWebhookController::class, 'handleLegacy']);
-
 // 前端日誌路由 - 允許前端發送日誌到後端
 Route::middleware('throttle:60,1')->group(function () {
     Route::post('/frontend-logs', [FrontendLogController::class, 'store']);
@@ -42,21 +38,6 @@ Route::prefix('{tenant_slug}')->middleware(['throttle:60,1', 'public.tenant'])->
     Route::get('/available-times', [AvailableTimeController::class, 'index']);
     // 公開的服務列表
     Route::get('/services', [ServiceController::class, 'index']);
-});
-
-// 測試路由
-Route::get('/test', function () {
-    return response()->json(['message' => 'API is working']);
-});
-
-Route::get('/test-service-selection', [TestController::class, 'testServiceSelection']);
-Route::get('/test-business-hours', [TestController::class, 'testBusinessHours']);
-
-Route::middleware('auth:sanctum')->get('/test-auth', function (Request $request) {
-    return response()->json([
-        'message' => 'Authentication is working',
-        'user' => $request->user()
-    ]);
 });
 
 // 需要認證的路由（僅用於用戶資訊和登出）

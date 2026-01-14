@@ -64,19 +64,33 @@ class WebhookTenantMiddleware
         }
 
         // 檢查租戶是否有 LINE 設定（從 settings 表取得）
-        $hasLineConfig = \App\Models\Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+        $lineSettings = \App\Models\Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
             ->where('tenant_id', $tenant->id)
             ->whereIn('key', ['line_channel_access_token', 'line_channel_secret'])
             ->whereNotNull('value')
-            ->count() >= 2;
+            ->get()
+            ->keyBy('key');
             
-        if (!$hasLineConfig) {
+        if ($lineSettings->count() < 2) {
             Log::warning('Webhook request for tenant without LINE configuration', [
                 'tenant_id' => $tenant->id,
                 'tenant_name' => $tenant->name,
             ]);
 
             // 返回 200 避免 LINE 重複發送
+            return response('OK', 200);
+        }
+
+        // 解密並傳遞 LINE Channel Secret 給 Controller，避免重複查詢
+        try {
+            $channelSecret = $lineSettings->get('line_channel_secret')->value;
+            $channelSecret = \Illuminate\Support\Facades\Crypt::decryptString($channelSecret);
+            $request->attributes->set('line_channel_secret', $channelSecret);
+        } catch (\Exception $e) {
+            Log::error('Failed to decrypt LINE channel secret', [
+                'tenant_id' => $tenant->id,
+                'error' => $e->getMessage(),
+            ]);
             return response('OK', 200);
         }
 

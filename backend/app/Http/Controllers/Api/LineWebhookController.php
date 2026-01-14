@@ -40,7 +40,7 @@ class LineWebhookController extends Controller
             $signature = $request->header('X-Line-Signature');
             $body = $request->getContent();
             
-            if (!$this->verifySignature($signature, $body, $tenant)) {
+            if (!$this->verifySignature($request, $signature, $body, $tenant)) {
                 Log::warning('Invalid LINE signature for tenant', [
                     'tenant_id' => $tenant->id,
                     'signature' => $signature,
@@ -76,64 +76,39 @@ class LineWebhookController extends Controller
     }
 
     /**
-     * 舊版 webhook 處理（向後兼容，不建議使用）
-     * 路由: POST /api/line/webhook
-     */
-    public function handleLegacy(Request $request)
-    {
-        Log::warning('Legacy webhook endpoint called. Please use /api/webhook/{tenant_slug} instead.');
-        
-        try {
-            // 嘗試使用預設設定
-            $channelSecret = Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
-                ->where('key', 'line_channel_secret')
-                ->whereNull('tenant_id')
-                ->value('value');
-            
-            if (!$channelSecret) {
-                Log::error('Legacy webhook: No default LINE configuration found');
-                return response('OK', 200);
-            }
-
-            // 使用預設的 LineBotService
-            $lineBotService = new LineBotService();
-            
-            $events = $request->input('events', []);
-            $lineBotService->handleWebhook($events);
-            
-            return response('OK', 200);
-            
-        } catch (\Exception $e) {
-            Log::error('Legacy LINE webhook error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response('OK', 200);
-        }
-    }
-
-    /**
      * 驗證 LINE 簽章（使用租戶憑證）
+     * 優化：優先從 request attributes 取得已解密的 secret，避免重複查詢
      */
-    private function verifySignature($signature, $body, Tenant $tenant)
+    private function verifySignature(Request $request, $signature, $body, Tenant $tenant)
     {
-        // 從 settings 表取得租戶的 LINE channel secret（需要解密）
-        $setting = Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
-            ->where('tenant_id', $tenant->id)
-            ->where('key', 'line_channel_secret')
-            ->first();
-        
-        if (!$setting || !$signature) {
+        if (!$signature) {
             return false;
         }
 
-        // 使用 Setting model 的解密邏輯
-        $channelSecret = $setting->value;
-        try {
-            $channelSecret = \Illuminate\Support\Facades\Crypt::decryptString($channelSecret);
-        } catch (\Exception $e) {
-            // 如果解密失敗，使用原值（可能是未加密的舊數據）
+        // 優先從中間件傳遞的 attributes 取得已解密的 channel secret
+        $channelSecret = $request->attributes->get('line_channel_secret');
+        
+        // 如果中間件沒有提供，則從資料庫查詢（備援方案）
+        if (!$channelSecret) {
+            $setting = Setting::withoutGlobalScope(\App\Models\Scopes\TenantScope::class)
+                ->where('tenant_id', $tenant->id)
+                ->where('key', 'line_channel_secret')
+                ->first();
+            
+            if (!$setting) {
+                return false;
+            }
+
+            // 使用 Setting model 的解密邏輯
+            $channelSecret = $setting->value;
+            try {
+                $channelSecret = \Illuminate\Support\Facades\Crypt::decryptString($channelSecret);
+            } catch (\Exception $e) {
+                // 如果解密失敗，使用原值（可能是未加密的舊數據）
+                Log::warning('Failed to decrypt channel secret, using raw value', [
+                    'tenant_id' => $tenant->id,
+                ]);
+            }
         }
 
         $hash = base64_encode(hash_hmac('sha256', $body, $channelSecret, true));
