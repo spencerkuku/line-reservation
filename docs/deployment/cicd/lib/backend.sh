@@ -58,6 +58,9 @@ composer_install() {
         return 1
     fi
     
+    # 暫時取得權限以便寫入 vendor
+    sudo chown -R $USER:$USER "$project_dir/backend"
+
     cd "$project_dir/backend"
     
     if [ "$is_production" = "true" ]; then

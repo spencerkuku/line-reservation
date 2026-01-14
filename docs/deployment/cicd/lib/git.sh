@@ -43,6 +43,9 @@ git_init_existing() {
     
     log_step "在現有目錄初始化 Git..."
     
+    # 確保當前用戶可以寫入專案目錄
+    sudo chown -R $USER:$USER "$project_dir"
+
     cd "$project_dir" || return 1
     
     # 設置安全目錄
