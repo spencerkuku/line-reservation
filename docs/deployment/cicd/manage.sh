@@ -141,13 +141,18 @@ process_menu_choice() {
             if confirm_action "這將重建整個系統，確定繼續嗎?"; then
                 # 後端
                 composer_install "$PROJECT_DIR" "true"
-                rebuild_cache "$PROJECT_DIR"
                 
                 # 前端
                 if [ "$DEPLOYMENT_MODE" != "api_only" ]; then
                     rebuild_frontend "$PROJECT_DIR" "true"
                 fi
                 
+                # 權限
+                set_secure_permissions "$PROJECT_DIR"
+
+                # 快取
+                rebuild_cache "$PROJECT_DIR"
+
                 restart_web_services
                 log_success "完整系統重建完成"
             fi
