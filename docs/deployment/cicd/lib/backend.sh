@@ -235,10 +235,11 @@ generate_app_key() {
     
     cd "$project_dir/backend"
     
-    # 檢查是否已有有效的 key（不只是空行）
-    local current_key=$(grep "^APP_KEY=" .env 2>/dev/null | cut -d= -f2 | tr -d ' ')
+    # 修正：增加 | cut -d'#' -f1 以去除後面的註解，確保能正確判斷空值
+    local current_key=$(grep "^APP_KEY=" .env 2>/dev/null | cut -d= -f2 | cut -d'#' -f1 | tr -d ' ')
     
-    if [ -n "$current_key" ] && [ "$current_key" != "base64:" ]; then
+    # 檢查 key 是否有內容且長度大於 10 (避免只剩 base64: 但沒內容的情況)
+    if [ -n "$current_key" ] && [ "${#current_key}" -gt 10 ]; then
         log_info "APP_KEY 已存在: ${current_key:0:20}..."
         return 0
     fi
