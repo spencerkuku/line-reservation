@@ -75,6 +75,8 @@ deploy_unified() {
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
     run_migrations "$PROJECT_DIR" "true"
+    log_step "執行資料庫填充 (Seeds)..."
+    run_seeders "$PROJECT_DIR"
     enable_database_cache "$PROJECT_DIR"
     
     # 7. 前端套件
@@ -154,6 +156,8 @@ deploy_api_only() {
     # 6. 資料庫遷移
     log_step "步驟 6/12: 執行資料庫遷移..."
     run_migrations "$PROJECT_DIR" "true"
+    log_step "執行資料庫填充 (Seeds)..."
+    run_seeders "$PROJECT_DIR"
     enable_database_cache "$PROJECT_DIR"
     
     # 7-8. 跳過前端 (由 Cloudflare Pages 託管)
