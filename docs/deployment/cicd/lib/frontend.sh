@@ -225,11 +225,16 @@ clean_dist() {
     fi
 }
 
+# 建議修改 lib/frontend.sh 中的 rebuild_frontend 函式
 rebuild_frontend() {
     local project_dir="$1"
     local full_rebuild="${2:-false}"
     
     log_step "重建前端..."
+    
+    # 【新增】暫時切換權限給當前用戶，確保 npm 能寫入
+    log_info "暫時取得目錄權限..."
+    sudo chown -R $USER:$USER "$project_dir/frontend"
     
     # 清理 dist
     clean_dist "$project_dir"
@@ -242,8 +247,17 @@ rebuild_frontend() {
     
     # 執行建置
     build_frontend "$project_dir"
+    local build_status=$?
+
+    # 【新增】恢復安全權限 (只針對 frontend 目錄，或最後統一呼叫 set_secure_permissions)
+    # 這裡簡單恢復擁有者，完整權限由後續流程處理
+    sudo chown -R www-data:www-data "$project_dir/frontend"
     
-    return $?
+    if [ $build_status -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # ===== Cloudflare Pages 專用 =====

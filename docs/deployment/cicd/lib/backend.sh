@@ -301,11 +301,12 @@ clear_all_cache() {
     
     cd "$project_dir/backend"
     
-    php artisan config:clear 2>/dev/null
-    php artisan route:clear 2>/dev/null
-    php artisan view:clear 2>/dev/null
-    php artisan cache:clear 2>/dev/null
-    php artisan event:clear 2>/dev/null
+    # 【修正】使用 sudo -u www-data 執行，確保有權限刪除 www-data 擁有的快取檔
+    sudo -u www-data php artisan config:clear 2>/dev/null
+    sudo -u www-data php artisan route:clear 2>/dev/null
+    sudo -u www-data php artisan view:clear 2>/dev/null
+    sudo -u www-data php artisan cache:clear 2>/dev/null
+    sudo -u www-data php artisan event:clear 2>/dev/null
     
     log_success "所有快取已清除"
 }

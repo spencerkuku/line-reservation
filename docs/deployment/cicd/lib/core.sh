@@ -85,20 +85,21 @@ update_env_var() {
         return 1
     fi
     
-    # 臨時調整權限以便寫入
-    local original_perms=$(stat -c %a "$file" 2>/dev/null || echo "600")
-    local original_owner=$(stat -c %U:%G "$file" 2>/dev/null || echo "www-data:www-data")
-    
-    sudo chmod 644 "$file" 2>/dev/null || true
-    sudo chown $USER:$USER "$file" 2>/dev/null || true
-    
-    # 確保目錄有寫入權限
+    # 取得目錄路徑
     local dir=$(dirname "$file")
-    sudo chmod 755 "$dir" 2>/dev/null || true
     
-    # 修改：使用 awk 替代 sed，避免特殊字符問題（如密碼中的 $、&、/ 等）
+    # 記錄原始權限
+    local original_file_perms=$(stat -c %a "$file" 2>/dev/null || echo "600")
+    local original_file_owner=$(stat -c %U:%G "$file" 2>/dev/null || echo "www-data:www-data")
+    local original_dir_owner=$(stat -c %U:%G "$dir" 2>/dev/null || echo "www-data:www-data")
+    
+    # 【修正】同時調整「目錄」和「檔案」的擁有者給當前用戶
+    sudo chown $USER:$USER "$dir" 2>/dev/null || true
+    sudo chown $USER:$USER "$file" 2>/dev/null || true
+    sudo chmod 644 "$file" 2>/dev/null || true
+    
+    # 使用 awk 修改內容 (現在可以安全建立暫存檔了)
     if grep -q "^${key}=" "$file" 2>/dev/null; then
-        # 創建臨時文件
         local temp_file="${file}.tmp"
         awk -v key="$key" -v value="$value" '
             BEGIN { found=0 }
@@ -110,9 +111,10 @@ update_env_var() {
         echo "${key}=${value}" >> "$file"
     fi
     
-    # 恢復權限
-    sudo chown $original_owner "$file" 2>/dev/null || true
-    sudo chmod "$original_perms" "$file" 2>/dev/null || true
+    # 【修正】恢復權限
+    sudo chown "$original_dir_owner" "$dir" 2>/dev/null || true
+    sudo chown "$original_file_owner" "$file" 2>/dev/null || true
+    sudo chmod "$original_file_perms" "$file" 2>/dev/null || true
     
     return 0
 }
@@ -121,40 +123,57 @@ update_env_var() {
 set_secure_permissions() {
     local project_dir="${1:-$PROJECT_DIR}"
     
-    log_step "設置生產環境安全權限..."
+    log_step "設置生產環境安全權限 (修正版)..."
     
-    # 設置基本擁有者權限
+    # 1. 設置基本擁有者權限 (統一設為 www-data)
     sudo chown -R www-data:www-data "$project_dir"
     
-    # 設置目錄權限 (755 - 僅擁有者可寫入)
-    find "$project_dir" -type d -exec sudo chmod 755 {} \;
+    # 2. 設置目錄權限 (755)
+    # 使用 -prune 排除 .git 目錄，避免影響 Git 運作
+    find "$project_dir" -name ".git" -prune -o -type d -exec sudo chmod 755 {} \;
     
-    # 設置一般檔案權限 (644 - 僅擁有者可寫入，無執行權限)
-    find "$project_dir" -type f -exec sudo chmod 644 {} \;
-    
-    # 設置 Laravel 必要的寫入權限目錄
+    # 3. 設置一般檔案權限 (644) - 【關鍵修正】
+    # 排除 .git (版本控制)、node_modules (前端套件)、vendor (後端套件)
+    # 這些目錄內含有需要執行權限的二進制檔案 (如 git hooks, binaries)
+    find "$project_dir" \
+        -path "$project_dir/.git" -prune -o \
+        -path "$project_dir/frontend/node_modules" -prune -o \
+        -path "$project_dir/backend/vendor" -prune -o \
+        -type f -exec sudo chmod 644 {} \;
+
+    # 4. 設置 Laravel 必要的寫入權限目錄
     if [ -d "$project_dir/backend/storage" ]; then
+        # storage 和 cache 需要 Web Server 可寫入
         sudo chmod -R 755 "$project_dir/backend/storage" "$project_dir/backend/bootstrap/cache"
         sudo chown -R www-data:www-data "$project_dir/backend/storage" "$project_dir/backend/bootstrap/cache"
+        
+        # 額外建議：設置 SGID 位元，確保新建檔案繼承群組
+        sudo find "$project_dir/backend/storage" -type d -exec sudo chmod g+s {} \;
+        sudo find "$project_dir/backend/bootstrap/cache" -type d -exec sudo chmod g+s {} \;
     fi
     
-    # 嚴格保護敏感配置檔案 (600 - 僅擁有者可讀寫)
-    [ -f "$project_dir/frontend/.env" ] && sudo chmod 600 "$project_dir/frontend/.env"
-    [ -f "$project_dir/backend/.env" ] && sudo chmod 600 "$project_dir/backend/.env"
-    [ -f "$project_dir/frontend/.env.example" ] && sudo chmod 600 "$project_dir/frontend/.env.example"
-    [ -f "$project_dir/backend/.env.example" ] && sudo chmod 600 "$project_dir/backend/.env.example"
-    [ -f "$project_dir/db_credentials.txt" ] && sudo chmod 600 "$project_dir/db_credentials.txt"
+    # 5. 嚴格保護敏感配置檔案 (600 - 僅擁有者可讀寫)
+    local secure_files=(
+        "$project_dir/frontend/.env"
+        "$project_dir/backend/.env"
+        "$project_dir/db_credentials.txt"
+    )
     
-    # 確保 artisan 有執行權限
-    [ -f "$project_dir/backend/artisan" ] && sudo chmod 755 "$project_dir/backend/artisan"
+    for file in "${secure_files[@]}"; do
+        if [ -f "$file" ]; then
+            sudo chmod 600 "$file"
+        fi
+    done
     
-    # 移除常見檔案類型的不必要執行權限
-    find "$project_dir" -type f \( -name "*.php" -o -name "*.js" -o -name "*.vue" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.md" -o -name "*.txt" -o -name "*.log" \) -exec sudo chmod 644 {} \; 2>/dev/null || true
+    # 6. 確保關鍵執行檔有執行權限 (755)
+    if [ -f "$project_dir/backend/artisan" ]; then
+        sudo chmod 755 "$project_dir/backend/artisan"
+    fi
     
-    # 將當前用戶加入 www-data 群組
+    # 7. 將當前用戶加入 www-data 群組 (以便您能讀取日誌或進行操作)
     sudo usermod -a -G www-data "$USER" 2>/dev/null || true
     
-    log_success "安全權限設置完成"
+    log_success "安全權限設置完成 (已保留執行檔與 Git 權限)"
 }
 
 set_dev_permissions() {
