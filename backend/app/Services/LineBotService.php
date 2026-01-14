@@ -3331,6 +3331,7 @@ class LineBotService
             
             try {
                 $customer = Customer::create([
+                    'tenant_id' => $this->tenant->id,
                     'line_user_id' => $userId,
                     'name' => $profile['displayName'] ?? '未知用戶',
                     'line_display_name' => $profile['displayName'] ?? null,
@@ -3397,7 +3398,8 @@ class LineBotService
             try {
                 $profile = $this->getUserProfile($userId);
                 $customer = Customer::firstOrCreate(
-                    ['line_user_id' => $userId],
+                    ['line_user_id' => $userId,
+                                'tenant_id' => $this->tenant->id],
                     [
                         'name' => $profile['displayName'] ?? '未知用戶',
                         'line_display_name' => $profile['displayName'] ?? null,
