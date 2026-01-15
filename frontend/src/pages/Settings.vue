@@ -624,11 +624,36 @@ async function fetchWebhookUrl() {
 // 複製 Webhook URL 到剪貼簿
 async function copyWebhookUrl() {
   try {
-    await navigator.clipboard.writeText(webhookUrl.value)
-    successMessage.value = 'Webhook URL 已複製到剪貼簿'
-    setTimeout(() => { successMessage.value = '' }, 3000)
+    // 方法 1: 現代 Clipboard API (需要 HTTPS)
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(webhookUrl.value)
+      successMessage.value = 'Webhook URL 已複製到剪貼簿'
+      setTimeout(() => { successMessage.value = '' }, 3000)
+    } else {
+      // 方法 2: 降級方案 - execCommand (適用於 HTTP)
+      const textArea = document.createElement('textarea')
+      textArea.value = webhookUrl.value
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      textArea.style.top = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      const successful = document.execCommand('copy')
+      textArea.remove()
+      
+      if (successful) {
+        successMessage.value = 'Webhook URL 已複製到剪貼簿'
+        setTimeout(() => { successMessage.value = '' }, 3000)
+      } else {
+        throw new Error('複製功能不可用')
+      }
+    }
   } catch (err) {
     console.error('Failed to copy:', err)
+    errorMessage.value = '複製失敗，請手動複製'
+    setTimeout(() => { errorMessage.value = '' }, 3000)
   }
 }
 

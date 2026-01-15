@@ -781,10 +781,48 @@ const resetPassword = async (tenant) => {
   }
 }
 
+// 通用複製函數（包含降級方案）
+const copyToClipboard = async (text, successMsg = '已複製到剪貼簿') => {
+  try {
+    // 方法 1: 現代 Clipboard API (需要 HTTPS)
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      alert(successMsg)
+      return true
+    }
+    
+    // 方法 2: 降級方案 - execCommand (適用於 HTTP)
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    
+    const successful = document.execCommand('copy')
+    textArea.remove()
+    
+    if (successful) {
+      alert(successMsg)
+      return true
+    } else {
+      throw new Error('execCommand 複製失敗')
+    }
+  } catch (err) {
+    console.error('複製失敗:', err)
+    alert(`複製失敗: ${err.message}\n請手動複製`)
+    return false
+  }
+}
+
 // 複製 Webhook URL
 const copyWebhookUrl = () => {
-  navigator.clipboard.writeText(selectedTenant.value.full_webhook_url)
-  alert('Webhook URL 已複製到剪貼簿')
+  copyToClipboard(
+    selectedTenant.value.full_webhook_url,
+    'Webhook URL 已複製到剪貼簿'
+  )
 }
 
 // 處理訂閱類型變更
@@ -814,8 +852,10 @@ const handleSubscriptionTypeChange = () => {
 
 // 複製密碼
 const copyPassword = () => {
-  navigator.clipboard.writeText(newTenantCredentials.value.password)
-  alert('密碼已複製到剪貼簿')
+  copyToClipboard(
+    newTenantCredentials.value.password,
+    '密碼已複製到剪貼簿'
+  )
 }
 
 // 格式化日期
