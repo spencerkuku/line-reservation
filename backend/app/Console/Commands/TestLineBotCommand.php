@@ -123,7 +123,7 @@ class TestLineBotCommand extends Command
         $this->info('5. 測試 API 路由:');
 
         // 檢查 webhook 路由
-        $this->line("✓ Webhook 路由已設定: POST /api/line/webhook");
+        $this->line("✓ Webhook 路由已設定: POST /api/webhook/{webhook_token}");
         
         // 檢查控制器
         $controllerFile = app_path('Http/Controllers/Api/LineWebhookController.php');
@@ -140,7 +140,7 @@ class TestLineBotCommand extends Command
         $this->info('設定說明:');
         $this->line('1. 請在 LINE Developers Console 創建 Messaging API 頻道');
         $this->line('2. 將 Channel Access Token 和 Channel Secret 更新到資料庫的 settings 表');
-        $this->line('3. 設定 Webhook URL: http://your-domain.com/api/line/webhook');
+        $this->line('3. 設定 Webhook URL: https://your-domain.com/api/webhook/{webhook_token}');
         $this->line('4. 在 LINE 聊天機器人中輸入 \'我要預約\' 開始測試預約流程');
 
         return Command::SUCCESS;

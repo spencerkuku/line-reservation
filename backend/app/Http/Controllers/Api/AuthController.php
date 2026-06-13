@@ -198,9 +198,11 @@ class AuthController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => '更新個人資料時發生錯誤：' . $e->getMessage()
+                'message' => '更新個人資料時發生錯誤'
             ], 500);
         }
     }
@@ -241,9 +243,11 @@ class AuthController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => '更新密碼時發生錯誤：' . $e->getMessage()
+                'message' => '更新密碼時發生錯誤'
             ], 500);
         }
     }
@@ -295,9 +299,11 @@ class AuthController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => '設定密碼時發生錯誤：' . $e->getMessage()
+                'message' => '設定密碼時發生錯誤'
             ], 500);
         }
     }

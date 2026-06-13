@@ -67,7 +67,7 @@ class ApiRateLimitMiddleware
         }
 
         // LINE webhook
-        if ($request->is('api/line/webhook')) {
+        if ($request->is('api/webhook/*')) {
             return ['webhook' => 1000]; // 每分鐘1000次
         }
 

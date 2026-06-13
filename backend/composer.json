@@ -1,13 +1,15 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "spencerkuku/line-reservation-backend",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Multi-tenant reservation API with LINE Messaging integration.",
     "keywords": [
         "laravel",
-        "framework"
+        "reservation",
+        "multi-tenant",
+        "line-messaging-api"
     ],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
         "php": "^8.2",
         "laravel/framework": "^12.0",

@@ -3439,9 +3439,8 @@ class LineBotService
     private function replyMessage($replyToken, $message)
     {
         Log::info('Attempting to send LINE reply', [
-            'replyToken' => $replyToken,
-            'message' => $message,
-            'accessToken' => substr($this->channelAccessToken, 0, 20) . '...'
+            'message_type' => $message['type'] ?? 'unknown',
+            'tenant_id' => $this->tenant?->id,
         ]);
 
         $data = [
@@ -3486,9 +3485,8 @@ class LineBotService
     public function pushMessage($userId, $message)
     {
         Log::info('Attempting to send LINE push message', [
-            'userId' => $userId,
-            'message' => $message,
-            'accessToken' => substr($this->channelAccessToken, 0, 20) . '...'
+            'message_type' => $message['type'] ?? 'unknown',
+            'tenant_id' => $this->tenant?->id,
         ]);
 
         $data = [

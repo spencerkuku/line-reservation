@@ -96,8 +96,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 
                 return response()->json([
                     'success' => false,
-                    'message' => $e->getMessage() ?: '伺服器內部錯誤',
-                    'error_code' => $e->getCode(),
+                    'message' => $statusCode >= 500 && !config('app.debug')
+                        ? '伺服器內部錯誤'
+                        : ($e->getMessage() ?: '伺服器內部錯誤'),
                     'timestamp' => now()->toIso8601String(),
                 ], $statusCode);
             }

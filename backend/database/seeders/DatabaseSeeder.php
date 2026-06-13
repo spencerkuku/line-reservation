@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
                 'status' => 'Active',
                 'email_verified_at' => now(),
                 'tenant_id' => null,
-                'must_change_password' => false,
+                'must_change_password' => true,
             ]
         );
         
@@ -66,7 +66,7 @@ class DatabaseSeeder extends Seeder
         );
 
         // 設置當前租戶上下文
-        app()->instance('current_tenant', $tenant);
+        app()->instance('currentTenant', $tenant);
 
         // 4. 創建服務項目
         $service1 = Service::firstOrCreate(
@@ -180,7 +180,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // 清除租戶上下文
-        app()->forgetInstance('current_tenant');
+        app()->forgetInstance('currentTenant');
 
         $this->command->info('');
         $this->command->info('╔════════════════════════════════════════════════════════════╗');
