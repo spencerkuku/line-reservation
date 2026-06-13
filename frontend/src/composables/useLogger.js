@@ -170,8 +170,6 @@ export function usePerformanceLogger() {
  * 用戶行為追蹤組合式函數
  */
 export function useUserTracking() {
-    const { logUserAction } = useLogger()
-    
     const trackPageView = (pageName, additionalData = {}) => {
         logger.userAction('page_view', { page_name: pageName, ...additionalData })
     }

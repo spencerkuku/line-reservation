@@ -347,7 +347,7 @@ import {
   UsersIcon,
   Cog6ToothIcon
 } from '@heroicons/vue/24/outline'
-import { validateToken, apiPost } from '../utils/api.js'
+import { validateToken, apiPost, getBackendOrigin } from '../utils/api.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -416,7 +416,7 @@ const navigation = computed(() => {
 // 計算用戶頭像 URL
 const userAvatarUrl = computed(() => {
   if (user.value.avatar) {
-    return `http://127.0.0.1:8000/storage/${user.value.avatar}`
+    return `${getBackendOrigin()}/storage/${user.value.avatar}`
   }
   // 使用用戶名稱的第一個字元生成預設頭像
   const name = user.value.name || 'User'
@@ -469,7 +469,7 @@ onMounted(async () => {
 })
 
 // 監聽路由變化，在每次導航時驗證 token
-watch(route, async (to, from) => {
+watch(route, async (to) => {
   // 跳過公開頁面的驗證
   const publicPages = ['Login', 'NotFound']
   if (publicPages.includes(to.name)) {

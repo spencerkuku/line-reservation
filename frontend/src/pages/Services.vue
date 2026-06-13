@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from '../utils/api.js'
+import { apiGet, apiDelete, apiUpload } from '../utils/api.js'
 
 const services = ref([])
 const loading = ref(false)

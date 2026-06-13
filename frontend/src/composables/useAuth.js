@@ -96,33 +96,28 @@ export async function apiRequest(url, options = {}) {
     ...options
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}${url}`, requestOptions)
+  const response = await fetch(`${API_BASE_URL}${url}`, requestOptions)
 
-    // 如果是 401 未授權，只在需要認證的情況下處理
-    if (response.status === 401) {
-      // 如果是需要認證的請求，清除token並重定向
-      if (token) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        // 只在不是公開頁面時重定向
-        if (window.location.hash !== '#/available-times' && 
-            window.location.hash !== '#/' && 
-            window.location.hash !== '#/login') {
-          window.location.href = '/#/login'
-        }
+  // 如果是 401 未授權，只在需要認證的情況下處理
+  if (response.status === 401) {
+    // 如果是需要認證的請求，清除token並重定向
+    if (token) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      // 只在不是公開頁面時重定向
+      if (window.location.hash !== '#/available-times' &&
+          window.location.hash !== '#/' &&
+          window.location.hash !== '#/login') {
+        window.location.href = '/#/login'
       }
-      throw new Error('需要登入才能執行此操作')
     }
-
-    // 檢查是否有其他錯誤
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API請求失敗: ${response.status}`)
-    }
-
-    return response
-  } catch (error) {
-    throw error
+    throw new Error('需要登入才能執行此操作')
   }
+
+  // 檢查是否有其他錯誤
+  if (!response.ok) {
+    throw new Error(`API請求失敗: ${response.status}`)
+  }
+
+  return response
 }

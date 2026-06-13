@@ -564,11 +564,9 @@ async function fetchSettings() {
   loading.value = true
   try {
     const response = await apiGet('/settings/line')
-    console.log('Fetched settings response:', response) // 調試用
     
     // 檢查回應格式並正確取得數據
     const data = response.data || response
-    console.log('Extracted data:', data) // 調試用
     
     // 後端已經返回遮蔽版本，直接顯示
     currentAccessToken.value = data.channel_access_token || ''
@@ -577,9 +575,6 @@ async function fetchSettings() {
     // 設定是否有現有資料的狀態
     hasExistingAccessToken.value = !!(data.channel_access_token && data.channel_access_token.trim() !== '')
     hasExistingSecret.value = !!(data.channel_secret && data.channel_secret.trim() !== '')
-    
-    console.log('Has existing token:', hasExistingAccessToken.value) // 調試用
-    console.log('Has existing secret:', hasExistingSecret.value) // 調試用
     
     // 如果有現有設定，在輸入框中顯示星號表示已有資料
     if (hasExistingAccessToken.value) {
@@ -652,8 +647,8 @@ async function copyWebhookUrl() {
     }
   } catch (err) {
     console.error('Failed to copy:', err)
-    errorMessage.value = '複製失敗，請手動複製'
-    setTimeout(() => { errorMessage.value = '' }, 3000)
+    successMessage.value = '複製失敗，請手動複製'
+    setTimeout(() => { successMessage.value = '' }, 3000)
   }
 }
 

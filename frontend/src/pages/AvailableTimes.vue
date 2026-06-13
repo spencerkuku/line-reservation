@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onUnmounted, onMounted, toRaw } from 'vue'
+import { ref, computed, nextTick, onUnmounted, onMounted, toRaw } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -14,7 +14,6 @@ import {
   TransitionChild 
 } from '@headlessui/vue'
 import {
-  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -419,7 +418,7 @@ async function deleteSlot(id) {
 }
 
 // 切換時段狀態（暫停/啟用）
-async function toggleSlotStatus(slotId, currentStatus) {
+async function toggleSlotStatus(slotId) {
   try {
     const response = await apiPost(`/available-times/${slotId}/toggle-status`)
     
@@ -760,7 +759,6 @@ async function handleSlotUpdate(info) {
 // 拖拽處理
 async function handleSlotDrop(info) {
   const now = new Date()
-  const startTime = new Date(info.event.start)
   const endTime = new Date(info.event.end)
   
   // 優先檢查時間是否在未來（檢查結束時間，確保整個時段都在未來）
@@ -1035,17 +1033,6 @@ function formatDateTime(date) {
   })
 }
 
-function formatLocalDateTime(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-}
-
 // 為後端API格式化時間 - 確保發送本地時間而非UTC
 function formatBackendDateTime(date) {
   // 獲取本地時間的各個部分
@@ -1101,9 +1088,6 @@ function handleKeydown(e) {
 document.addEventListener('keydown', handleKeydown)
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
-// 偵測裝置類型
-const isMobile = computed(() => window.innerWidth <= 767)
-const isTablet = computed(() => window.innerWidth > 767 && window.innerWidth <= 1024)
 const isTouchDevice = computed(() => 'ontouchstart' in window || navigator.maxTouchPoints > 0)
 
 // 組件載入時獲取數據並導航到今天
@@ -2469,4 +2453,3 @@ onMounted(() => {
   display: none; /* Chrome, Safari, Opera */
 }
 </style>
-

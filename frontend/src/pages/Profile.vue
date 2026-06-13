@@ -237,7 +237,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { apiGet, apiPost, apiUpload } from '../utils/api.js'
+import { apiGet, apiPost, apiUpload, getBackendOrigin } from '../utils/api.js'
 
 // 響應式數據
 const currentUser = ref({
@@ -292,7 +292,7 @@ const getAvatarUrl = () => {
     return profileForm.value.avatar
   }
   if (currentUser.value.avatar) {
-    return `http://127.0.0.1:8000/storage/${currentUser.value.avatar}`
+    return `${getBackendOrigin()}/storage/${currentUser.value.avatar}`
   }
   // 使用用戶名稱的第一個字元生成預設頭像
   const name = currentUser.value.name || 'User'

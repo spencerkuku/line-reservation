@@ -304,7 +304,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <tr 
-              v-for="(record, index) in filteredReservations" 
+              v-for="record in filteredReservations"
               :key="record.id" 
               class="hover:bg-gray-50 transition-colors duration-200"
               :class="{ 
@@ -881,7 +881,6 @@ const {
   timePeriods,
   filteredReservations,
   statistics,
-  resetFilters,
   resetAdvancedSearch,
 } = useReservationFilter(reservations)
 

@@ -355,7 +355,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { apiGet, apiPost } from '../utils/api';
 
 const reservations = ref([]);
@@ -380,11 +380,6 @@ const paymentForm = ref({
 });
 
 let refreshInterval = null;
-
-const currentDate = computed(() => {
-  const now = new Date();
-  return now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-});
 
 // 載入今日預約列表
 const loadTodayReservations = async () => {

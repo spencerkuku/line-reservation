@@ -1320,9 +1320,6 @@ const deletingCustomer = ref(null)
 const deleteConfirmText = ref('')
 const currentCustomer = ref(null)
 const submitting = ref(false)
-const calculatingStats = ref(false)
-const lastRecalculateTime = ref({}) // 記錄每個客戶的上次計算時間
-const recalculateCooldown = 30 // 冷卻時間（秒）
 
 // 客戶表單
 const customerForm = reactive({
@@ -1730,106 +1727,6 @@ function getCustomerActivityStatus(customer) {
 function formatDate(dateString) {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleDateString('zh-TW')
-}
-
-// 重新計算所有客戶統計數據
-async function recalculateAllStats() {
-  calculatingStats.value = true
-  
-  try {
-    const response = await apiPost('/customers/recalculate-stats')
-    if (response.success) {
-      // 刷新客戶列表和統計數據
-      await Promise.all([
-        fetchCustomers(),
-        fetchStatistics()
-      ])
-      
-      // 顯示成功訊息
-      if (import.meta.env.DEV) {
-        console.log('統計數據更新成功:', response.message)
-      }
-    }
-  } catch (err) {
-    error.value = err.message || '重新計算統計數據失敗'
-    if (import.meta.env.DEV) {
-      console.error('重新計算統計數據失敗:', err)
-    }
-  } finally {
-    calculatingStats.value = false
-  }
-}
-
-// 檢查是否可以重新計算統計（冷卻時間檢查）
-function canRecalculateStats(customerId) {
-  const lastTime = lastRecalculateTime.value[customerId]
-  if (!lastTime) return true
-  
-  const now = Date.now()
-  const timePassed = (now - lastTime) / 1000 // 轉換為秒
-  return timePassed >= recalculateCooldown
-}
-
-// 獲取剩餘冷卻時間
-function getRemainingCooldown(customerId) {
-  const lastTime = lastRecalculateTime.value[customerId]
-  if (!lastTime) return 0
-  
-  const now = Date.now()
-  const timePassed = (now - lastTime) / 1000
-  const remaining = recalculateCooldown - timePassed
-  return Math.max(0, Math.ceil(remaining))
-}
-
-// 重新計算單一客戶統計數據
-async function recalculateCustomerStats(customerId) {
-  // 檢查冷卻時間
-  if (!canRecalculateStats(customerId)) {
-    const remaining = getRemainingCooldown(customerId)
-    alert(`請稍後再試，冷卻時間剩餘 ${remaining} 秒`)
-    return
-  }
-  
-  calculatingStats.value = true
-  
-  try {
-    const response = await apiPost(`/customers/${customerId}/recalculate-stats`)
-    if (response.success) {
-      // 記錄計算時間
-      lastRecalculateTime.value[customerId] = Date.now()
-      
-      // 刷新客戶列表和詳情
-      await fetchCustomers()
-      
-      // 如果正在查看該客戶的詳情，也刷新預約歷史
-      if (viewingCustomer.value && viewingCustomer.value.id === customerId) {
-        await fetchCustomerReservations(customerId)
-      }
-      
-      alert('統計數據已更新成功')
-      
-      if (import.meta.env.DEV) {
-        console.log('客戶統計數據更新成功:', response.message)
-      }
-    }
-  } catch (err) {
-    // 處理不同類型的錯誤
-    if (err.message.includes('No query results for model') || err.message.includes('404')) {
-      // 客戶已不存在，直接刷新列表
-      alert('客戶已不存在，將自動刷新列表')
-      await fetchCustomers()
-    } else {
-      // 其他錯誤
-      error.value = err.message || '重新計算客戶統計數據失敗'
-      alert(`重新計算統計失敗：${err.message}`)
-    }
-    
-    if (import.meta.env.DEV) {
-      console.error('重新計算客戶統計數據失敗:', err)
-    }
-  } finally {
-    calculatingStats.value = false
-  }
 }
 
 // 組件載入時獲取數據

@@ -579,7 +579,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api.js'
+import { apiGet, apiPost, apiPut } from '../utils/api.js'
 
 // 狀態
 const loading = ref(false)

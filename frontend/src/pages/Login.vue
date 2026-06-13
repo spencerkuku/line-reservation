@@ -12,7 +12,7 @@ const loading = ref(false)
 const error = ref('')
 
 // 日誌功能
-const { logInfo, logError, logUserAction, logFormSubmit } = useLogger()
+const { logInfo, logError, logUserAction } = useLogger()
 const { measureAsync } = usePerformanceLogger()
 
 // 記錄登入頁面載入

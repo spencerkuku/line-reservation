@@ -1,9 +1,12 @@
 import router from '../router.js'
 import logger from './logger.js'
-import { SecureStorage, InputSecurity } from './security.js'
-import { sanitizeInput, sanitizeName, sanitizeEmail, sanitizePhone, sanitizeNote } from './xss-protection.js'
+import { sanitizeInput } from './xss-protection.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+
+export function getBackendOrigin() {
+    return new URL(API_BASE_URL, window.location.origin).origin
+}
 
 // 檢查是否為有效的 token（Laravel Sanctum 使用隨機字符串）
 function isValidToken(token) {
@@ -127,7 +130,6 @@ async function apiRequest(url, options = {}) {
     
     try {
         const response = await fetch(`${API_BASE_URL}${url}`, mergedOptions)
-        const duration = performance.now() - startTime;
         
         // 檢查 401 或 403 錯誤
         if (response.status === 401 || response.status === 403) {

@@ -113,13 +113,14 @@ export function useReservationFilter(reservations) {
         result = result.filter(r => isSameDay(r.reservation_date || r.time, today))
         break
         
-      case 'tomorrow':
+      case 'tomorrow': {
         const tomorrow = new Date(today)
         tomorrow.setDate(tomorrow.getDate() + 1)
         result = result.filter(r => isSameDay(r.reservation_date || r.time, tomorrow))
         break
+      }
         
-      case 'upcoming':
+      case 'upcoming': {
         const nextWeek = new Date(today)
         nextWeek.setDate(nextWeek.getDate() + 7)
         result = result.filter(r => {
@@ -128,6 +129,7 @@ export function useReservationFilter(reservations) {
           return resDate >= today && resDate <= nextWeek
         })
         break
+      }
         
       case 'all':
         // 不進行時間篩選

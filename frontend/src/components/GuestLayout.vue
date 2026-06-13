@@ -1,5 +1,5 @@
 <script setup>
-const props = defineProps({
+defineProps({
   loading: Boolean,
   error: String,
   username: String,

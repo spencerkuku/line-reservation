@@ -948,12 +948,6 @@ const formatBytes = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-const getCpuLoadColor = (percentage) => {
-  if (percentage <= 50) return 'text-green-600'
-  if (percentage <= 80) return 'text-yellow-600'
-  return 'text-red-600'
-}
-
 const getCpuLoadProgressClass = (percentage) => {
   if (percentage <= 50) return 'bg-green-500'
   if (percentage <= 80) return 'bg-yellow-500'
@@ -996,22 +990,10 @@ const getDatabaseStatusText = (status) => {
   }
 }
 
-const getStorageColor = (percentage) => {
-  if (percentage <= 60) return 'text-green-600'
-  if (percentage <= 85) return 'text-yellow-600'
-  return 'text-red-600'
-}
-
 const getStorageProgressClass = (percentage) => {
   if (percentage <= 60) return 'bg-green-500'
   if (percentage <= 85) return 'bg-yellow-500'
   return 'bg-red-500'
-}
-
-const getMemoryColor = (percentage) => {
-  if (percentage <= 60) return 'text-green-600'
-  if (percentage <= 85) return 'text-yellow-600'
-  return 'text-red-600'
 }
 
 const getMemoryProgressClass = (percentage) => {
