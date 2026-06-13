@@ -1,5 +1,20 @@
-# Vue 3 + Vite
+# Frontend
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+LINE Reservation Platform 的 Vue 3 管理後台，使用 Vue Router、Pinia、Tailwind CSS 與 Vite。
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Setup
+
+```bash
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+建置與檢查：
+
+```bash
+npm run build
+npm run lint
+```
+
+API 位址由 `VITE_API_BASE_URL` 控制。完整專案說明請參閱 [根目錄 README](../README.md)。

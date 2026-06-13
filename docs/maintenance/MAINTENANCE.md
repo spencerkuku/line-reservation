@@ -1,615 +1,319 @@
-# LINE 預約系統 - 維護指南
+# Maintenance Guide
 
-> 生產環境的日常維護、監控與故障排除
+Operational notes for the archived LINE Reservation Platform.
 
-## 目錄
+> The project is not currently operated. Commands below describe the intended Laravel/Apache environment and must be adapted to the actual host before use.
 
-- [管理控制台](#管理控制台)
-- [日誌管理](#日誌管理)
-- [備份與還原](#備份與還原)
-- [效能監控](#效能監控)
-- [定期維護任務](#定期維護任務)
-- [故障排除](#故障排除)
-- [安全維護](#安全維護)
+## Routine Commands
 
----
-
-## 管理控制台
-
-本系統提供完整的管理控制台腳本，位於 `docs/deployment/cicd/manage.sh`。
-
-### 快速命令
+From `docs/deployment/cicd`:
 
 ```bash
-cd /var/www/line-reservation/docs/deployment/cicd
-
-# 快速更新 (Git Pull + 重建)
-./manage.sh update
-
-# 清除快取
-./manage.sh cache
-
-# 重啟服務
-./manage.sh restart
-
-# 查看狀態
 ./manage.sh status
-
-# 進入互動式選單
-./manage.sh
+./manage.sh update
+./manage.sh cache
+./manage.sh restart
+./manage.sh backup
 ```
 
-### 互動式選單功能
-
-1. **環境配置管理** - 域名/IP、SSL 憑證、Cloudflare 設定
-2. **建置與部署** - 前端重建、後端快取、完整重建
-3. **版本控制** - Git 操作、代碼更新
-4. **系統服務** - 服務重啟、狀態監控、日誌查看
-5. **備份管理** - 資料庫備份、檔案備份
-
-詳細說明請參閱 [cicd/README.md](../deployment/cicd/README.md)。
-
----
-
-## 日誌管理
-
-### Laravel 日誌位置
+Manual Laravel operations:
 
 ```bash
-# 應用程式日誌
-backend/storage/logs/laravel.log
-
-# 日誌結構
-[時間] 環境.級別: 訊息 {"context":"data"}
-```
-
-### 日誌級別
-
-| 級別 | 說明 | 使用時機 |
-|------|------|----------|
-| `DEBUG` | 除錯資訊 | 開發環境詳細追蹤 |
-| `INFO` | 一般資訊 | 正常操作記錄 |
-| `WARNING` | 警告訊息 | 潛在問題 |
-| `ERROR` | 錯誤訊息 | 需要注意的錯誤 |
-| `CRITICAL` | 嚴重錯誤 | 系統嚴重問題 |
-
-### 查看日誌
-
-```bash
-# 即時查看日誌（推薦）
-php artisan pail
-
-# 傳統方式查看最新日誌
-tail -f backend/storage/logs/laravel.log
-
-# 查看最後 100 行
-tail -n 100 backend/storage/logs/laravel.log
-
-# 搜尋特定錯誤
-grep "ERROR" backend/storage/logs/laravel.log
-
-# 搜尋今天的錯誤
-grep "$(date +%Y-%m-%d)" backend/storage/logs/laravel.log | grep "ERROR"
-```
-
-### Web 伺服器日誌
-
-```bash
-# Apache 訪問日誌
-tail -f /var/log/apache2/line-reservation_access.log
-
-# Apache 錯誤日誌
-tail -f /var/log/apache2/line-reservation_error.log
-
-# MySQL 錯誤日誌
-tail -f /var/log/mysql/error.log
-```
-
-### 日誌輪替
-
-**設定 logrotate**:
-```bash
-sudo nano /etc/logrotate.d/line-reservation
-```
-
-```conf
-/var/www/line-reservation/backend/storage/logs/*.log {
-    daily
-    missingok
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    create 0644 www-data www-data
-    sharedscripts
-}
-```
-
-### 清理舊日誌
-
-```bash
-# 手動清理 30 天前的日誌
-find backend/storage/logs -name "*.log" -mtime +30 -delete
-
-# 或使用 Laravel 命令（如有自訂）
-php artisan log:clear --days=30
-```
-
-## 監控與告警
-
-### 系統監控指標
-
-#### 1. 應用程式健康檢查
-
-```bash
-# 建立健康檢查端點
-# routes/web.php
-Route::get('/health', function () {
-    return response()->json([
-        'status' => 'healthy',
-        'timestamp' => now(),
-        'services' => [
-            'database' => DB::connection()->getPdo() ? 'ok' : 'error',
-            'cache' => Cache::has('health_check') ? 'ok' : 'error',
-        ]
-    ]);
-});
-
-# 測試健康檢查
-curl http://localhost:8000/health
-```
-
-#### 2. 資料庫監控
-
-```sql
--- 查看當前連線數
-SHOW PROCESSLIST;
-
--- 查看慢查詢
-SELECT * FROM mysql.slow_log ORDER BY start_time DESC LIMIT 10;
-
--- 查看資料庫大小
-SELECT 
-    table_schema AS 'Database',
-    ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)'
-FROM information_schema.tables
-WHERE table_schema = 'line_reservation'
-GROUP BY table_schema;
-
--- 查看資料表大小
-SELECT 
-    table_name AS 'Table',
-    ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Size (MB)'
-FROM information_schema.TABLES
-WHERE table_schema = 'line_reservation'
-ORDER BY (data_length + index_length) DESC;
-```
-
-#### 3. 系統資源監控
-
-```bash
-# CPU 使用率
-top -bn1 | grep "Cpu(s)"
-
-# 記憶體使用率
-free -h
-
-# 硬碟使用率
-df -h
-
-# 網路連線數
-netstat -an | grep :80 | wc -l
-
-# 查看 Apache 狀態
-systemctl status apache2
-
-# 查看 MySQL 狀態
-systemctl status mysql
-
-# 查看 PHP-FPM 狀態
-systemctl status php8.3-fpm
-```
-
-### 告警設定
-
-#### 簡易郵件告警腳本
-
-```bash
-#!/bin/bash
-# /usr/local/bin/line-reservation-monitor.sh
-
-# 檢查服務狀態
-if ! systemctl is-active --quiet apache2; then
-    echo "Apache is down!" | mail -s "Alert: Apache Down" admin@example.com
-fi
-
-if ! systemctl is-active --quiet mysql; then
-    echo "MySQL is down!" | mail -s "Alert: MySQL Down" admin@example.com
-fi
-
-# 檢查硬碟空間
-DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
-if [ $DISK_USAGE -gt 80 ]; then
-    echo "Disk usage is ${DISK_USAGE}%" | mail -s "Alert: High Disk Usage" admin@example.com
-fi
-
-# 檢查應用程式錯誤
-ERROR_COUNT=$(grep -c "ERROR" /var/www/line-reservation/backend/storage/logs/laravel.log)
-if [ $ERROR_COUNT -gt 100 ]; then
-    echo "Application has ${ERROR_COUNT} errors" | mail -s "Alert: High Error Rate" admin@example.com
-fi
-```
-
-```bash
-# 設定為可執行
-chmod +x /usr/local/bin/line-reservation-monitor.sh
-
-# 加入 crontab（每 5 分鐘執行一次）
-crontab -e
-*/5 * * * * /usr/local/bin/line-reservation-monitor.sh
-```
-
-## 定期維護任務
-
-### 每日任務
-
-```bash
-#!/bin/bash
-# daily-maintenance.sh
-
-# 1. 清理快取
 cd /var/www/line-reservation/backend
-php artisan cache:clear
-php artisan view:clear
-
-# 2. 優化資料庫
-mysql -u root -p -e "OPTIMIZE TABLE line_reservation.reservations;"
-
-# 3. 檢查日誌大小
-LOG_SIZE=$(du -sh backend/storage/logs | cut -f1)
-echo "$(date): Log size: $LOG_SIZE" >> /var/log/line-reservation-maintenance.log
+php artisan about
+php artisan migrate:status
+php artisan queue:failed
+php artisan schedule:list
 ```
 
-### 每週任務
+## Health Checks
+
+Laravel health endpoint:
 
 ```bash
-#!/bin/bash
-# weekly-maintenance.sh
-
-# 1. 清理舊日誌
-find backend/storage/logs -name "*.log" -mtime +7 -delete
-
-# 2. 清理軟刪除資料（30天前）
-php artisan tinker --execute="
-Reservation::onlyTrashed()->where('deleted_at', '<', now()->subDays(30))->forceDelete();
-Customer::onlyTrashed()->where('deleted_at', '<', now()->subDays(30))->forceDelete();
-"
-
-# 3. 資料庫備份
-mysqldump -u backup_user -p line_reservation > /backup/weekly_$(date +%Y%m%d).sql
+curl -fsS https://your-domain.example/up
 ```
 
-### 每月任務
+API authentication behavior:
 
 ```bash
-#!/bin/bash
-# monthly-maintenance.sh
-
-# 1. 更新系統套件
-sudo apt update
-sudo apt upgrade -y
-
-# 2. 清理 LINE 訊息日誌（90天前）
-mysql -u root -p line_reservation -e "
-DELETE FROM line_message_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
-"
-
-# 3. 清理活動日誌（180天前）
-mysql -u root -p line_reservation -e "
-DELETE FROM admin_activity_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 180 DAY);
-"
-
-# 4. 檢查 SSL 憑證到期日
-sudo certbot certificates
-
-# 5. 完整系統備份
-tar -czf /backup/monthly_$(date +%Y%m%d).tar.gz /var/www/line-reservation
+curl -i \
+  -H 'Accept: application/json' \
+  https://your-domain.example/api/auth/user
 ```
 
-### 設定 Cron Jobs
+An unauthenticated request should return `401`, proving the API is reachable and middleware is active.
+
+Service checks:
 
 ```bash
-# 編輯 crontab
-crontab -e
+sudo systemctl status apache2
+sudo systemctl status mysql
+sudo systemctl status php8.3-fpm
+sudo apache2ctl configtest
+```
 
-# 加入以下任務
-# 每天凌晨 2:00 執行每日維護
-0 2 * * * /usr/local/bin/daily-maintenance.sh
+Use the PHP-FPM service name installed on the host.
 
-# 每週日凌晨 3:00 執行每週維護
-0 3 * * 0 /usr/local/bin/weekly-maintenance.sh
+## Logs
 
-# 每月 1 號凌晨 4:00 執行每月維護
-0 4 1 * * /usr/local/bin/monthly-maintenance.sh
+Laravel:
 
-# Laravel 排程器（每分鐘）
+```text
+backend/storage/logs/
+```
+
+Apache:
+
+```text
+/var/log/apache2/access.log
+/var/log/apache2/error.log
+```
+
+Common commands:
+
+```bash
+tail -f backend/storage/logs/laravel.log
+tail -n 200 /var/log/apache2/error.log
+journalctl -u php8.3-fpm --since today
+```
+
+Log review must account for personal data. Customer details, LINE messages, IP addresses and user agents should have a retention policy and restricted access.
+
+## Deployment Update
+
+Before updating:
+
+1. inspect pending commits/releases
+2. create database and environment backups
+3. check disk space
+4. verify rollback source
+5. announce maintenance window if users exist
+
+The modular update:
+
+```bash
+./manage.sh update
+```
+
+It pulls source, installs Composer dependencies, runs migrations, rebuilds the frontend in unified mode, rebuilds caches and restarts services.
+
+For an archived portfolio deployment, prefer a fresh staging host over updating an old unknown server in place.
+
+## Laravel Cache
+
+Clear:
+
+```bash
+php artisan optimize:clear
+```
+
+Build production caches:
+
+```bash
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+After changing `.env`, clear and rebuild configuration cache.
+
+## Queue And Scheduler
+
+The default project configuration uses a database queue.
+
+Inspect:
+
+```bash
+php artisan queue:failed
+php artisan queue:retry all
+php artisan queue:work --tries=3
+```
+
+A real deployment should run queue workers under systemd or Supervisor instead of an interactive shell.
+
+Laravel scheduler requires:
+
+```cron
 * * * * * cd /var/www/line-reservation/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-##  備份策略
+Review `routes/console.php` and command classes before enabling scheduled jobs.
 
-### 3-2-1 備份原則
+## Backup
 
-- **3** 份備份副本
-- **2** 種不同的儲存媒體
-- **1** 份異地備份
+Minimum backup set:
 
-### 資料庫備份
+- database dump
+- `backend/.env`
+- `APP_KEY`
+- uploaded files under `backend/storage/app/public`
+- persistent deployment configuration
+- web server configuration
 
-#### 全量備份
-
-```bash
-#!/bin/bash
-# database-backup.sh
-
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/backup/database"
-DB_NAME="line_reservation"
-DB_USER="backup_user"
-DB_PASS="backup_password"
-
-# 建立備份目錄
-mkdir -p $BACKUP_DIR
-
-# 執行備份
-mysqldump -u $DB_USER -p$DB_PASS \
-    --single-transaction \
-    --quick \
-    --lock-tables=false \
-    $DB_NAME | gzip > $BACKUP_DIR/backup_$DATE.sql.gz
-
-# 保留最近 30 天的備份
-find $BACKUP_DIR -name "backup_*.sql.gz" -mtime +30 -delete
-
-echo "Backup completed: backup_$DATE.sql.gz"
-```
-
-#### 增量備份（使用二進制日誌）
+Database:
 
 ```bash
-# 啟用二進制日誌
-# /etc/mysql/mysql.conf.d/mysqld.cnf
-[mysqld]
-log_bin = /var/log/mysql/mysql-bin.log
-expire_logs_days = 7
-max_binlog_size = 100M
-
-# 刷新二進制日誌
-mysql -u root -p -e "FLUSH LOGS;"
-
-# 備份二進制日誌
-mysqlbinlog /var/log/mysql/mysql-bin.000001 > /backup/binlog_$(date +%Y%m%d).sql
+mysqldump --single-transaction \
+  -u <user> -p <database> \
+  > database-$(date +%Y%m%d-%H%M%S).sql
 ```
 
-### 應用程式備份
+Environment and uploaded files contain secrets or personal data. Encrypt backups and store them outside the application host.
+
+### Restore Test
+
+A backup is not complete until restore is tested:
+
+1. create an isolated database
+2. restore the dump
+3. deploy matching application version
+4. restore the same `APP_KEY`
+5. verify encrypted LINE settings can be read
+6. verify uploaded assets
+7. run smoke tests
+
+## Database Maintenance
 
 ```bash
-#!/bin/bash
-# application-backup.sh
-
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/backup/application"
-APP_DIR="/var/www/line-reservation"
-
-mkdir -p $BACKUP_DIR
-
-# 備份應用程式（排除 node_modules 和 vendor）
-tar -czf $BACKUP_DIR/app_$DATE.tar.gz \
-    --exclude='node_modules' \
-    --exclude='vendor' \
-    --exclude='storage/logs/*.log' \
-    $APP_DIR
-
-# 保留最近 14 天的備份
-find $BACKUP_DIR -name "app_*.tar.gz" -mtime +14 -delete
-
-echo "Application backup completed: app_$DATE.tar.gz"
+mysqlcheck -u <user> -p --analyze <database>
 ```
 
-### 還原備份
+Use application queries or migration-safe tooling for cleanup. Avoid direct deletes that bypass soft-delete or audit behavior.
+
+Review growth of:
+
+- `line_message_logs`
+- `admin_activity_logs`
+- `jobs`
+- `failed_jobs`
+- `sessions`
+- soft-deleted customers/reservations
+
+Define retention before deleting records.
+
+## LINE Webhook Troubleshooting
+
+Expected URL:
+
+```text
+https://your-domain.example/api/webhook/{webhook_token}
+```
+
+Checklist:
+
+1. tenant is active and unexpired
+2. UUID token matches tenant record
+3. encrypted Channel Secret and Access Token exist
+4. deployed `APP_KEY` can decrypt settings
+5. LINE Console uses HTTPS URL
+6. `X-Line-Signature` is calculated from the exact raw body
+7. server time and TLS certificate are valid
+8. logs contain no credential values
+
+Do not disable signature verification as a troubleshooting shortcut on a reachable environment.
+
+## CORS Troubleshooting
+
+Check:
+
+```dotenv
+FRONTEND_URL=https://app.example.com
+CORS_ALLOWED_ORIGINS=https://app.example.com
+SANCTUM_STATEFUL_DOMAINS=app.example.com
+SESSION_SECURE_COOKIE=true
+```
+
+Then:
 
 ```bash
-# 還原資料庫
-gunzip < /backup/database/backup_20251023_020000.sql.gz | mysql -u root -p line_reservation
-
-# 還原應用程式
-cd /var/www
-sudo rm -rf line-reservation.bak
-sudo mv line-reservation line-reservation.bak
-sudo tar -xzf /backup/application/app_20251023_020000.tar.gz
-sudo chown -R www-data:www-data line-reservation
+php artisan optimize:clear
+curl -i \
+  -H 'Origin: https://app.example.com' \
+  https://api.example.com/api/auth/user
 ```
 
-## ❌ 錯誤處理
+Do not use wildcard origins with credentials.
 
-### 常見錯誤及解決方案
+## Common Failures
 
-#### 1. 500 內部伺服器錯誤
+### 500 Response
 
 ```bash
-# 檢查 Laravel 日誌
-tail -f backend/storage/logs/laravel.log
-
-# 檢查 Apache 錯誤日誌
-tail -f /var/log/apache2/line-reservation_error.log
-
-# 檢查權限
-sudo chown -R www-data:www-data /var/www/line-reservation
-sudo chmod -R 755 /var/www/line-reservation
-sudo chmod -R 775 /var/www/line-reservation/backend/storage
+tail -n 200 backend/storage/logs/laravel.log
+php artisan about
+php artisan config:show app
 ```
 
-#### 2. 資料庫連接失敗
+Check permissions on `storage` and `bootstrap/cache`, database connectivity and required PHP extensions.
+
+### Database Connection
 
 ```bash
-# 測試資料庫連接
-mysql -u line_user -p line_reservation -e "SELECT 1"
-
-# 檢查 MySQL 狀態
-systemctl status mysql
-
-# 重啟 MySQL
-sudo systemctl restart mysql
-
-# 檢查 .env 配置
-cat backend/.env | grep DB_
+mysql -h <host> -P <port> -u <user> -p <database>
+php artisan migrate:status
 ```
 
-#### 3. LINE Webhook 失敗
+Never print the database password into shared logs or shell history.
+
+### Frontend Uses Wrong API
+
+Inspect build-time environment:
+
+```dotenv
+VITE_API_BASE_URL=https://api.example.com/api
+```
+
+Vite variables are embedded at build time. Rebuild after changing them:
 
 ```bash
-# 檢查 Webhook URL 可訪問性
-curl -X POST https://your-domain.com/api/line/webhook
-
-# 檢查 LINE 簽名驗證
-# 暫時停用簽名驗證進行測試（不建議在生產環境）
-# routes/api.php
-Route::post('/line/webhook', [LineWebhookController::class, 'handle']);
-// ->middleware('verify.line.signature');
-
-# 查看 LINE 相關日誌
-grep "LINE" backend/storage/logs/laravel.log
-```
-
-#### 4. 前端 CORS 錯誤
-
-```bash
-# 檢查 CORS 配置
-cat backend/config/cors.php
-
-# 確認 FRONTEND_URL 設定正確
-cat backend/.env | grep FRONTEND_URL
-
-# 清除配置快取
-php artisan config:clear
-```
-
-## 效能優化
-
-### Laravel 優化
-
-```bash
-# 配置快取
-php artisan config:cache
-
-# 路由快取
-php artisan route:cache
-
-# 視圖快取
-php artisan view:cache
-
-# 優化 Composer autoload
-composer dump-autoload --optimize
-
-# 開啟 OPcache
-# /etc/php/8.3/fpm/php.ini
-opcache.enable=1
-opcache.memory_consumption=128
-opcache.interned_strings_buffer=8
-opcache.max_accelerated_files=10000
-opcache.validate_timestamps=0  # 生產環境設為 0
-```
-
-### 資料庫優化
-
-```sql
--- 分析表格
-ANALYZE TABLE reservations, customers, services;
-
--- 優化表格
-OPTIMIZE TABLE reservations, customers, services;
-
--- 查看慢查詢
-SHOW VARIABLES LIKE 'slow_query_log';
-SET GLOBAL slow_query_log = 'ON';
-SET GLOBAL long_query_time = 2;
-
--- 檢查索引使用情況
-EXPLAIN SELECT * FROM reservations 
-WHERE reservation_date = '2025-10-25' AND status = 'confirmed';
-```
-
-### 前端優化
-
-```bash
-# 建立生產版本（自動優化）
 cd frontend
+npm ci
 npm run build
-
-# 結果包含:
-# - 代碼壓縮
-# - Tree shaking
-# - CSS 壓縮
-# - 圖片優化
 ```
 
-## 安全維護
-
-### 安全檢查清單
+### Avatar Or Storage 404
 
 ```bash
-# 1. 更新系統套件
-sudo apt update && sudo apt upgrade -y
-
-# 2. 更新 Composer 依賴
 cd backend
-composer update
+php artisan storage:link
+ls -la public/storage
+```
 
-# 3. 更新 npm 依賴
-cd frontend
-npm update
+Confirm the frontend API origin and Laravel public disk URL match.
 
-# 4. 檢查安全漏洞
-npm audit
+## Security Maintenance
+
+Regular checks:
+
+```bash
+cd backend
 composer audit
 
-# 5. 修復安全漏洞
-npm audit fix
-composer update --with-dependencies
-
-# 6. 檢查檔案權限
-find /var/www/line-reservation -type f -perm 0777
-find /var/www/line-reservation -type d -perm 0777
-
-# 7. 檢查 SSL 憑證
-sudo certbot certificates
-
-# 8. 更新防火牆規則
-sudo ufw status
-
-# 9. 檢查失敗的登入嘗試
-grep "Failed" backend/storage/logs/laravel.log | wc -l
-
-# 10. 檢查異常 IP
-tail -1000 /var/log/apache2/line-reservation_access.log | \
-awk '{print $1}' | sort | uniq -c | sort -rn | head -20
+cd ../frontend
+npm audit --omit=dev
 ```
 
-### SSL 憑證更新
+Also:
 
-```bash
-# 測試憑證更新
-sudo certbot renew --dry-run
+- apply operating-system security updates
+- renew and test TLS certificates
+- rotate credentials after any suspected exposure
+- review administrator accounts and active Sanctum tokens
+- review failed logins and unexpected webhook traffic
+- verify `APP_DEBUG=false`
+- verify backups are encrypted and restorable
 
-# 手動更新憑證
-sudo certbot renew
+## Decommissioning
 
-# 自動更新（cron job）
-0 3 * * * certbot renew --quiet && systemctl reload apache2
-```
+When shutting down a deployment:
 
----
+1. disable DNS and webhook delivery
+2. revoke LINE tokens
+3. revoke Sanctum tokens
+4. archive or securely delete customer data according to policy
+5. destroy database and backup credentials
+6. remove `.env`, `APP_KEY` and deployment credential files
+7. retain only sanitized artifacts needed for portfolio demonstration
 
-**文件版本**: v1.0.0  
-**最後更新**: 2025-10-23  
-**維護者**: 傅盛祥 (Spencer Kuku)
+Last reviewed: 2026-06-13

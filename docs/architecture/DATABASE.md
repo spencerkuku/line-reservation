@@ -1,720 +1,268 @@
-# LINE 預約系統 - 資料庫設計文件
+# Database Architecture
 
-> 多租戶 SaaS 平台的資料庫架構與 Schema 設計
+資料庫以 MySQL 8+ 或 MariaDB 10.6+ 為目標，schema 由 `backend/database/migrations/` 管理。
 
-## 目錄
+## Design Goals
 
-- [資料庫概覽](#資料庫概覽)
-- [多租戶設計](#多租戶設計)
-- [ERD 關係圖](#erd-關係圖)
-- [資料表結構](#資料表結構)
-- [資料關聯](#資料關聯)
-- [索引策略](#索引策略)
-- [資料字典](#資料字典)
-- [遷移管理](#遷移管理)
+- 每個 business record 明確關聯 `tenant_id`
+- 使用 Eloquent global scope 降低跨租戶讀取風險
+- 保留預約歷史快照
+- 支援軟刪除、活動稽核與 LINE 訊息追蹤
+- 對常見租戶、日期、狀態查詢建立複合索引
 
----
+## Core Relationships
 
-## 資料庫概覽
-
-### 基本資訊
-
-- **資料庫引擎**: MySQL 8.0+ / MariaDB 10.6+
-- **字元編碼**: utf8mb4
-- **排序規則**: utf8mb4_unicode_ci
-- **時區**: Asia/Taipei (UTC+8)
-- **資料庫名稱**: line_reservation
-- **架構模式**: 多租戶共享資料庫 (Shared Database with Tenant Scope)
-
-### 多租戶資料表清單
-
-| 資料表名稱 | 說明 | 多租戶 | 記錄數量(約) |
-|-----------|------|--------|-------------|
-| `tenants` | 租戶主表 | N/A | 10-1000 |
-| `users` | 系統用戶（租戶管理員） | Yes | 1-10/租戶 |
-| `customers` | LINE 客戶資料 | Yes | 100-10000/租戶 |
-| `services` | 服務項目 | Yes | 5-50/租戶 |
-| `available_times` | 可預約時段 | Yes | 50-500/租戶 |
-| `reservations` | 預約記錄 | Yes | 1000-100000/租戶 |
-| `settings` | 系統設定 | Yes | 10-50/租戶 |
-| `line_message_logs` | LINE 訊息日誌 | Yes | 10000+/租戶 |
-| `admin_activity_logs` | 管理員操作日誌 | Yes | 1000+/租戶 |
-| `cache` | Laravel 快取 | N/A | 變動 |
-| `jobs` | 佇列任務 | N/A | 變動 |
-| `personal_access_tokens` | API Tokens | Yes | 10-100/租戶 |
-
-## ERD 關係圖
-
-```
-┌──────────────┐         ┌──────────────┐
-│    users     │         │  customers   │
-│──────────────│         │──────────────│
-│ id (PK)      │         │ id (PK)      │
-│ name         │         │ line_user_id │
-│ email        │         │ name         │
-│ password     │         │ phone        │
-│ role         │         │ email        │
-│ status       │         │ gender       │
-└──────┬───────┘         │ birthday     │
-       │                 │ status       │
-       │                 │ ...          │
-       │                 └──────┬───────┘
-       │                        │
-       │                        │ 1:N
-       │                        │
-       │                 ┌──────▼────────┐
-       │                 │ reservations  │
-       │         ┌───────│───────────────│
-       │         │       │ id (PK)       │
-       │  1:N    │       │ customer_id(FK)
-       │         │       │ service_id(FK)│
-       └─────────┼───────│ check_in_by(FK)
-                 │       │ available_time_id(FK)
-                 │       │ reservation_date
-                 │       │ reservation_time
-                 │       │ status        │
-                 │       │ check_in_status
-                 │       │ payment_status│
-                 │       │ ...           │
-                 │       └──────┬────┬───┘
-                 │              │    │
-        ┌────────┴─────┐   1:N  │    │ N:1
-        │   services   │────────┘    │
-        │──────────────│              │
-        │ id (PK)      │         ┌────▼──────────┐
-        │ name         │         │available_times│
-        │ description  │         │───────────────│
-        │ duration     │         │ id (PK)       │
-        │ price        │         │ title         │
-        │ is_active    │         │ start_time    │
-        └──────────────┘         │ end_time      │
-                                 │ max_capacity  │
-                                 │ current_bookings
-                                 └───────────────┘
-
-┌──────────────────┐      ┌────────────────────┐
-│    settings      │      │ line_message_logs  │
-│──────────────────│      │────────────────────│
-│ id (PK)          │      │ id (PK)            │
-│ key              │      │ line_user_id       │
-│ value            │      │ message_type       │
-│ type             │      │ message_content    │
-└──────────────────┘      │ bot_response       │
-                          │ direction          │
-                          └────────────────────┘
-
-┌──────────────────────┐
-│ admin_activity_logs  │
-│──────────────────────│
-│ id (PK)              │
-│ user_id (FK)         │
-│ module               │
-│ action               │
-│ description          │
-│ old_values           │
-│ new_values           │
-│ ip_address           │
-└──────────────────────┘
+```text
+tenants
+  ├── users
+  ├── customers
+  │     └── reservations
+  ├── services
+  │     └── reservations
+  ├── available_times
+  │     └── reservations
+  ├── settings
+  ├── line_message_logs
+  └── admin_activity_logs
 ```
 
-## 📑 資料表結構
+Laravel framework tables additionally include personal access tokens, sessions, cache, jobs, failed jobs and password reset tokens.
 
-### 1. users - 系統用戶表
+## Business Tables
 
-管理員和系統用戶資料。
+### `tenants`
 
-```sql
-CREATE TABLE `users` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(255) NOT NULL,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
-  `email_verified_at` TIMESTAMP NULL,
-  `password` VARCHAR(255) NOT NULL,
-  `phone` VARCHAR(255) NULL,
-  `role` ENUM('admin', 'user') DEFAULT 'user',
-  `status` ENUM('Active', 'Inactive', 'Banned') DEFAULT 'Active',
-  `line_user_id` VARCHAR(255) NULL UNIQUE,
-  `avatar` VARCHAR(255) NULL,
-  `remember_token` VARCHAR(100) NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  INDEX `users_role_index` (`role`),
-  INDEX `users_status_index` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+租戶與訂閱狀態。
 
-**欄位說明**:
-- `id`: 主鍵
-- `name`: 用戶姓名
-- `email`: 電子郵件（登入帳號）
-- `password`: 加密後的密碼
-- `role`: 角色 (admin=管理員, user=一般用戶)
-- `status`: 狀態 (Active=啟用, Inactive=停用, Banned=封禁)
-- `line_user_id`: LINE 用戶 ID（可選）
-- `avatar`: 頭像 URL
+| Field | Purpose |
+| --- | --- |
+| `id` | Primary key |
+| `name`, `slug` | Display name and unique URL identifier |
+| `email`, `phone`, `address` | Contact information |
+| `logo` | Tenant branding asset |
+| `webhook_token` | Unique UUID used in LINE webhook URL |
+| `status` | Tenant lifecycle status |
+| `trial_ends_at` | Trial expiry |
+| `subscription_ends_at` | Subscription expiry |
+| `plan` | Plan identifier |
+| `settings` | Tenant-level JSON settings |
+| `deleted_at` | Soft delete |
 
-### 2. customers - 客戶資料表
+LINE Channel credentials are not stored on this table. They live in `settings`.
 
-LINE Bot 用戶的客戶資料。
+### `users`
 
-```sql
-CREATE TABLE `customers` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `line_user_id` VARCHAR(255) NULL UNIQUE,
-  `name` VARCHAR(255) NOT NULL,
-  `phone` VARCHAR(255) NULL,
-  `email` VARCHAR(255) NULL,
-  `gender` ENUM('male', 'female', 'other') NULL,
-  `birthday` DATE NULL,
-  `address` TEXT NULL,
-  `notes` TEXT NULL,
-  `status` ENUM('active', 'inactive', 'blocked') DEFAULT 'active',
-  `preferences` JSON NULL,
-  `last_interaction_at` TIMESTAMP NULL,
-  `referral_source` VARCHAR(255) NULL,
-  `total_reservations` INT DEFAULT 0,
-  `total_spent` DECIMAL(10, 2) DEFAULT 0,
-  `line_display_name` VARCHAR(255) NULL,
-  `line_picture_url` VARCHAR(500) NULL,
-  `blocked_at` TIMESTAMP NULL,
-  `blocked_reason` TEXT NULL,
-  `unblocked_at` TIMESTAMP NULL,
-  `deleted_at` TIMESTAMP NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  INDEX `customers_status_created_at_index` (`status`, `created_at`),
-  INDEX `customers_phone_index` (`phone`),
-  INDEX `customers_email_index` (`email`),
-  INDEX `customers_last_interaction_at_index` (`last_interaction_at`),
-  INDEX `customers_deleted_at_index` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+後台帳號。
 
-**欄位說明**:
-- `id`: 主鍵
-- `line_user_id`: LINE 平台的用戶 ID
-- `name`: 客戶姓名
-- `phone`: 聯絡電話
-- `email`: 電子郵件
-- `gender`: 性別 (male=男, female=女, other=其他)
-- `status`: 狀態 (active=啟用, inactive=停用, blocked=封鎖)
-- `preferences`: 偏好設定（JSON 格式）
-- `total_reservations`: 累計預約次數
-- `total_spent`: 累計消費金額
-- `blocked_at`: 封鎖時間
-- `deleted_at`: 軟刪除時間
+| Field | Purpose |
+| --- | --- |
+| `tenant_id` | Nullable for system administrator |
+| `name`, `email`, `password` | Identity and credentials |
+| `role` | `system_admin` or tenant role such as `admin` |
+| `status` | Account status; active login expects `Active` |
+| `avatar` | Public storage path |
+| `must_change_password` | Force-change flow flag |
 
-### 3. services - 服務項目表
+`email` is globally unique.
 
-提供的服務項目列表。
+### `customers`
 
-```sql
-CREATE TABLE `services` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `name` VARCHAR(255) NOT NULL,
-  `description` TEXT NOT NULL,
-  `duration` INT NOT NULL COMMENT '服務時長（分鐘）',
-  `price` DECIMAL(8, 2) NULL,
-  `image_url` VARCHAR(255) NULL,
-  `is_active` BOOLEAN DEFAULT TRUE,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  INDEX `services_is_active_index` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+租戶客戶及 LINE profile。
 
-**欄位說明**:
-- `id`: 主鍵
-- `name`: 服務名稱
-- `description`: 服務說明
-- `duration`: 服務時長（分鐘）
-- `price`: 服務價格
-- `is_active`: 是否啟用
+Important fields:
 
-### 4. available_times - 可預約時段表
+- `tenant_id`
+- `line_user_id`
+- `name`, `phone`, `email`
+- `line_display_name`, `line_picture_url`, `line_status_message`
+- `gender`, `birthday`, `address`
+- `notes`, `preferences`, `referral_source`
+- `status`, `last_interaction_at`
+- block/unblock audit fields
+- `deleted_at`
 
-系統提供的可預約時段。
+The original global uniqueness of `line_user_id` comes from an early migration. Multi-tenant code therefore queries with tenant context, but deployments should verify whether the intended database constraint is global or tenant-scoped before importing the same LINE user into multiple tenants.
 
-```sql
-CREATE TABLE `available_times` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `title` VARCHAR(255) NULL,
-  `description` TEXT NULL,
-  `start_time` DATETIME NOT NULL,
-  `end_time` DATETIME NOT NULL,
-  `max_capacity` INT DEFAULT 1 COMMENT '最大容量',
-  `current_bookings` INT DEFAULT 0 COMMENT '當前預約數',
-  `is_active` BOOLEAN DEFAULT TRUE,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  INDEX `available_times_start_time_index` (`start_time`),
-  INDEX `available_times_end_time_index` (`end_time`),
-  INDEX `available_times_is_active_index` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+### `services`
 
-**欄位說明**:
-- `id`: 主鍵
-- `title`: 時段標題
-- `start_time`: 開始時間
-- `end_time`: 結束時間
-- `max_capacity`: 最大容量
-- `current_bookings`: 當前預約數
-- `is_active`: 是否啟用
+| Field | Purpose |
+| --- | --- |
+| `tenant_id` | Owner |
+| `name`, `description` | Service content |
+| `duration` | Duration in minutes |
+| `price` | Decimal price |
+| `image_url` | Optional image |
+| `is_active` | Availability flag |
 
-### 5. reservations - 預約記錄表
+### `available_times`
 
-**最核心的資料表，記錄所有預約資訊。**
+| Field | Purpose |
+| --- | --- |
+| `tenant_id` | Owner |
+| `title`, `description` | Display content |
+| `start_time`, `end_time` | Slot range |
+| `max_capacity` | Maximum bookings |
+| `is_active` | Availability flag |
 
-```sql
-CREATE TABLE `reservations` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `customer_id` BIGINT UNSIGNED NULL,
-  `service_id` BIGINT UNSIGNED NOT NULL,
-  `available_time_id` BIGINT UNSIGNED NULL,
-  
-  -- 預約基本資訊
-  `reservation_date` DATE NOT NULL,
-  `reservation_time` TIME NOT NULL,
-  `status` ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
-  `notes` TEXT NULL COMMENT '管理員備註',
-  `confirmed_at` TIMESTAMP NULL,
-  `cancelled_at` TIMESTAMP NULL,
-  
-  -- 預約時的客戶資訊快照
-  `reservation_name` VARCHAR(255) NULL,
-  `reservation_phone` VARCHAR(255) NULL,
-  `reservation_notes` TEXT NULL COMMENT '客戶備註',
-  
-  -- 報到相關
-  `check_in_status` ENUM('pending', 'checked_in', 'no_show', 'late') DEFAULT 'pending',
-  `check_in_time` TIMESTAMP NULL,
-  `check_in_by` BIGINT UNSIGNED NULL COMMENT '報到操作人員',
-  `no_show` BOOLEAN DEFAULT FALSE,
-  
-  -- 付款相關
-  `payment_status` ENUM('unpaid', 'partial', 'paid', 'refunded') DEFAULT 'unpaid',
-  `payment_method` ENUM('cash', 'credit_card', 'debit_card', 'transfer', 'line_pay', 'other') NULL,
-  `payment_amount` DECIMAL(10, 2) DEFAULT 0,
-  `payment_time` TIMESTAMP NULL,
-  `payment_note` TEXT NULL,
-  
-  `deleted_at` TIMESTAMP NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  -- 外鍵約束
-  FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`available_time_id`) REFERENCES `available_times` (`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`check_in_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  
-  -- 索引
-  INDEX `reservations_customer_id_index` (`customer_id`),
-  INDEX `reservations_service_id_index` (`service_id`),
-  INDEX `reservations_available_time_id_index` (`available_time_id`),
-  INDEX `reservations_reservation_date_index` (`reservation_date`),
-  INDEX `reservations_status_index` (`status`),
-  INDEX `reservations_check_in_status_index` (`check_in_status`),
-  INDEX `reservations_payment_status_index` (`payment_status`),
-  INDEX `reservations_deleted_at_index` (`deleted_at`),
-  
-  -- 複合索引（效能優化）
-  INDEX `reservations_date_status_index` (`reservation_date`, `status`),
-  INDEX `reservations_customer_status_index` (`customer_id`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+Current booking count is computed from reservations rather than stored as a mutable counter.
 
-**重要欄位說明**:
+### `reservations`
 
-**預約狀態** (`status`):
-- `pending`: 待確認
-- `confirmed`: 已確認
-- `completed`: 已完成
-- `cancelled`: 已取消
+Main booking record.
 
-**報到狀態** (`check_in_status`):
-- `pending`: 待報到
-- `checked_in`: 已報到
-- `late`: 遲到（超過預約時間15分鐘）
-- `no_show`: 爽約
+Relationships:
 
-**付款狀態** (`payment_status`):
-- `unpaid`: 未付款
-- `partial`: 部分付款
-- `paid`: 已付款
-- `refunded`: 已退款
+- belongs to tenant
+- belongs to customer
+- belongs to service
+- belongs to available time
+- optionally references users who performed check-in/payment actions
 
-**付款方式** (`payment_method`):
-- `cash`: 現金
-- `credit_card`: 信用卡
-- `debit_card`: 金融卡
-- `transfer`: 轉帳
-- `line_pay`: LINE Pay
-- `other`: 其他
+Important fields:
 
-### 6. settings - 系統設定表
+| Group | Fields |
+| --- | --- |
+| Booking | `reservation_date`, `reservation_time`, `status`, `notes` |
+| Snapshot | `reservation_name`, `reservation_phone`, `reservation_notes` |
+| Lifecycle | `confirmed_at`, `cancelled_at` |
+| Check-in | `check_in_status`, `check_in_time`, `check_in_by`, `no_show` |
+| Payment | `payment_status`, `payment_method`, `payment_amount`, `payment_time`, `payment_note` |
+| Retention | `deleted_at` |
 
-系統配置參數。
+### `settings`
 
-```sql
-CREATE TABLE `settings` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `key` VARCHAR(255) NOT NULL UNIQUE,
-  `value` TEXT NULL,
-  `type` VARCHAR(255) DEFAULT 'string' COMMENT 'string, json, boolean, integer',
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+Tenant key-value settings.
 
-**常用設定項**:
-- `line_channel_access_token`: LINE Channel Access Token
-- `line_channel_secret`: LINE Channel Secret
-- `business_hours`: 營業時間（JSON）
-- `booking_advance_days`: 可預約天數
-- `auto_confirm_booking`: 自動確認預約
+| Field | Purpose |
+| --- | --- |
+| `tenant_id` | Owner |
+| `key` | Setting name |
+| `value` | Serialized or encrypted value |
+| `type` | Value type metadata |
 
-### 7. line_message_logs - LINE 訊息日誌
+`tenant_id + key` is unique.
 
-記錄所有 LINE Bot 的訊息互動。
+Encrypted keys:
 
-```sql
-CREATE TABLE `line_message_logs` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `line_user_id` VARCHAR(255) NOT NULL,
-  `message_type` VARCHAR(255) NOT NULL COMMENT 'text, image, location, etc.',
-  `message_content` TEXT NOT NULL,
-  `bot_response` TEXT NULL,
-  `direction` ENUM('incoming', 'outgoing') NOT NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  INDEX `line_message_logs_line_user_id_index` (`line_user_id`),
-  INDEX `line_message_logs_created_at_index` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+- `line_channel_access_token`
+- `line_channel_secret`
 
-### 8. admin_activity_logs - 管理員操作日誌
+Encryption uses Laravel's application key. Losing `APP_KEY` makes existing encrypted settings unreadable.
 
-記錄所有管理員的操作行為。
+### `line_message_logs`
 
-```sql
-CREATE TABLE `admin_activity_logs` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` BIGINT UNSIGNED NULL,
-  `module` VARCHAR(255) NOT NULL COMMENT '模組名稱: customer, reservation, service等',
-  `action` VARCHAR(255) NOT NULL COMMENT '操作: create, update, delete等',
-  `description` TEXT NOT NULL,
-  `old_values` JSON NULL COMMENT '變更前的值',
-  `new_values` JSON NULL COMMENT '變更後的值',
-  `ip_address` VARCHAR(45) NULL,
-  `user_agent` TEXT NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
-  
-  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
-  
-  INDEX `admin_activity_logs_user_id_index` (`user_id`),
-  INDEX `admin_activity_logs_module_index` (`module`),
-  INDEX `admin_activity_logs_action_index` (`action`),
-  INDEX `admin_activity_logs_created_at_index` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-```
+LINE inbound/outbound audit data:
 
-##  資料關聯
+- tenant
+- LINE user ID
+- message type
+- message content
+- bot response
+- direction
+- timestamps
 
-### 關聯類型說明
+Message payloads may contain personal data. Production retention and access controls should be defined before operation.
 
-```
-users (1) ----< (N) reservations
-  - 一個用戶可以操作多筆預約的報到
+### `admin_activity_logs`
 
-customers (1) ----< (N) reservations
-  - 一個客戶可以有多筆預約
+Administrative audit trail:
 
-services (1) ----< (N) reservations
-  - 一個服務可以被多筆預約使用
+- tenant and user identity snapshot
+- action and module
+- polymorphic subject
+- old/new values
+- request URL, method, IP and user agent
+- status and error message
 
-available_times (1) ----< (N) reservations
-  - 一個時段可以對應多筆預約
+## Tenant Isolation
 
-users (1) ----< (N) admin_activity_logs
-  - 一個用戶可以產生多筆操作日誌
-```
-
-### Eloquent 關聯定義
-
-#### Reservation Model
+Models using `BelongsToTenant` register `TenantScope`.
 
 ```php
-class Reservation extends Model
-{
-    // 預約所屬的客戶
-    public function customer()
-    {
-        return $this->belongsTo(Customer::class);
-    }
-    
-    // 預約的服務
-    public function service()
-    {
-        return $this->belongsTo(Service::class);
-    }
-    
-    // 預約的時段
-    public function availableTime()
-    {
-        return $this->belongsTo(AvailableTime::class);
-    }
-    
-    // 報到操作人員
-    public function checkInUser()
-    {
-        return $this->belongsTo(User::class, 'check_in_by');
-    }
+if (app()->bound('currentTenant')) {
+    $builder->where(
+        $model->getTable().'.tenant_id',
+        app('currentTenant')->id
+    );
 }
 ```
 
-#### Customer Model
+Creation hooks assign `tenant_id` from `currentTenant` when it is not supplied.
 
-```php
-class Customer extends Model
-{
-    // 客戶的所有預約
-    public function reservations()
-    {
-        return $this->hasMany(Reservation::class);
-    }
-}
-```
+Rules for privileged code:
 
-## 索引策略
+1. Treat `withoutGlobalScopes()` as a security-sensitive operation.
+2. Always add an explicit `tenant_id` condition unless the operation is intentionally cross-tenant.
+3. Keep system administrator routes separate from tenant administrator routes.
+4. Test both allowed access and cross-tenant denial.
 
-### 主要索引
+## Index Strategy
 
-| 資料表 | 索引類型 | 欄位 | 用途 |
-|--------|---------|------|------|
-| `users` | UNIQUE | `email` | 登入查詢 |
-| `customers` | UNIQUE | `line_user_id` | LINE 用戶查詢 |
-| `customers` | INDEX | `phone` | 電話搜尋 |
-| `customers` | INDEX | `status`, `created_at` | 狀態篩選與排序 |
-| `reservations` | INDEX | `customer_id` | 客戶預約查詢 |
-| `reservations` | INDEX | `reservation_date` | 日期查詢 |
-| `reservations` | INDEX | `reservation_date`, `status` | 日期與狀態查詢 |
-| `reservations` | INDEX | `check_in_status` | 報到狀態查詢 |
-| `available_times` | INDEX | `start_time`, `end_time` | 時段查詢 |
+The migrations add indexes for frequent access paths, including:
 
-### 效能優化建議
+- tenant and creation date on logs
+- tenant, direction and date on LINE logs
+- tenant and reservation date
+- customer and reservation status
+- tenant and customer status
+- tenant and LINE user ID
+- tenant and active status for services/times
+- reservation date, status, check-in status and payment status
 
-```sql
--- 1. 分析慢查詢
-SHOW PROCESSLIST;
-SHOW FULL PROCESSLIST;
+Before adding an index, inspect production query plans and duplicate indexes created by earlier migrations.
 
--- 2. 查看索引使用情況
-EXPLAIN SELECT * FROM reservations 
-WHERE reservation_date = '2025-10-25' AND status = 'confirmed';
-
--- 3. 優化建議
--- 為常用查詢添加複合索引
-CREATE INDEX idx_reservation_date_status 
-ON reservations (reservation_date, status);
-
--- 為全文搜尋添加索引
-CREATE FULLTEXT INDEX idx_customers_search 
-ON customers (name, phone, email);
-```
-
-## 📚 資料字典
-
-### Enum 值定義
-
-#### 用戶角色 (users.role)
-```php
-'admin'  => '管理員'
-'user'   => '一般用戶'
-```
-
-#### 用戶狀態 (users.status)
-```php
-'Active'   => '啟用'
-'Inactive' => '停用'
-'Banned'   => '封禁'
-```
-
-#### 客戶狀態 (customers.status)
-```php
-'active'   => '啟用'
-'inactive' => '停用'
-'blocked'  => '封鎖'
-```
-
-#### 性別 (customers.gender)
-```php
-'male'   => '男性'
-'female' => '女性'
-'other'  => '其他'
-```
-
-### 預設值
-
-- 預約狀態預設: `pending`
-- 報到狀態預設: `pending`
-- 付款狀態預設: `unpaid`
-- 客戶狀態預設: `active`
-- 服務啟用預設: `true`
-
-## 遷移管理
-
-### 執行遷移
+## Migration Commands
 
 ```bash
-# 查看遷移狀態
+cd backend
+
 php artisan migrate:status
-
-# 執行所有待執行的遷移
 php artisan migrate
+php artisan migrate --pretend
+```
 
-# 執行特定遷移
-php artisan migrate --path=/database/migrations/2025_10_23_000000_create_example_table.php
+Development reset:
 
-# 回滾最後一批遷移
-php artisan migrate:rollback
-
-# 回滾所有遷移
-php artisan migrate:reset
-
-# 重置並重新執行所有遷移
+```bash
 php artisan migrate:fresh
-
-# 重置並執行 Seeder
-php artisan migrate:fresh --seed
+php artisan db:seed
 ```
 
-### 創建新遷移
+`migrate:fresh` destroys data and must never be used against an environment containing required records.
+
+## Seed Data
+
+`DatabaseSeeder` creates portfolio/demo records and fixed initial credentials. It is suitable only for local demonstration.
+
+Do not run the default seeder in production without first replacing its credential strategy and reviewing every inserted record.
+
+## Backup
+
+Minimum database backup:
 
 ```bash
-# 創建資料表遷移
-php artisan make:migration create_table_name_table
-
-# 修改資料表遷移
-php artisan make:migration add_column_to_table_name_table
-
-# 刪除資料表遷移
-php artisan make:migration drop_table_name_table
+mysqldump \
+  --single-transaction \
+  --routines \
+  --triggers \
+  -u <user> -p <database> > backup.sql
 ```
 
-### 遷移順序
-
-遷移檔案按時間戳排序執行：
-
-```
-1. 0001_01_01_000000_create_users_table
-2. 2025_07_05_120000_create_reservation_system_tables
-3. 2025_07_06_032102_create_customers_table
-4. 2025_07_06_032412_add_customer_id_to_reservations_table
-5. 2025_10_03_000001_add_check_in_and_payment_to_reservations
-...
-```
-
-## 資料庫安全
-
-### 備份策略
+Restore:
 
 ```bash
-# 備份整個資料庫
-mysqldump -u username -p line_reservation > backup_$(date +%Y%m%d).sql
-
-# 備份特定資料表
-mysqldump -u username -p line_reservation reservations customers > backup_main_$(date +%Y%m%d).sql
-
-# 還原備份
-mysql -u username -p line_reservation < backup_20251023.sql
+mysql -u <user> -p <database> < backup.sql
 ```
 
-### 權限設定
+Backups containing customer, LINE or audit data must be encrypted and access controlled.
 
-```sql
--- 創建專用資料庫用戶
-CREATE USER 'line_app'@'localhost' IDENTIFIED BY 'strong_password';
+## Schema Review Checklist
 
--- 授予必要權限
-GRANT SELECT, INSERT, UPDATE, DELETE ON line_reservation.* TO 'line_app'@'localhost';
+- `tenant_id` exists on every tenant-owned table
+- foreign keys and delete behavior match business retention rules
+- unique constraints reflect multi-tenant behavior
+- encrypted settings can be decrypted with the deployed `APP_KEY`
+- indexes support actual list/filter queries
+- soft-deleted personal data has a documented retention policy
 
--- 不授予 DROP, ALTER 等危險權限
--- 這些權限僅保留給 root 或 DBA
-
-FLUSH PRIVILEGES;
-```
-
-### 資料清理
-
-```sql
--- 清理 90 天前的 LINE 訊息日誌
-DELETE FROM line_message_logs 
-WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
-
--- 清理 180 天前的活動日誌
-DELETE FROM admin_activity_logs 
-WHERE created_at < DATE_SUB(NOW(), INTERVAL 180 DAY);
-
--- 軟刪除的資料永久刪除（30天後）
-DELETE FROM reservations 
-WHERE deleted_at IS NOT NULL 
-AND deleted_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
-```
-
-## 查詢範例
-
-### 常用查詢
-
-```sql
--- 1. 今日預約列表
-SELECT r.*, c.name as customer_name, s.name as service_name
-FROM reservations r
-LEFT JOIN customers c ON r.customer_id = c.id
-LEFT JOIN services s ON r.service_id = s.id
-WHERE r.reservation_date = CURDATE()
-ORDER BY r.reservation_time;
-
--- 2. 客戶預約歷史
-SELECT * FROM reservations
-WHERE customer_id = 1
-ORDER BY reservation_date DESC, reservation_time DESC;
-
--- 3. 服務熱門度統計
-SELECT s.name, COUNT(r.id) as booking_count
-FROM services s
-LEFT JOIN reservations r ON s.id = r.service_id
-WHERE r.status != 'cancelled'
-GROUP BY s.id
-ORDER BY booking_count DESC;
-
--- 4. 月收入統計
-SELECT 
-  DATE_FORMAT(payment_time, '%Y-%m') as month,
-  SUM(payment_amount) as total_revenue
-FROM reservations
-WHERE payment_status = 'paid'
-GROUP BY month
-ORDER BY month DESC;
-
--- 5. 爽約率統計
-SELECT 
-  COUNT(*) as total_reservations,
-  SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) as no_shows,
-  ROUND(SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100, 2) as no_show_rate
-FROM reservations
-WHERE reservation_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
-```
-
----
-
-**文件版本**: v1.0.0  
-**最後更新**: 2025-10-23  
-**維護者**: 傅盛祥 (Spencer Kuku)
+Last reviewed: 2026-06-13

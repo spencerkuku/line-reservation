@@ -1,569 +1,200 @@
-# LINE 預約系統 - 前端架構文件
+# Frontend Architecture
 
-> 基於 Vue.js 3 的多租戶管理後台架構設計
+Vue 3 administration dashboard for the LINE Reservation Platform.
 
-## 目錄
+## Stack
 
-- [前端概覽](#前端概覽)
-- [多租戶設計](#多租戶設計)
-- [技術棧](#技術棧)
-- [專案結構](#專案結構)
-- [路由系統](#路由系統)
-- [組件架構](#組件架構)
-- [狀態管理](#狀態管理)
-- [API 整合](#api-整合)
-- [UI 設計規範](#ui-設計規範)
-- [最佳實踐](#最佳實踐)
+| Technology | Purpose |
+| --- | --- |
+| Vue 3.5 | UI and Composition API |
+| Vue Router 4 | Client routing and route guards |
+| Tailwind CSS 3 | Styling |
+| Headless UI | Accessible interactive primitives |
+| Heroicons | Icons |
+| FullCalendar 6 | Available-time calendar |
+| DOMPurify | Content sanitization |
+| Vite 7 | Development and production build |
 
----
+Pinia and Axios are installed, but the current primary implementation uses composables, component-local state, `localStorage` and a Fetch-based API wrapper.
 
-## 前端概覽
+## Structure
 
-LINE 預約系統前端採用 **Vue.js 3** 配合 **Composition API**，使用 **Tailwind CSS** 作為 UI 框架，透過 **Vite** 進行快速建置。提供響應式的企業級管理介面，支援多租戶獨立運營、儀表板數據視覺化、預約管理、LINE 訊息日誌查詢等功能。
-
-### 核心特性
-
-- **多租戶支持**: 租戶隔離與狀態管理
-- **現代化 UI**: 基於 Tailwind CSS 的響應式設計
-- **快速開發**: Vite HMR 提供極速的開發體驗
-- **安全認證**: Laravel Sanctum + 租戶驗證
-- **響應式設計**: 支援桌面、平板、手機
-- **類型安全**: 使用 Vue 3 Composition API
-- **狀態管理**: Pinia 集中式狀態管理
-
-## 多租戶設計
-
-前端透過以下機制支援多租戶架構：
-
-- **租戶識別**: URL slug 或 subdomain 識別
-- **資料隔離**: API 請求自動帶入租戶資訊
-- **狀態管理**: 租戶相關狀態在 Pinia store 中管理
-- **權限控制**: 基於租戶的組件與功能顯示
-
-## 技術棧
-
-| 技術 | 版本 | 用途 |
-|------|------|------|
-| **Vue.js** | 3.5.17 | 前端框架 (Composition API) |
-| **Vite** | 6.0 | 建置工具與開發伺服器 |
-| **Vue Router** | 4.5.1 | 單頁應用路由管理 |
-| **Pinia** | 3.0.3 | 狀態管理 (Vuex 替代方案) |
-| **Axios** | 1.10.0 | HTTP 客戶端 (API 請求) |
-| **Tailwind CSS** | 3.4 | 實用優先的 CSS 框架 |
-| **Headless UI** | 1.7.23 | 無樣式 UI 元件庫 |
-| **Heroicons** | 2.2.0 | SVG 圖示庫 |
-| **FullCalendar** | 6.1.18 | 行事曆與時段管理元件 |
-| **DOMPurify** | 3.1.7 | XSS 防護 (HTML 淨化) |
-| DOMPurify | 3.1.7 | XSS 防護 |
-
-## 專案結構
-
-```
-frontend/
-├── public/                     # 靜態資源
-│   └── favicon.ico
-│
-├── src/
-│   ├── main.js                # 應用入口
-│   ├── App.vue                # 根組件
-│   ├── router.js              # 路由配置
-│   ├── style.css              # 全局樣式
-│   │
-│   ├── pages/                 # 頁面組件
-│   │   ├── Dashboard.vue      # 儀表板
-│   │   ├── Login.vue          # 登入頁
-│   │   ├── Customers.vue      # 客戶管理
-│   │   ├── Reservations.vue   # 預約管理
-│   │   ├── CheckIn.vue        # 報到管理
-│   │   ├── Services.vue       # 服務管理
-│   │   ├── AvailableTimes.vue # 時段管理
-│   │   ├── Settings.vue       # 系統設定
-│   │   ├── Profile.vue        # 個人資料
-│   │   └── NotFound.vue       # 404 頁面
-│   │
-│   ├── components/            # 可重用組件
-│   │   ├── DefaultLayout.vue  # 預設佈局
-│   │   ├── Sidebar.vue        # 側邊欄
-│   │   ├── TopBar.vue         # 頂部導航
-│   │   ├── StatCard.vue       # 統計卡片
-│   │   ├── Modal.vue          # 對話框
-│   │   ├── Pagination.vue     # 分頁組件
-│   │   └── ...
-│   │
-│   ├── composables/           # 組合式函數
-│   │   ├── useAuth.js         # 認證邏輯
-│   │   ├── useApi.js          # API 調用
-│   │   ├── useNotification.js # 通知邏輯
-│   │   └── ...
-│   │
-│   ├── utils/                 # 工具函數
-│   │   ├── api.js             # API 配置
-│   │   ├── constants.js       # 常數定義
-│   │   ├── formatter.js       # 格式化工具
-│   │   ├── validator.js       # 驗證工具
-│   │   └── helpers.js         # 輔助函數
-│   │
-│   └── assets/                # 資源文件
-│       ├── images/
-│       └── icons/
-│
-├── index.html                 # HTML 模板
-├── vite.config.js             # Vite 配置
-├── tailwind.config.js         # Tailwind 配置
-├── postcss.config.cjs         # PostCSS 配置
-└── package.json               # 依賴管理
+```text
+frontend/src/
+├── components/
+│   ├── ActionButtons.vue
+│   ├── DataTable.vue
+│   ├── DefaultLayout.vue
+│   ├── GuestLayout.vue
+│   └── StatusTag.vue
+├── composables/
+│   ├── useAuth.js
+│   ├── useLogger.js
+│   └── useReservationFilter.js
+├── pages/
+│   ├── Dashboard.vue
+│   ├── Customers.vue
+│   ├── Reservations.vue
+│   ├── CheckIn.vue
+│   ├── Services.vue
+│   ├── AvailableTimes.vue
+│   ├── Settings.vue
+│   ├── Profile.vue
+│   ├── Subscription.vue
+│   ├── Tenants.vue
+│   ├── ActivityLogs.vue
+│   ├── LineMessageLogs.vue
+│   ├── ForceChangePassword.vue
+│   ├── Login.vue
+│   └── NotFound.vue
+├── utils/
+│   ├── api.js
+│   ├── auth-enhanced.js
+│   ├── logger.js
+│   ├── security.js
+│   ├── validation.js
+│   └── xss-protection.js
+├── router.js
+├── main.js
+└── style.css
 ```
 
-## 🗺 路由系統
+`Users.vue` exists in the source tree but is not currently registered in `router.js`.
 
-### 路由配置
+## Routes
 
-```javascript
-const routes = [
-    {
-        path: "/",
-        component: DefaultLayout,
-        children: [
-            { path: '/', name: 'Dashboard', component: Dashboard },
-            { path: 'customers', name: 'Customers', component: Customers },
-            { path: 'check-in', name: 'CheckIn', component: CheckIn },
-            { path: 'services', name: 'Services', component: Services },
-            { path: 'available-times', name: 'AvailableTimes', component: AvailableTimes },
-            { path: 'reservations', name: 'Reservations', component: Reservations },
-            { path: 'profile', name: 'Profile', component: Profile },
-            { path: 'settings', name: 'Settings', component: Settings },
-        ]
-    },
-    {
-        path: "/login",
-        name: "Login",
-        component: Login
-    },
-    {
-        path: "/:pathMatch(.*)*",
-        name: "NotFound",
-        component: NotFound
-    }
-];
+Authenticated routes render under `DefaultLayout`.
+
+| Route | Page | Access |
+| --- | --- | --- |
+| `/` | Dashboard | admin/system admin |
+| `/customers` | Customers | admin/system admin |
+| `/check-in` | CheckIn | admin/system admin |
+| `/services` | Services | admin/system admin |
+| `/available-times` | AvailableTimes | currently listed as public by route guard |
+| `/reservations` | Reservations | admin/system admin |
+| `/profile` | Profile | authenticated |
+| `/subscription` | Subscription | authenticated |
+| `/settings` | Settings | admin/system admin |
+| `/tenants` | Tenants | system admin |
+| `/activity-logs` | ActivityLogs | system admin metadata |
+| `/line-message-logs` | LineMessageLogs | system admin metadata |
+| `/force-change-password` | ForceChangePassword | force-change flow |
+| `/login` | Login | public |
+
+The route guard:
+
+1. Reads token and user summary from `localStorage`.
+2. Redirects unauthenticated users to login.
+3. Enforces forced password change.
+4. Calls backend token validation.
+5. Checks system administrator metadata.
+6. Restricts management pages to administrator roles.
+
+Backend middleware remains the authorization source of truth.
+
+## API Client
+
+`src/utils/api.js` provides:
+
+- base URL resolution from `VITE_API_BASE_URL`
+- bearer token attachment
+- optional Sanctum CSRF cookie retrieval
+- JSON sanitization
+- common 401/403/429 handling
+- validation error extraction
+- request logging in development
+- helpers for GET, POST, PUT, DELETE and uploads
+
+Default local URL:
+
+```text
+http://localhost:8000/api
 ```
 
-### 路由守衛
+Production must set:
 
-```javascript
-router.beforeEach(async (to, from, next) => {
-    const token = localStorage.getItem('token')
-    const user = JSON.parse(localStorage.getItem('user') || 'null')
-    
-    // 公開頁面
-    const publicPages = ['Login', 'NotFound']
-    const isPublicPage = publicPages.includes(to.name)
-    
-    if (isPublicPage) {
-        next()
-        return
-    }
-    
-    // 檢查登入
-    if (!token) {
-        next({ name: 'Login' })
-        return
-    }
-    
-    // 驗證 Token
-    const isValid = await validateToken()
-    if (!isValid) {
-        localStorage.clear()
-        next({ name: 'Login' })
-        return
-    }
-    
-    // 檢查管理員權限
-    const adminOnlyPages = ['Dashboard', 'Customers', 'CheckIn', 'Services', 
-                           'AvailableTimes', 'Reservations', 'Settings']
-    if (adminOnlyPages.includes(to.name) && user.role !== 'admin') {
-        alert('權限不足，僅限管理員訪問')
-        next({ name: 'Login' })
-        return
-    }
-    
-    next()
-})
+```dotenv
+VITE_API_BASE_URL=https://api.example.com/api
 ```
 
-## 🧩 組件架構
+`getBackendOrigin()` derives storage asset URLs from the API origin, avoiding hard-coded localhost avatar paths.
 
-### 頁面組件
+## State
 
-#### 1. Dashboard.vue - 儀表板
-**功能**: 顯示系統統計數據、近期預約、快速操作
+Current state is distributed:
 
-**主要元素**:
-- 統計卡片 (今日預約、待確認、總客戶、月收入)
-- 近期預約列表
-- 快速操作按鈕
+- authentication token and user summary: `localStorage`
+- page data: component `ref` and `computed`
+- reservation filters: `useReservationFilter`
+- logging helpers: `useLogger`
 
-#### 2. Customers.vue - 客戶管理
-**功能**: 客戶資料的 CRUD 操作
+This is workable for the current application, but future growth would benefit from consolidating session and shared server state. Introducing a store should replace duplicated logic rather than add another layer beside it.
 
-**主要功能**:
-- 客戶列表展示（分頁、搜尋、篩選）
-- 新增/編輯客戶
-- 客戶詳情查看
-- 封鎖/解封客戶
+## Security
 
-#### 3. Reservations.vue - 預約管理
-**功能**: 預約資料管理
+- Rendered untrusted content should pass through DOMPurify helpers.
+- API URLs must be relative paths passed to the shared client.
+- Do not log tokens, credentials, customer payloads or full webhook URLs.
+- Production builds drop `console` and `debugger` statements through Terser.
+- Token storage in `localStorage` increases the impact of XSS; CSP and sanitization remain important.
 
-**主要功能**:
-- 預約列表（多狀態篩選）
-- 新增預約
-- 確認/取消預約
-- 預約詳情查看
+## Logging
 
-#### 4. CheckIn.vue - 報到管理
-**功能**: 客戶報到與付款記錄
+Frontend logging supports local console output in development and optional backend ingestion. Production configuration should keep verbose/security logs disabled unless retention, redaction and access policies are defined.
 
-**主要功能**:
-- 今日預約列表
-- 報到操作
-- 標記爽約
-- 記錄付款
+## Styling
 
-#### 5. Services.vue - 服務管理
-**功能**: 服務項目管理
+The UI uses Tailwind utility classes with:
 
-**主要功能**:
-- 服務列表
-- 新增/編輯/刪除服務
-- 啟用/停用服務
+- gray page backgrounds
+- white bordered cards
+- blue primary actions
+- green success/LINE accents
+- red destructive actions
+- responsive tables and stacked mobile layouts
 
-#### 6. AvailableTimes.vue - 時段管理
-**功能**: 可預約時段管理
+See [UI Design Guide](UI_DESIGN_GUIDE.md).
 
-**主要功能**:
-- 時段列表（日曆視圖）
-- 新增/編輯/刪除時段
-- 查看預約狀況
+## Development
 
-### 可重用組件
-
-#### DefaultLayout.vue
-```vue
-<template>
-  <div class="min-h-screen bg-gray-100">
-    <Sidebar />
-    <div class="ml-64">
-      <TopBar />
-      <main class="p-6">
-        <router-view />
-      </main>
-    </div>
-  </div>
-</template>
-```
-
-#### StatCard.vue
-```vue
-<template>
-  <div class="bg-white rounded-xl shadow-sm p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm text-gray-600">{{ title }}</p>
-        <p class="text-2xl font-bold text-gray-900 mt-2">{{ value }}</p>
-        <p class="text-xs text-gray-500 mt-1">{{ subtitle }}</p>
-      </div>
-      <div :class="`w-12 h-12 ${bgColor} rounded-lg flex items-center justify-center`">
-        <component :is="icon" :class="`w-6 h-6 ${iconColor}`" />
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup>
-defineProps({
-  title: String,
-  value: [String, Number],
-  subtitle: String,
-  icon: Object,
-  bgColor: String,
-  iconColor: String
-})
-</script>
-```
-
-## 📦 狀態管理
-
-### Pinia Stores
-
-#### authStore.js
-```javascript
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref(null)
-  const token = ref(null)
-  
-  const isAuthenticated = computed(() => !!token.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
-  
-  function setUser(userData) {
-    user.value = userData
-    localStorage.setItem('user', JSON.stringify(userData))
-  }
-  
-  function setToken(tokenValue) {
-    token.value = tokenValue
-    localStorage.setItem('token', tokenValue)
-  }
-  
-  function logout() {
-    user.value = null
-    token.value = null
-    localStorage.removeItem('user')
-    localStorage.removeItem('token')
-  }
-  
-  return { user, token, isAuthenticated, isAdmin, setUser, setToken, logout }
-})
-```
-
-## API 整合
-
-### API 配置 (utils/api.js)
-
-```javascript
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  }
-})
-
-// 請求攔截器
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => Promise.reject(error)
-)
-
-// 響應攔截器
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.clear()
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
-
-export default api
-```
-
-### API 調用範例
-
-```javascript
-// 獲取客戶列表
-export async function getCustomers(params) {
-  const response = await api.get('/customers', { params })
-  return response.data
-}
-
-// 創建預約
-export async function createReservation(data) {
-  const response = await api.post('/reservations', data)
-  return response.data
-}
-
-// 更新客戶
-export async function updateCustomer(id, data) {
-  const response = await api.put(`/customers/${id}`, data)
-  return response.data
-}
-```
-
-## UI 設計規範
-
-### 色彩系統
-
-```javascript
-colors: {
-  primary: '#3B82F6',      // 藍色
-  success: '#10B981',      // 綠色
-  warning: '#F59E0B',      // 黃色
-  danger: '#EF4444',       // 紅色
-  gray: {
-    50: '#F9FAFB',
-    100: '#F3F4F6',
-    500: '#6B7280',
-    900: '#111827'
-  }
-}
-```
-
-### 標準組件樣式
-
-**按鈕**:
-```html
-<!-- Primary Button -->
-<button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-  按鈕文字
-</button>
-
-<!-- Success Button -->
-<button class="px-3 py-1.5 bg-green-100 text-green-700 rounded-md hover:bg-green-200">
-  確認
-</button>
-```
-
-**卡片**:
-```html
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-  <!-- 卡片內容 -->
-</div>
-```
-
-**表格**:
-```html
-<table class="min-w-full divide-y divide-gray-200">
-  <thead class="bg-gray-50">
-    <tr>
-      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-        標題
-      </th>
-    </tr>
-  </thead>
-  <tbody class="bg-white divide-y divide-gray-200">
-    <tr class="hover:bg-gray-50 transition-colors">
-      <td class="px-6 py-4 whitespace-nowrap">內容</td>
-    </tr>
-  </tbody>
-</table>
-```
-
-詳細設計規範請參考: [UI_DESIGN_GUIDE.md](./frontend/UI_DESIGN_GUIDE.md)
-
-## ✅ 最佳實踐
-
-### 1. 組件命名
-```
-PascalCase for components: CustomerList.vue
-camelCase for methods: getUserData()
-kebab-case for events: @update-customer
-```
-
-### 2. Composition API 使用
-```vue
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-
-// 響應式數據
-const customers = ref([])
-const loading = ref(false)
-
-// 計算屬性
-const activeCustomers = computed(() => 
-  customers.value.filter(c => c.status === 'active')
-)
-
-// 方法
-async function fetchCustomers() {
-  loading.value = true
-  try {
-    const data = await getCustomers()
-    customers.value = data
-  } finally {
-    loading.value = false
-  }
-}
-
-// 生命週期
-onMounted(() => {
-  fetchCustomers()
-})
-</script>
-```
-
-### 3. 錯誤處理
-```javascript
-try {
-  await api.post('/reservations', data)
-  showNotification('預約創建成功', 'success')
-} catch (error) {
-  const message = error.response?.data?.message || '操作失敗'
-  showNotification(message, 'error')
-}
-```
-
-### 4. 載入狀態
-```vue
-<template>
-  <div v-if="loading" class="text-center py-8">
-    <svg class="animate-spin h-8 w-8 mx-auto text-blue-600">...</svg>
-  </div>
-  <div v-else>
-    <!-- 內容 -->
-  </div>
-</template>
-```
-
-### 5. 條件渲染
-```vue
-<template>
-  <!-- 使用 v-if 進行條件渲染 -->
-  <div v-if="customers.length > 0">
-    <!-- 客戶列表 -->
-  </div>
-  <div v-else class="text-center py-8 text-gray-500">
-    暫無資料
-  </div>
-</template>
-```
-
-## 開發指南
-
-### 啟動開發伺服器
 ```bash
+cd frontend
+cp .env.example .env
+npm ci
 npm run dev
 ```
 
-### 構建生產版本
-```bash
-npm run build
-```
+Checks:
 
-### 預覽生產版本
-```bash
-npm run preview
-```
-
-### 代碼檢查
 ```bash
 npm run lint
-npm run format
+npm run build
+npm audit --omit=dev
 ```
 
-## 📚 參考資源
+The repository currently has no committed Vitest or browser E2E suite.
 
-- [Vue 3 文件](https://vuejs.org/)
-- [Vite 文件](https://vitejs.dev/)
-- [Tailwind CSS 文件](https://tailwindcss.com/)
-- [Pinia 文件](https://pinia.vuejs.org/)
-- [Vue Router 文件](https://router.vuejs.org/)
+## Build Notes
 
----
+Production build output goes to `frontend/dist`.
 
-**文件版本**: v1.0.0  
-**最後更新**: 2025-10-23  
-**維護者**: 傅盛祥 (Spencer Kuku)
+The current main JavaScript bundle is approximately 805 kB before gzip and triggers Vite's chunk-size warning. Recommended future work:
+
+1. Convert page imports in `router.js` to dynamic imports.
+2. Separate FullCalendar into its own chunk.
+3. Inspect duplicated auth/logging utilities.
+4. Measure route-level loading before adding manual chunk rules.
+
+## Review Checklist
+
+- route access matches backend middleware
+- API calls use `utils/api.js`
+- loading and error states are visible
+- user content is escaped or sanitized
+- no environment-specific origin is hard-coded
+- keyboard and focus behavior works for dialogs
+- mobile layout is usable
+- lint and build pass
+
+Last reviewed: 2026-06-13

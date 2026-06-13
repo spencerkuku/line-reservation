@@ -1,76 +1,68 @@
-# LINE 預約系統 - 專案文件目錄
+# Project Documentation
 
-> 完整的技術文件，涵蓋架構設計、API 規範、開發指南、部署流程與維護手冊
+LINE Reservation Platform 的技術文件入口。
 
----
+> Portfolio archive: 專案目前沒有營運中的正式環境。文件依 repository 在 2026-06-13 的程式碼整理，部署內容保留作為工程實作紀錄，重新使用前必須在 staging 驗證。
 
-## 文件組織結構
+## Documentation Map
 
-### 架構文件 (Architecture)
-- [ARCHITECTURE.md](architecture/ARCHITECTURE.md) - 系統整體架構、多租戶設計、服務層架構
-- [DATABASE.md](architecture/DATABASE.md) - 資料庫 Schema、關聯設計、索引策略、多租戶資料隔離
-- [FRONTEND.md](architecture/FRONTEND.md) - Vue.js 前端架構、元件設計、Composition API、狀態管理
-- [UI_DESIGN_GUIDE.md](architecture/UI_DESIGN_GUIDE.md) - UI/UX 設計規範、元件樣式指南
+### Architecture
 
-### API 文件 (API Documentation)
-- [API_DOCS.md](api/API_DOCS.md) - RESTful API 完整接口文件、認證機制、請求/回應格式
+- [System Architecture](architecture/ARCHITECTURE.md)：系統邊界、多租戶設計、資料流與安全模型。
+- [Database](architecture/DATABASE.md)：主要資料表、關聯、租戶隔離及索引策略。
+- [Frontend](architecture/FRONTEND.md)：Vue 應用結構、路由、API client 與建置方式。
+- [UI Design Guide](architecture/UI_DESIGN_GUIDE.md)：目前介面使用的視覺規範與元件模式。
 
-### 開發指南 (Development)
-- [CONTRIBUTING.md](development/CONTRIBUTING.md) - 貢獻指南、程式碼規範、Git 工作流程、Code Review
-- [TESTING.md](development/TESTING.md) - 測試策略、PHPUnit 測試、功能測試、單元測試
+### API
 
-### 部署文件 (Deployment)
-- [cicd/README.md](deployment/cicd/README.md) - 完整的部署系統文件 (5,400+ 行腳本)
-- [cicd/deploy.sh](deployment/cicd/deploy.sh) - 主部署腳本 (統一模式 / API Only 模式)
-- [cicd/manage.sh](deployment/cicd/manage.sh) - 生產環境管理控制台 (互動式選單)
-- [cicd/config.sh](deployment/cicd/config.sh) - 全域配置變數
-- [cicd/lib/](deployment/cicd/lib/) - 11 個模組化腳本
-  - `core.sh` - 核心共用函數、日誌、環境變數操作
-  - `system.sh` - 系統套件安裝與管理
-  - `db.sh` - 資料庫設置、備份與恢復
-  - `git.sh` - Git 版本控制操作
-  - `backend.sh` - Laravel 後端部署
-  - `frontend.sh` - Vue.js 前端建置
-  - `apache.sh` - Apache 配置管理
-  - `ssl.sh` - SSL 憑證管理 (Let's Encrypt)
-  - `backup.sh` - 自動備份與還原
-  - `cloudflare.sh` - Cloudflare Pages 整合
-  - `menu.sh` - 互動式選單 UI
+- [API Reference](api/API_DOCS.md)：認證方式、權限群組及 `routes/api.php` 的端點清單。
 
-### 維護文件 (Maintenance)
-- [MAINTENANCE.md](maintenance/MAINTENANCE.md) - 系統維護、故障排除、效能優化、日誌管理
+### Development
 
----
+- [Contributing](development/CONTRIBUTING.md)：本機環境、程式碼規範與變更流程。
+- [Testing](development/TESTING.md)：目前可執行的測試、靜態檢查與手動驗證清單。
 
-## 快速導覽
+### Operations
 
-### 新手入門
-1. 閱讀根目錄的 [README.md](../README.md) 了解專案概述
-2. 查看 [ARCHITECTURE.md](architecture/ARCHITECTURE.md) 理解系統架構
-3. 參考 [cicd/README.md](deployment/cicd/README.md) 進行部署
+- [Deployment Scripts](deployment/cicd/README.md)：封存的 Apache、PHP-FPM、MySQL、SSL 與 Cloudflare Pages 自動化。
+- [Maintenance](maintenance/MAINTENANCE.md)：備份、日誌、健康檢查及故障排除。
 
-### 開發人員
-1. 閱讀 [CONTRIBUTING.md](development/CONTRIBUTING.md) 了解開發規範
-2. 查看 [API_DOCS.md](api/API_DOCS.md) 了解 API 規範
-3. 參考 [TESTING.md](development/TESTING.md) 撰寫測試
-4. 查看 [DATABASE.md](architecture/DATABASE.md) 了解資料結構
+## Suggested Reading
 
-### 系統管理員
-1. 使用 [cicd/deploy.sh](deployment/cicd/deploy.sh) 進行首次部署
-2. 使用 [cicd/manage.sh](deployment/cicd/manage.sh) 進行日常管理
-3. 參考 [MAINTENANCE.md](maintenance/MAINTENANCE.md) 處理維護事項
-4. 查看 [cicd/README.md](deployment/cicd/README.md) 了解完整部署流程
+新讀者：
 
-### API 使用者
-1. 查看 [API_DOCS.md](api/API_DOCS.md) 了解所有 API 端點
-2. 參考認證機制章節設定 API Token
-3. 查看範例請求與回應格式
+1. [根目錄 README](../README.md)
+2. [System Architecture](architecture/ARCHITECTURE.md)
+3. [Frontend](architecture/FRONTEND.md)
+4. [API Reference](api/API_DOCS.md)
 
----
+維護程式碼：
 
-## 文件版本
+1. [Contributing](development/CONTRIBUTING.md)
+2. [Testing](development/TESTING.md)
+3. [Database](architecture/DATABASE.md)
 
-- **架構文件**: v2.0 (2025-12-12)
-- **部署系統**: v2.0 (2026-01-13)
-- **API 文件**: v1.0 (持續更新)
-- **最後更新**: 2026-01-13
+評估部署腳本：
+
+1. [Deployment Scripts](deployment/cicd/README.md)
+2. [Maintenance](maintenance/MAINTENANCE.md)
+3. `backend/.env.example`
+4. `frontend/.env.example`
+
+## Source Of Truth
+
+文件與程式碼衝突時，以以下檔案為準：
+
+- API routes：`backend/routes/api.php`
+- Middleware registration：`backend/bootstrap/app.php`
+- Database schema：`backend/database/migrations/`
+- Domain models：`backend/app/Models/`
+- Frontend routes：`frontend/src/router.js`
+- Dependencies：`backend/composer.json`、`frontend/package.json`
+- Deployment behavior：`docs/deployment/cicd/*.sh`
+
+## Status
+
+- Documentation revision: 2026-06-13
+- Runtime status: archived, no live demo
+- License: source available for portfolio review; no open-source license granted
