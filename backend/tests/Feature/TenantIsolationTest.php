@@ -73,7 +73,7 @@ class TenantIsolationTest extends TestCase
     public function test_customers_are_isolated_between_tenants(): void
     {
         // 設定當前租戶為 A
-        app()->instance('current_tenant', $this->tenantA);
+        app()->instance('currentTenant', $this->tenantA);
 
         // 建立租戶 A 的客戶
         $customerA = Customer::create([
@@ -104,7 +104,7 @@ class TenantIsolationTest extends TestCase
     public function test_services_are_isolated_between_tenants(): void
     {
         // 設定當前租戶為 A
-        app()->instance('current_tenant', $this->tenantA);
+        app()->instance('currentTenant', $this->tenantA);
 
         // 建立租戶 A 的服務
         Service::create([
@@ -139,7 +139,7 @@ class TenantIsolationTest extends TestCase
     public function test_tenant_id_is_auto_filled_when_creating_records(): void
     {
         // 設定當前租戶為 A
-        app()->instance('current_tenant', $this->tenantA);
+        app()->instance('currentTenant', $this->tenantA);
 
         // 建立客戶（不指定 tenant_id）
         $customer = Customer::create([

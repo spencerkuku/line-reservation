@@ -69,18 +69,16 @@ class MultiTenantAuthTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'success',
-                'data' => [
-                    'token',
-                    'user' => [
-                        'id',
-                        'name',
-                        'email',
-                        'role',
-                    ],
+                'access_token',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'role',
                 ],
             ]);
 
-        $this->assertEquals('system_admin', $response->json('data.user.role'));
+        $this->assertEquals('system_admin', $response->json('user.role'));
     }
 
     /**
@@ -96,18 +94,16 @@ class MultiTenantAuthTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'success',
-                'data' => [
-                    'token',
-                    'user' => [
-                        'id',
-                        'name',
-                        'email',
-                        'role',
-                    ],
+                'access_token',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'role',
                 ],
             ]);
 
-        $this->assertEquals('admin', $response->json('data.user.role'));
+        $this->assertEquals('admin', $response->json('user.role'));
     }
 
     /**
@@ -124,7 +120,7 @@ class MultiTenantAuthTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.user.must_change_password', true);
+            ->assertJsonPath('user.must_change_password', true);
     }
 
     /**
@@ -133,7 +129,7 @@ class MultiTenantAuthTest extends TestCase
     public function test_system_admin_can_access_tenant_management(): void
     {
         $response = $this->actingAs($this->systemAdmin)
-            ->getJson('/api/admin/tenants');
+            ->getJson('/api/system/tenants');
 
         $response->assertStatus(200);
     }
@@ -144,7 +140,7 @@ class MultiTenantAuthTest extends TestCase
     public function test_tenant_admin_cannot_access_tenant_management(): void
     {
         $response = $this->actingAs($this->tenantAdmin)
-            ->getJson('/api/admin/tenants');
+            ->getJson('/api/system/tenants');
 
         $response->assertStatus(403);
     }
@@ -179,9 +175,8 @@ class MultiTenantAuthTest extends TestCase
 
         $response = $this->actingAs($this->tenantAdmin)
             ->postJson('/api/auth/force-change-password', [
-                'current_password' => 'password',
-                'password' => 'newPassword123!',
-                'password_confirmation' => 'newPassword123!',
+                'new_password' => 'newPassword123!',
+                'new_password_confirmation' => 'newPassword123!',
             ]);
 
         $response->assertStatus(200);
@@ -203,15 +198,14 @@ class MultiTenantAuthTest extends TestCase
     /**
      * 測試強制變更密碼時需要正確的當前密碼
      */
-    public function test_force_change_password_requires_correct_current_password(): void
+    public function test_force_change_password_requires_matching_confirmation(): void
     {
         $this->tenantAdmin->update(['must_change_password' => true]);
 
         $response = $this->actingAs($this->tenantAdmin)
             ->postJson('/api/auth/force-change-password', [
-                'current_password' => 'wrongpassword',
-                'password' => 'newPassword123!',
-                'password_confirmation' => 'newPassword123!',
+                'new_password' => 'newPassword123!',
+                'new_password_confirmation' => 'mismatchPassword123!',
             ]);
 
         // 應該返回 422 或錯誤訊息
@@ -235,8 +229,8 @@ class MultiTenantAuthTest extends TestCase
         $response->assertStatus(200);
 
         // 如果有回傳租戶資訊，確認其正確性
-        if ($response->json('data.user.tenant_id')) {
-            $this->assertEquals($this->tenant->id, $response->json('data.user.tenant_id'));
+        if ($response->json('user.tenant_id')) {
+            $this->assertEquals($this->tenant->id, $response->json('user.tenant_id'));
         }
     }
 

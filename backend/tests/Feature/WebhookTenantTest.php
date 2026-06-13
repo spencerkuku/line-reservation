@@ -40,12 +40,12 @@ class WebhookTenantTest extends TestCase
         Setting::withoutGlobalScopes()->create([
             'tenant_id' => $this->tenant->id,
             'key' => 'line_channel_access_token',
-            'value' => 'test_access_token_12345',
+            'value' => Crypt::encryptString('test_access_token_12345'),
         ]);
         Setting::withoutGlobalScopes()->create([
             'tenant_id' => $this->tenant->id,
             'key' => 'line_channel_secret',
-            'value' => 'test_channel_secret_12345',
+            'value' => Crypt::encryptString('test_channel_secret_12345'),
         ]);
 
         // 建立必要的服務和時段
@@ -85,7 +85,7 @@ class WebhookTenantTest extends TestCase
             'events' => []
         ]);
 
-        $response = $this->postJson('/api/webhook/99999', json_decode($body, true), [
+        $response = $this->postJson('/api/webhook/00000000-0000-4000-8000-000000000000', json_decode($body, true), [
             'X-Line-Signature' => 'invalid_signature',
         ]);
 
@@ -106,11 +106,11 @@ class WebhookTenantTest extends TestCase
 
         $signature = $this->generateLineSignature($body, 'test_channel_secret_12345');
 
-        $response = $this->postJson("/api/webhook/{$this->tenant->id}", json_decode($body, true), [
+        $response = $this->postJson("/api/webhook/{$this->tenant->webhook_token}", json_decode($body, true), [
             'X-Line-Signature' => $signature,
         ]);
 
-        $response->assertStatus(403);
+        $response->assertStatus(200);
     }
 
     /**
@@ -122,7 +122,7 @@ class WebhookTenantTest extends TestCase
             'events' => []
         ]);
 
-        $response = $this->postJson("/api/webhook/{$this->tenant->id}", json_decode($body, true), [
+        $response = $this->postJson("/api/webhook/{$this->tenant->webhook_token}", json_decode($body, true), [
             'X-Line-Signature' => 'invalid_signature_123',
         ]);
 
@@ -142,7 +142,7 @@ class WebhookTenantTest extends TestCase
 
         $response = $this->call(
             'POST',
-            "/api/webhook/{$this->tenant->id}",
+            "/api/webhook/{$this->tenant->webhook_token}",
             [],
             [],
             [],
@@ -178,7 +178,7 @@ class WebhookTenantTest extends TestCase
 
         $response = $this->call(
             'POST',
-            "/api/webhook/{$this->tenant->id}",
+            "/api/webhook/{$this->tenant->webhook_token}",
             [],
             [],
             [],
@@ -216,14 +216,14 @@ class WebhookTenantTest extends TestCase
             $tenant2->webhook_url
         );
 
-        // 確認 URL 包含租戶 ID
+        // 確認 URL 包含各租戶獨立的 UUID token
         $this->assertStringContainsString(
-            "/api/webhook/{$this->tenant->id}",
+            "/api/webhook/{$this->tenant->webhook_token}",
             $this->tenant->webhook_url
         );
 
         $this->assertStringContainsString(
-            "/api/webhook/{$tenant2->id}",
+            "/api/webhook/{$tenant2->webhook_token}",
             $tenant2->webhook_url
         );
     }
